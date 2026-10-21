@@ -1,0 +1,15 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}

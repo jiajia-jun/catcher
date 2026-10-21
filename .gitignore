@@ -1,4 +1,23 @@
 .idea/
 .vscode/
 
+# 运行时数据：数据库、日志、失败响应留底
+data/
+*.db
+*.db-shm
+*.db-wal
 
+# 构建产物
+build/bin/
+frontend/node_modules/
+node_modules/
+
+# 前端构建输出；只保留 embed 所需的占位文件
+frontend/dist/*
+!frontend/dist/.gitkeep
+
+# Wails 根据 package.json 生成的校验文件
+frontend/package.json.md5
+
+# 手工调接口的 Apipost 导出，可能含真实凭据
+catcher.json
