@@ -140,7 +140,7 @@ function rowKey(row: AssignmentView) {
     <n-layout-header bordered class="topbar">
       <div class="brand">
         <span class="brand-name">Catcher</span>
-        <span class="brand-sub">作业聚合 · 本地单用户</span>
+        <span class="brand-sub">catch your work</span>
       </div>
       <div class="top-actions">
         <n-text depth="3" class="data-dir" :title="dataDir">{{ dataDir }}</n-text>
