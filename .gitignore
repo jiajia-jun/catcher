@@ -26,3 +26,6 @@ catcher.json
 /docs/
 /draft/
 /CLAUDE.md
+
+# Wails NSIS 构建时下载的 WebView2 引导程序
+build/windows/installer/tmp/
