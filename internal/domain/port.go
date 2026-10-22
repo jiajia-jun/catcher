@@ -40,6 +40,13 @@ type SessionRenewer interface {
 	Renew(ctx context.Context, session entity.Session) (*entity.Session, error)
 }
 
+// SecretCipher 加密/解密本机凭据。实现是 infra/secretstore（Windows DPAPI）
+// 解密失败必须返回错误，调用方据此把平台标记为需要重新登录，不能回退明文
+type SecretCipher interface {
+	Encrypt(plaintext []byte) ([]byte, error)
+	Decrypt(ciphertext []byte) ([]byte, error)
+}
+
 // AccountRepository 维护每平台唯一的账号行。
 type AccountRepository interface {
 	EnsurePlatforms(ctx context.Context, now time.Time) error
