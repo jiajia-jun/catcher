@@ -504,6 +504,9 @@ func TestRefreshPartialKeepsOldDataAndRecordsIssues(t *testing.T) {
 	if run.WarningCount != 1 {
 		t.Fatalf("warning count = %d", run.WarningCount)
 	}
+	if run.CoursesOK != 0 || run.CoursesTotal != 1 {
+		t.Fatalf("课程计数 = %d/%d, want 0/1", run.CoursesOK, run.CoursesTotal)
+	}
 	h.runs.mu.Lock()
 	defer h.runs.mu.Unlock()
 	if len(h.runs.issues) != 1 || h.runs.issues[0].Message != "课程超时" {
@@ -546,6 +549,25 @@ func TestRefreshCanceled(t *testing.T) {
 	}
 	if snaps := h.assignments.snapshots(); len(snaps) != 0 {
 		t.Fatalf("取消不应落库: %#v", snaps)
+	}
+}
+
+func TestRefreshAllSkipsUnimplementedPlatforms(t *testing.T) {
+	h := newHarness(t)
+
+	start, err := h.svc.StartRefresh(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.waitFinished(t)
+
+	if len(start.Platforms) != 1 || start.Platforms[0] != entity.PlatformYuketang {
+		t.Fatalf("全部刷新平台 = %v, want 仅雨课堂", start.Platforms)
+	}
+	h.runs.mu.Lock()
+	defer h.runs.mu.Unlock()
+	if len(h.runs.created) != 1 {
+		t.Fatalf("刷新记录数 = %d, want 1", len(h.runs.created))
 	}
 }
 

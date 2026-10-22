@@ -34,11 +34,16 @@ func newJobID(prefix string) string {
 // 请求上下文只用于受理，任务本身绑定可取消的独立 context
 func (s *Service) StartRefresh(ctx context.Context, platforms []entity.Platform) (*RefreshStart, error) {
 	_ = ctx
-	if len(platforms) == 0 {
-		platforms = entity.AllPlatforms()
-	}
 	if len(s.fetchers) == 0 {
 		return nil, fmt.Errorf("没有可用的平台适配器")
+	}
+	// 「全部刷新」只包含已接入适配器的平台，未实现平台不制造失败记录
+	if len(platforms) == 0 {
+		for _, p := range entity.AllPlatforms() {
+			if _, ok := s.fetchers[p]; ok {
+				platforms = append(platforms, p)
+			}
+		}
 	}
 
 	s.jobsMu.Lock()
@@ -256,7 +261,10 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 	}
 	run.Status = status
 	run.CoursesTotal = len(result.Courses)
-	run.CoursesOK = len(result.Courses)
+	run.CoursesOK = len(result.Courses) - countCourseFailures(result.Warnings)
+	if run.CoursesOK < 0 {
+		run.CoursesOK = 0
+	}
 	run.ItemsSeen = len(result.Assignments)
 	run.ItemsUpserted = upserted
 	run.WarningCount = len(result.Warnings)
@@ -428,6 +436,16 @@ func issueEvents(issues []entity.FetchIssue) []IssueEvent {
 		})
 	}
 	return out
+}
+
+func countCourseFailures(issues []entity.FetchIssue) int {
+	seen := make(map[string]struct{}, len(issues))
+	for _, issue := range issues {
+		if issue.Scope == entity.ScopeCourse && issue.Ref != "" {
+			seen[issue.Ref] = struct{}{}
+		}
+	}
+	return len(seen)
 }
 
 func timePtr(t time.Time) *time.Time { return &t }
