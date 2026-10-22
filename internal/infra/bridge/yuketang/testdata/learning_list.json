@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "data": [
+    {
+      "course_id": 1000001,
+      "classroom_id": 20000001,
+      "course_name": "某门课程",
+      "classroom_name": "2026秋-某门课程-1班",
+      "university_id": 1001,
+      "role": 5
+    },
+    {
+      "course_id": 1000002,
+      "classroom_id": 20000002,
+      "course_name": "历史课程",
+      "classroom_name": "2025春-历史课程-2班",
+      "university_id": 1001,
+      "role": 5
+    }
+  ]
+}
