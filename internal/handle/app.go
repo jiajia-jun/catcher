@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"catcher/internal/domain/entity"
 	"catcher/internal/dto"
 	"catcher/internal/service"
@@ -26,6 +28,10 @@ func New(svc *service.Service) *App {
 // Startup 由 Wails 在窗口启动后调用。
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	// 事件通过 Wails 推给前端；关闭窗口后 runtime 不再发送
+	a.svc.SetEmitter(func(name string, payload any) {
+		runtime.EventsEmit(ctx, name, payload)
+	})
 }
 
 func (a *App) context() context.Context {
@@ -77,6 +83,17 @@ func (a *App) GetBootstrap() (res dto.BootstrapResult) {
 			view.LoginState = string(account.LoginState)
 			if account.DisplayName != "" {
 				view.DisplayName = account.DisplayName
+			}
+		}
+		if run, ok := b.LastRuns[p]; ok {
+			view.LastRunAt = run.StartedAt.UTC().Format(time.RFC3339)
+			view.LastRunState = string(run.Status)
+			if run.ErrorSummary != "" {
+				code := "FETCH_FAILED"
+				if run.Status == entity.RunPartial {
+					code = "FETCH_PARTIAL"
+				}
+				view.Error = &dto.APIError{Code: code, Message: run.ErrorSummary}
 			}
 		}
 		data.Platforms = append(data.Platforms, view)
@@ -161,6 +178,187 @@ func (a *App) OpenDataDir() (res dto.APIResult) {
 		}
 	}
 	return dto.APIResult{OK: true}
+}
+
+// StartRefresh 启动刷新任务；platforms 为空表示全部平台
+func (a *App) StartRefresh(platforms []string) (res dto.RefreshStartResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.RefreshStartResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "启动刷新时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	ps := make([]entity.Platform, 0, len(platforms))
+	for _, raw := range platforms {
+		p, err := entity.ParsePlatform(raw)
+		if err != nil {
+			return dto.RefreshStartResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "平台参数无效", Detail: err.Error()},
+			}
+		}
+		ps = append(ps, p)
+	}
+
+	start, err := a.svc.StartRefresh(a.context(), ps)
+	if err != nil {
+		return dto.RefreshStartResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "REFRESH_FAILED", Message: "启动刷新失败", Detail: err.Error()},
+		}
+	}
+	return dto.RefreshStartResult{
+		OK:             true,
+		JobID:          start.JobID,
+		Platforms:      platformStrings(start.Platforms),
+		AlreadyRunning: start.AlreadyRunning,
+	}
+}
+
+// CancelRefresh 取消一个刷新任务
+func (a *App) CancelRefresh(jobID string) (res dto.APIResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.APIResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "取消刷新时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if jobID == "" {
+		return dto.APIResult{OK: false, Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少任务 id"}}
+	}
+	if err := a.svc.CancelRefresh(jobID); err != nil {
+		return dto.APIResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "REFRESH_NOT_FOUND", Message: "刷新任务不存在或已结束", Detail: err.Error()},
+		}
+	}
+	return dto.APIResult{OK: true}
+}
+
+// StartYuketangLogin 启动扫码登录，二维码与状态通过事件推送
+func (a *App) StartYuketangLogin() (res dto.RefreshStartResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.RefreshStartResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "启动扫码登录时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	start, err := a.svc.StartYuketangLogin(a.context())
+	if err != nil {
+		return dto.RefreshStartResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "LOGIN_FAILED", Message: "启动雨课堂扫码登录失败", Detail: err.Error()},
+		}
+	}
+	return dto.RefreshStartResult{
+		OK:        true,
+		JobID:     start.JobID,
+		Platforms: platformStrings(start.Platforms),
+	}
+}
+
+// CancelYuketangLogin 停止扫码轮询
+func (a *App) CancelYuketangLogin(jobID string) (res dto.APIResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.APIResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "取消扫码登录时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if jobID == "" {
+		return dto.APIResult{OK: false, Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少任务 id"}}
+	}
+	if err := a.svc.CancelYuketangLogin(jobID); err != nil {
+		return dto.APIResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "LOGIN_NOT_FOUND", Message: "扫码任务不存在或已结束", Detail: err.Error()},
+		}
+	}
+	return dto.APIResult{OK: true}
+}
+
+// RefreshYuketangLogin 重新获取一张二维码
+func (a *App) RefreshYuketangLogin(jobID string) (res dto.APIResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.APIResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "刷新二维码时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if jobID == "" {
+		return dto.APIResult{OK: false, Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少任务 id"}}
+	}
+	if err := a.svc.RefreshYuketangLogin(jobID); err != nil {
+		return dto.APIResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "LOGIN_NOT_FOUND", Message: "扫码任务不存在或已结束", Detail: err.Error()},
+		}
+	}
+	return dto.APIResult{OK: true}
+}
+
+// GetFetchIssues 返回某次刷新的问题明细
+func (a *App) GetFetchIssues(runID int64) (res dto.FetchIssuesResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.FetchIssuesResult{
+				OK:    false,
+				Items: []dto.FetchIssueView{},
+				Error: &dto.APIError{Code: "INTERNAL", Message: "读取刷新详情时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if runID <= 0 {
+		return dto.FetchIssuesResult{
+			OK:    false,
+			Items: []dto.FetchIssueView{},
+			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少刷新记录 id"},
+		}
+	}
+	issues, err := a.svc.FetchIssues(a.context(), runID)
+	if err != nil {
+		return dto.FetchIssuesResult{
+			OK:    false,
+			Items: []dto.FetchIssueView{},
+			Error: &dto.APIError{Code: "STORAGE", Message: "读取刷新详情失败", Detail: err.Error()},
+		}
+	}
+
+	items := make([]dto.FetchIssueView, 0, len(issues))
+	for _, issue := range issues {
+		items = append(items, dto.FetchIssueView{
+			Scope:   string(issue.Scope),
+			Ref:     issue.Ref,
+			Kind:    string(issue.Kind),
+			Message: issue.Message,
+			RawPath: issue.RawPath,
+		})
+	}
+	return dto.FetchIssuesResult{OK: true, Items: items}
+}
+
+func platformStrings(platforms []entity.Platform) []string {
+	out := make([]string, len(platforms))
+	for i, p := range platforms {
+		out[i] = string(p)
+	}
+	return out
 }
 
 func toEntityFilter(f dto.AssignmentFilter) (entity.AssignmentFilter, *dto.APIError) {

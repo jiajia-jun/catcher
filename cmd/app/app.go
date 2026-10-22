@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"path/filepath"
 	"sync"
 	"time"
@@ -17,15 +18,20 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
+	"catcher/internal/domain"
+	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
+	"catcher/internal/infra/bridge/yuketang"
+	"catcher/internal/infra/secretstore"
+	"catcher/internal/infra/sender"
 	"catcher/internal/infra/sqlite"
 	"catcher/internal/service"
 	"catcher/pkg/config"
 	"catcher/pkg/logger"
 )
 
-// Version 是构建版本。M0 先写死，发布前改为 ldflags 注入。
-const Version = "0.1.0-m0"
+// Version 是构建版本。M1 先写死，发布前改为 ldflags 注入。
+const Version = "0.2.0-m1"
 
 // Run 启动 Wails 应用，阻塞到窗口关闭。
 func Run(assets fs.FS) error {
@@ -76,7 +82,37 @@ func Run(assets fs.FS) error {
 		return err
 	}
 
-	svc := service.New(repo, repo, cfg, dataDir, Version)
+	// 每个平台一个 Sender（限速互不干扰），共享 Transport 复用连接池
+	transport := http.DefaultTransport
+	ykSender := sender.New(sender.Config{
+		Transport:   transport,
+		MinInterval: 300 * time.Millisecond,
+		Logger:      lg,
+	})
+	yk := yuketang.New(yuketang.Options{
+		Sender: ykSender,
+		Logger: lg,
+		Now:    time.Now,
+	})
+
+	svc := service.New(service.Deps{
+		Accounts:    repo,
+		Sessions:    sqlite.NewSessionRepo(db, secretstore.New()),
+		Assignments: repo,
+		Runs:        sqlite.NewFetchRunRepo(db),
+		Fetchers: map[entity.Platform]domain.Fetcher{
+			entity.PlatformYuketang: yk,
+		},
+		Renewers: map[entity.Platform]domain.SessionRenewer{
+			entity.PlatformYuketang: yk,
+		},
+		QRLogin: yk,
+		Config:  cfg,
+		DataDir: dataDir,
+		Version: Version,
+		Logger:  lg,
+		Now:     time.Now,
+	})
 	h := handle.New(svc)
 
 	lg.Info("应用启动",
@@ -89,6 +125,7 @@ func Run(assets fs.FS) error {
 	shutdown := func() {
 		once.Do(func() {
 			lg.Info("应用退出")
+			svc.CancelAll()
 			closeAll()
 		})
 	}

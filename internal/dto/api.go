@@ -94,3 +94,27 @@ type SettingsResult struct {
 	Error    *APIError     `json:"error,omitempty"`
 	Settings *SettingsView `json:"settings,omitempty"`
 }
+
+// RefreshStartResult 是刷新/扫码任务的受理结果
+type RefreshStartResult struct {
+	OK             bool      `json:"ok"`
+	JobID          string    `json:"jobId,omitempty"`
+	Platforms      []string  `json:"platforms,omitempty"`
+	AlreadyRunning bool      `json:"alreadyRunning"`
+	Error          *APIError `json:"error,omitempty"`
+}
+
+// FetchIssueView 是一次刷新的问题摘要，不含任何凭据
+type FetchIssueView struct {
+	Scope   string `json:"scope"`
+	Ref     string `json:"ref,omitempty"`
+	Kind    string `json:"kind"`
+	Message string `json:"message"`
+	RawPath string `json:"rawPath,omitempty"`
+}
+
+type FetchIssuesResult struct {
+	OK    bool             `json:"ok"`
+	Items []FetchIssueView `json:"items"`
+	Error *APIError        `json:"error,omitempty"`
+}
