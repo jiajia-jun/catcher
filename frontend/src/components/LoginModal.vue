@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { NAlert, NButton, NModal, NSpace, NSpin, NText, useMessage } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NCheckbox,
+  NInput,
+  NModal,
+  NSpace,
+  NSpin,
+  NText,
+  useMessage,
+} from 'naive-ui'
 import QRCode from 'qrcode'
 import { useAppStore } from '../stores/app'
 
@@ -10,6 +20,16 @@ const message = useMessage()
 const qrImage = ref('')
 const now = ref(Date.now())
 let timer: number | undefined
+
+const phone = ref('')
+const password = ref('')
+const remember = ref(true)
+const formError = ref('')
+
+const isChaoxing = computed(() => store.login.platform === 'chaoxing')
+const title = computed(() =>
+  isChaoxing.value ? '学习通账号登录' : '雨课堂扫码登录',
+)
 
 function tick() {
   now.value = Date.now()
@@ -35,6 +55,10 @@ watch(
 watch(
   () => store.login.show,
   (show) => {
+    if (!show) {
+      password.value = ''
+      formError.value = ''
+    }
     if (show) {
       // 弹窗可能是启动很久后才打开的，先用当前时间刷新，避免倒计时凭空少一截
       tick()
@@ -77,11 +101,32 @@ const stateTone = computed(() => {
   return 'is-neutral'
 })
 
+const bannerText = computed(() => formError.value || store.login.message)
+
 async function onRenew() {
   try {
     await store.renewQR()
   } catch (err) {
     message.error(err instanceof Error ? err.message : String(err))
+  }
+}
+
+async function onSubmit() {
+  formError.value = ''
+  const value = phone.value.trim()
+  if (!/^\d{11}$/.test(value)) {
+    formError.value = '请输入 11 位手机号'
+    return
+  }
+  if (!password.value) {
+    formError.value = '请输入密码'
+    return
+  }
+  try {
+    const ok = await store.submitPasswordLogin(value, password.value, remember.value)
+    if (ok) password.value = ''
+  } catch (err) {
+    formError.value = err instanceof Error ? err.message : String(err)
   }
 }
 
@@ -94,13 +139,13 @@ async function onClose() {
   <n-modal
     :show="store.login.show"
     preset="card"
-    title="雨课堂扫码登录"
+    :title="title"
     style="width: 380px"
     :mask-closable="false"
     :closable="true"
     @update:show="(value: boolean) => { if (!value) onClose() }"
   >
-    <div class="qr-wrap">
+    <div v-if="!isChaoxing" class="qr-wrap">
       <n-spin :show="!qrImage && !failed" size="large">
         <div class="qr-box">
           <img v-if="qrImage" :src="qrImage" alt="雨课堂登录二维码" class="qr-image" />
@@ -108,18 +153,60 @@ async function onClose() {
         </div>
       </n-spin>
       <n-text depth="3" class="expire">{{ remainingText }}</n-text>
-      <div v-if="store.login.message" class="state-banner" :class="stateTone">
-        {{ store.login.message }}
+      <div v-if="bannerText" class="state-banner" :class="stateTone">
+        {{ bannerText }}
       </div>
     </div>
 
-    <n-alert v-if="failed" type="warning" :bordered="false" class="alert">
+    <div v-else class="form-wrap">
+      <n-input
+        v-model:value="phone"
+        placeholder="手机号"
+        maxlength="11"
+        :disabled="store.login.submitting"
+        @keyup.enter="onSubmit"
+      />
+      <n-input
+        v-model:value="password"
+        type="password"
+        show-password-on="click"
+        placeholder="密码"
+        :disabled="store.login.submitting"
+        @keyup.enter="onSubmit"
+      />
+      <n-checkbox v-model:checked="remember" :disabled="store.login.submitting">
+        记住密码，失效时自动重登一次
+      </n-checkbox>
+      <div v-if="bannerText" class="state-banner" :class="stateTone">
+        {{ bannerText }}
+      </div>
+      <n-text depth="3" class="hint">
+        学习通使用手机号 + 密码登录；勾选记住后，密码只在本机用 Windows DPAPI 加密保存
+      </n-text>
+    </div>
+
+    <n-alert v-if="!isChaoxing && failed" type="warning" :bordered="false" class="alert">
       二维码过期或登录失败时可以换一张；仍未成功请确认手机端雨课堂可正常使用
     </n-alert>
 
     <n-space justify="space-between" class="actions">
       <n-button quaternary @click="onClose">取消</n-button>
-      <n-button type="primary" secondary @click="onRenew">换一张</n-button>
+      <n-button
+        v-if="!isChaoxing"
+        type="primary"
+        secondary
+        @click="onRenew"
+      >
+        换一张
+      </n-button>
+      <n-button
+        v-else
+        type="primary"
+        :loading="store.login.submitting"
+        @click="onSubmit"
+      >
+        登录
+      </n-button>
     </n-space>
   </n-modal>
 </template>
@@ -157,6 +244,18 @@ async function onClose() {
   font-size: 12px;
 }
 
+.form-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .state-banner {
   width: 100%;
   padding: 10px 12px;
@@ -164,6 +263,7 @@ async function onClose() {
   font-size: 13px;
   text-align: center;
   transition: background-color 0.2s ease, color 0.2s ease;
+  box-sizing: border-box;
 }
 
 .state-banner.is-success {

@@ -17,12 +17,13 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import IssuesModal from '../components/IssuesModal.vue'
 import LoginModal from '../components/LoginModal.vue'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import PlatformCard from '../components/PlatformCard.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import { useAppStore } from '../stores/app'
-import type { AssignmentView, RefreshFinishedEvent } from '../types'
+import type { AssignmentView, PlatformView, RefreshFinishedEvent } from '../types'
 
 type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 
@@ -176,22 +177,33 @@ async function onCancelRefresh() {
   }
 }
 
-async function onLogin() {
+async function onLogin(platform: string) {
+  if (platform !== 'yuketang' && platform !== 'chaoxing') return
   try {
-    await store.beginLogin()
+    await store.beginLogin(platform)
   } catch (err) {
     reportError(err)
   }
+}
+
+const issues = ref({ show: false, runId: 0, platform: '' })
+
+function onOpenIssues(item: PlatformView) {
+  issues.value = { show: true, runId: item.lastRunId ?? 0, platform: item.platform }
 }
 
 function onToggleSubmitted(value: boolean) {
   void store.setShowSubmitted(value)
 }
 
+function onToggleTermOnly(value: boolean) {
+  void store.setTermOnly(value)
+}
+
 const emptyText = computed(() => {
   const items = platforms.value
   const connected = items.some((p) => p.loginState === 'connected')
-  if (!connected) return '还没有登录任何平台，先完成雨课堂扫码登录'
+  if (!connected) return '还没有登录任何平台，先完成雨课堂扫码或学习通账号登录'
   if (store.refreshing) return '正在抓取作业，请稍候'
   if (store.keyword.trim()) return '没有匹配当前搜索的作业'
   return '当前筛选下没有作业，可以点「刷新全部」重新抓取'
@@ -237,9 +249,10 @@ function rowKey(row: AssignmentView) {
             :data="item"
             :refreshing="store.runningPlatforms.includes(item.platform)"
             :progress="store.progressByPlatform[item.platform]"
-            @login="onLogin"
+            @login="onLogin(item.platform)"
             @refresh="onRefreshPlatform(item.platform)"
             @cancel="onCancelRefresh"
+            @issues="onOpenIssues(item)"
           />
         </div>
 
@@ -254,6 +267,10 @@ function rowKey(row: AssignmentView) {
               @clear="store.refreshList"
             />
             <n-button @click="store.refreshList">筛选</n-button>
+            <span class="toggle-label" title="学期按 9 月 1 日划线；截止时间未知的作业仍会显示">
+              只看本学期
+            </span>
+            <n-switch :value="store.termOnly" @update:value="onToggleTermOnly" />
             <span class="toggle-label">显示已提交</span>
             <n-switch :value="store.showSubmitted" @update:value="onToggleSubmitted" />
           </n-space>
@@ -325,6 +342,11 @@ function rowKey(row: AssignmentView) {
 
     <settings-modal v-model:show="showSettings" />
     <login-modal />
+    <issues-modal
+      v-model:show="issues.show"
+      :run-id="issues.runId"
+      :platform="issues.platform"
+    />
 
     <transition name="toast">
       <div v-if="toast.visible" class="success-toast" role="status">

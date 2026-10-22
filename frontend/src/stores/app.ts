@@ -7,6 +7,7 @@ import {
   loadAssignments,
   loadBootstrap,
   loadSettings,
+  loginChaoxing,
   refreshYuketangLogin,
   startRefresh,
   startYuketangLogin,
@@ -26,11 +27,13 @@ import type {
 
 interface LoginState {
   show: boolean
+  platform: '' | 'yuketang' | 'chaoxing'
   jobId: string
   qrContent: string
   expiresAt: string
   state: string
   message: string
+  submitting: boolean
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -43,6 +46,7 @@ export const useAppStore = defineStore('app', () => {
   const error = ref('')
 
   const showSubmitted = ref(false)
+  const termOnly = ref(true)
   const keyword = ref('')
 
   const refreshing = ref(false)
@@ -53,11 +57,13 @@ export const useAppStore = defineStore('app', () => {
 
   const login = reactive<LoginState>({
     show: false,
+    platform: '',
     jobId: '',
     qrContent: '',
     expiresAt: '',
     state: '',
     message: '',
+    submitting: false,
   })
 
   let eventsBound = false
@@ -90,6 +96,7 @@ export const useAppStore = defineStore('app', () => {
     })
 
     EventsOn('auth.yuketang.qr', (ev: QRCodeEvent) => {
+      if (login.platform !== 'yuketang') return
       // 旧任务取消时可能晚到，已知当前 job 后只接收它的事件
       if (login.jobId && ev.jobId !== login.jobId) return
       login.qrContent = ev.qrContent
@@ -99,6 +106,7 @@ export const useAppStore = defineStore('app', () => {
     })
 
     EventsOn('auth.yuketang.state', (ev: QRStateEvent) => {
+      if (login.platform !== 'yuketang') return
       if (login.jobId && ev.jobId !== login.jobId) return
       login.state = ev.state
       login.message = ev.message
@@ -125,7 +133,7 @@ export const useAppStore = defineStore('app', () => {
     error.value = ''
     try {
       const [bootstrapData, settingsData] = await Promise.all([
-        loadBootstrap(),
+        loadBootstrap(termOnly.value),
         loadSettings(),
       ])
       bootstrap.value = bootstrapData
@@ -140,7 +148,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function reloadAll() {
     try {
-      bootstrap.value = await loadBootstrap()
+      bootstrap.value = await loadBootstrap(termOnly.value)
     } catch (err) {
       error.value = toErrorText(err)
     }
@@ -154,6 +162,7 @@ export const useAppStore = defineStore('app', () => {
       const res = await loadAssignments({
         showSubmitted: showSubmitted.value,
         keyword: keyword.value.trim(),
+        termOnly: termOnly.value,
       })
       assignments.value = res.items
     } catch (err) {
@@ -167,6 +176,12 @@ export const useAppStore = defineStore('app', () => {
   async function setShowSubmitted(value: boolean) {
     showSubmitted.value = value
     await refreshList()
+  }
+
+  // 学期口径同时影响平台卡统计与列表，必须一起刷新
+  async function setTermOnly(value: boolean) {
+    termOnly.value = value
+    await reloadAll()
   }
 
   async function beginRefresh(platforms?: string[]) {
@@ -185,23 +200,63 @@ export const useAppStore = defineStore('app', () => {
     await cancelRefresh(refreshJobId.value)
   }
 
-  async function beginLogin() {
-    login.show = true
-    login.qrContent = ''
-    login.expiresAt = ''
+  async function beginLogin(platform: 'yuketang' | 'chaoxing') {
+    Object.assign(login, {
+      show: true,
+      platform,
+      jobId: '',
+      qrContent: '',
+      expiresAt: '',
+      state: 'waiting',
+      message: '',
+      submitting: false,
+    })
+    if (platform === 'yuketang') {
+      login.message = '正在获取二维码…'
+      const res = await startYuketangLogin()
+      login.jobId = res.jobId ?? ''
+    }
+  }
+
+  // 学习通使用手机号+密码登录，失败原因直接回显在弹窗里
+  async function submitPasswordLogin(phone: string, password: string, remember: boolean) {
+    login.submitting = true
     login.state = 'waiting'
-    login.message = '正在获取二维码…'
-    const res = await startYuketangLogin()
-    login.jobId = res.jobId ?? ''
+    login.message = ''
+    try {
+      const res = await loginChaoxing({ phone, password, remember })
+      if (!res.ok) {
+        login.state = 'failed'
+        login.message = res.error?.detail
+          ? `${res.error.message}：${res.error.detail}`
+          : res.error?.message ?? '登录失败'
+        return false
+      }
+      login.state = 'succeeded'
+      login.message = res.displayName ? `登录成功：${res.displayName}` : '登录成功'
+      window.setTimeout(() => {
+        if (login.platform === 'chaoxing') {
+          login.show = false
+          login.message = ''
+          login.state = ''
+        }
+      }, 800)
+      void reloadAll()
+      return true
+    } finally {
+      login.submitting = false
+    }
   }
 
   async function stopLogin() {
     const jobId = login.jobId
     login.show = false
+    login.platform = ''
     login.qrContent = ''
     login.state = ''
     login.message = ''
     login.jobId = ''
+    login.submitting = false
     if (jobId) {
       try {
         await cancelYuketangLogin(jobId)
@@ -225,6 +280,7 @@ export const useAppStore = defineStore('app', () => {
     listLoading,
     error,
     showSubmitted,
+    termOnly,
     keyword,
     refreshing,
     refreshJobId,
@@ -236,9 +292,11 @@ export const useAppStore = defineStore('app', () => {
     reloadAll,
     refreshList,
     setShowSubmitted,
+    setTermOnly,
     beginRefresh,
     stopRefresh,
     beginLogin,
+    submitPasswordLogin,
     stopLogin,
     renewQR,
   }

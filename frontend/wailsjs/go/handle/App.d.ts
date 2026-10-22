@@ -6,13 +6,15 @@ export function CancelRefresh(arg1:string):Promise<dto.APIResult>;
 
 export function CancelYuketangLogin(arg1:string):Promise<dto.APIResult>;
 
-export function GetBootstrap():Promise<dto.BootstrapResult>;
+export function GetBootstrap(arg1:boolean):Promise<dto.BootstrapResult>;
 
 export function GetFetchIssues(arg1:number):Promise<dto.FetchIssuesResult>;
 
 export function GetSettings():Promise<dto.SettingsResult>;
 
 export function ListAssignments(arg1:dto.AssignmentFilter):Promise<dto.AssignmentListResult>;
+
+export function LoginChaoxing(arg1:dto.PasswordLoginRequest):Promise<dto.PasswordLoginResult>;
 
 export function OpenDataDir():Promise<dto.APIResult>;
 

@@ -18,6 +18,7 @@ export interface PlatformView {
   loginState: string
   lastRunAt?: string
   lastRunState?: string
+  lastRunId?: number
   counts: CountsView
   error?: APIError
   experimental: boolean
@@ -42,6 +43,8 @@ export interface AssignmentFilter {
   statuses?: string[]
   showSubmitted: boolean
   keyword?: string
+  // 只看本学期（后端按 9 月 1 日划线）
+  termOnly: boolean
 }
 
 export interface AssignmentView {
@@ -174,4 +177,11 @@ export interface AccountStateEvent {
   platform: string
   loginState: string
   error?: RefreshErrorEvent
+}
+
+export interface PasswordLoginResult {
+  ok: boolean
+  loginState?: string
+  displayName?: string
+  error?: APIError
 }

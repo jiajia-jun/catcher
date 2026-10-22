@@ -10,8 +10,8 @@ export function CancelYuketangLogin(arg1) {
   return window['go']['handle']['App']['CancelYuketangLogin'](arg1);
 }
 
-export function GetBootstrap() {
-  return window['go']['handle']['App']['GetBootstrap']();
+export function GetBootstrap(arg1) {
+  return window['go']['handle']['App']['GetBootstrap'](arg1);
 }
 
 export function GetFetchIssues(arg1) {
@@ -24,6 +24,10 @@ export function GetSettings() {
 
 export function ListAssignments(arg1) {
   return window['go']['handle']['App']['ListAssignments'](arg1);
+}
+
+export function LoginChaoxing(arg1) {
+  return window['go']['handle']['App']['LoginChaoxing'](arg1);
 }
 
 export function OpenDataDir() {

@@ -56,6 +56,7 @@ export namespace dto {
 	    statuses?: string[];
 	    showSubmitted: boolean;
 	    keyword?: string;
+	    termOnly: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AssignmentFilter(source);
@@ -68,6 +69,7 @@ export namespace dto {
 	        this.statuses = source["statuses"];
 	        this.showSubmitted = source["showSubmitted"];
 	        this.keyword = source["keyword"];
+	        this.termOnly = source["termOnly"];
 	    }
 	}
 	export class AssignmentView {
@@ -169,6 +171,7 @@ export namespace dto {
 	    loginState: string;
 	    lastRunAt?: string;
 	    lastRunState?: string;
+	    lastRunId?: number;
 	    counts: CountsView;
 	    error?: APIError;
 	    experimental: boolean;
@@ -184,6 +187,7 @@ export namespace dto {
 	        this.loginState = source["loginState"];
 	        this.lastRunAt = source["lastRunAt"];
 	        this.lastRunState = source["lastRunState"];
+	        this.lastRunId = source["lastRunId"];
 	        this.counts = this.convertValues(source["counts"], CountsView);
 	        this.error = this.convertValues(source["error"], APIError);
 	        this.experimental = source["experimental"];
@@ -311,6 +315,58 @@ export namespace dto {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ok = source["ok"];
 	        this.items = this.convertValues(source["items"], FetchIssueView);
+	        this.error = this.convertValues(source["error"], APIError);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PasswordLoginRequest {
+	    phone: string;
+	    password: string;
+	    remember: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PasswordLoginRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.phone = source["phone"];
+	        this.password = source["password"];
+	        this.remember = source["remember"];
+	    }
+	}
+	export class PasswordLoginResult {
+	    ok: boolean;
+	    loginState?: string;
+	    displayName?: string;
+	    error?: APIError;
+	
+	    static createFrom(source: any = {}) {
+	        return new PasswordLoginResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.loginState = source["loginState"];
+	        this.displayName = source["displayName"];
 	        this.error = this.convertValues(source["error"], APIError);
 	    }
 	

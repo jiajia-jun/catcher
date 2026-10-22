@@ -15,12 +15,16 @@ const emit = defineEmits<{
   (e: 'login'): void
   (e: 'refresh'): void
   (e: 'cancel'): void
+  (e: 'issues'): void
 }>()
 
-const canLogin = computed(() => props.data.platform === 'yuketang')
-const loginText = computed(() =>
-  props.data.loginState === 'connected' ? '重新登录' : '扫码登录',
+const canLogin = computed(
+  () => props.data.platform === 'yuketang' || props.data.platform === 'chaoxing',
 )
+const loginText = computed(() => {
+  if (props.data.loginState === 'connected') return '重新登录'
+  return props.data.platform === 'chaoxing' ? '账号登录' : '扫码登录'
+})
 
 const platformNames: Record<string, string> = {
   chaoxing: '学习通',
@@ -98,6 +102,14 @@ const counts = computed(() => props.data.counts)
       </n-button>
       <n-button v-else size="small" quaternary type="error" @click="emit('cancel')">
         取消刷新
+      </n-button>
+      <n-button
+        v-if="data.lastRunId"
+        size="small"
+        quaternary
+        @click="emit('issues')"
+      >
+        抓取明细
       </n-button>
     </n-space>
   </n-card>

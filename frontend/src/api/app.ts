@@ -5,6 +5,7 @@ import {
   GetFetchIssues,
   GetSettings,
   ListAssignments,
+  LoginChaoxing,
   OpenDataDir,
   RefreshYuketangLogin,
   StartRefresh,
@@ -19,6 +20,7 @@ import type {
   BootstrapData,
   BootstrapResult,
   FetchIssuesResult,
+  PasswordLoginResult,
   RefreshStartResult,
   SettingsResult,
   SettingsView,
@@ -40,9 +42,9 @@ function apiFailure(error?: APIError): Error {
   return new Error(error.detail ? `${error.message}：${error.detail}` : error.message)
 }
 
-export async function loadBootstrap(): Promise<BootstrapData> {
+export async function loadBootstrap(termOnly: boolean): Promise<BootstrapData> {
   ensureRuntime()
-  const res = (await GetBootstrap()) as BootstrapResult
+  const res = (await GetBootstrap(termOnly)) as BootstrapResult
   if (!res?.ok || !res.data) throw apiFailure(res?.error)
   return res.data
 }
@@ -89,6 +91,18 @@ export async function startYuketangLogin(): Promise<RefreshStartResult> {
   const res = (await StartYuketangLogin()) as RefreshStartResult
   if (!res?.ok) throw apiFailure(res?.error)
   return res
+}
+
+export interface PasswordLoginInput {
+  phone: string
+  password: string
+  remember: boolean
+}
+
+// 登录失败需要通过返回值展示在弹窗里，这里不抛异常
+export async function loginChaoxing(input: PasswordLoginInput): Promise<PasswordLoginResult> {
+  ensureRuntime()
+  return (await LoginChaoxing(input)) as PasswordLoginResult
 }
 
 export async function cancelYuketangLogin(jobId: string): Promise<void> {
