@@ -30,24 +30,40 @@ type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 const store = useAppStore()
 const message = useMessage()
 
-const toast = ref({ visible: false, title: '', content: '' })
-let toastTimer: number | undefined
+// 成功提示可以同时存在多条：新提示从底部进入，旧的被顺势顶上去，各自 2 秒后淡出
+interface ToastItem {
+  id: number
+  title: string
+  content: string
+}
+
+const toasts = ref<ToastItem[]>([])
+const toastTimers = new Set<number>()
+let toastSeq = 0
 let offRefreshFinished: (() => void) | undefined
+
+// 单条停留时长，到点后淡出并从列表移除
+const toastDuration = 2000
+
+function enqueueToast(item: { title: string; content: string }) {
+  const id = ++toastSeq
+  toasts.value.push({ id, ...item })
+  const timer = window.setTimeout(() => {
+    toastTimers.delete(timer)
+    toasts.value = toasts.value.filter((t) => t.id !== id)
+  }, toastDuration)
+  toastTimers.add(timer)
+}
 
 function showSuccessToast(ev: RefreshFinishedEvent) {
   if (ev.status !== 'success') return
   const name = platformNames[ev.platform] ?? ev.platform
-  toast.value = {
-    visible: true,
+  enqueueToast({
     title: `${name}抓取成功`,
     content: ev.counts.itemsUpserted > 0
       ? `课程 ${ev.counts.coursesOk}/${ev.counts.coursesTotal} 门，更新 ${ev.counts.itemsUpserted} 条作业`
       : `课程 ${ev.counts.coursesOk}/${ev.counts.coursesTotal} 门，当前学期没有作业`,
-  }
-  if (toastTimer) window.clearTimeout(toastTimer)
-  toastTimer = window.setTimeout(() => {
-    toast.value = { ...toast.value, visible: false }
-  }, 3500)
+  })
 }
 
 const showSettings = ref(false)
@@ -144,7 +160,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   offRefreshFinished?.()
-  if (toastTimer) window.clearTimeout(toastTimer)
+  for (const timer of toastTimers) window.clearTimeout(timer)
+  toastTimers.clear()
 })
 
 function reportError(err: unknown) {
@@ -351,12 +368,12 @@ function rowKey(row: AssignmentView) {
       :platform="issues.platform"
     />
 
-    <transition name="toast">
-      <div v-if="toast.visible" class="success-toast" role="status">
-        <div class="success-toast-title">{{ toast.title }}</div>
-        <div class="success-toast-content">{{ toast.content }}</div>
+    <transition-group name="toast" tag="div" class="toast-stack">
+      <div v-for="item in toasts" :key="item.id" class="success-toast" role="status">
+        <div class="success-toast-title">{{ item.title }}</div>
+        <div class="success-toast-content">{{ item.content }}</div>
       </div>
-    </transition>
+    </transition-group>
   </n-layout>
 </template>
 
@@ -488,11 +505,20 @@ function rowKey(row: AssignmentView) {
   opacity: 0.5;
 }
 
-.success-toast {
+/* 多条提示从底部往上叠：容器固定在右下角，新条目追加在末尾 */
+.toast-stack {
   position: fixed;
   right: 24px;
   bottom: 24px;
   z-index: 6000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.success-toast {
   min-width: 240px;
   max-width: 360px;
   padding: 12px 16px;
@@ -516,12 +542,20 @@ function rowKey(row: AssignmentView) {
 
 .toast-enter-active,
 .toast-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.toast-enter-from,
+.toast-enter-from {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
 .toast-leave-to {
   opacity: 0;
-  transform: translateY(8px);
+}
+
+/* 新条目进入时，旧条目平滑上移 */
+.toast-move {
+  transition: transform 0.3s ease;
 }
 </style>
