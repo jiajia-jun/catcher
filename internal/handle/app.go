@@ -6,6 +6,7 @@ package handle
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -88,6 +89,7 @@ func (a *App) GetBootstrap() (res dto.BootstrapResult) {
 		if run, ok := b.LastRuns[p]; ok {
 			view.LastRunAt = run.StartedAt.UTC().Format(time.RFC3339)
 			view.LastRunState = string(run.Status)
+			view.LastRunID = run.ID
 			if run.ErrorSummary != "" {
 				code := "FETCH_FAILED"
 				if run.Status == entity.RunPartial {
@@ -310,6 +312,54 @@ func (a *App) RefreshYuketangLogin(jobID string) (res dto.APIResult) {
 		}
 	}
 	return dto.APIResult{OK: true}
+}
+
+// LoginChaoxing 用手机号+密码登录学习通。密码只在本次调用内使用，不回传
+func (a *App) LoginChaoxing(req dto.PasswordLoginRequest) (res dto.PasswordLoginResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.PasswordLoginResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "学习通登录时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	phone := strings.TrimSpace(req.Phone)
+	if phone == "" || req.Password == "" {
+		return dto.PasswordLoginResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "请填写手机号和密码"},
+		}
+	}
+	if len(phone) != 11 || strings.Trim(phone, "0123456789") != "" {
+		return dto.PasswordLoginResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "学习通账号是 11 位手机号"},
+		}
+	}
+
+	err := a.svc.LoginChaoxing(a.context(), entity.PasswordCredential{
+		Phone:    phone,
+		Password: req.Password,
+	}, req.Remember)
+	if err != nil {
+		return dto.PasswordLoginResult{
+			OK:          false,
+			LoginState:  string(entity.LoginNeedsLogin),
+			DisplayName: entity.MaskPhone(phone),
+			Error: &dto.APIError{
+				Code:    service.ErrorCode(err),
+				Message: "学习通登录失败",
+				Detail:  err.Error(),
+			},
+		}
+	}
+	return dto.PasswordLoginResult{
+		OK:          true,
+		LoginState:  string(entity.LoginConnected),
+		DisplayName: entity.MaskPhone(phone),
+	}
 }
 
 // GetFetchIssues 返回某次刷新的问题明细

@@ -21,6 +21,7 @@ import (
 	"catcher/internal/domain"
 	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
+	"catcher/internal/infra/bridge/chaoxing"
 	"catcher/internal/infra/bridge/yuketang"
 	"catcher/internal/infra/secretstore"
 	"catcher/internal/infra/sender"
@@ -30,8 +31,8 @@ import (
 	"catcher/pkg/logger"
 )
 
-// Version 是构建版本。M1 先写死，发布前改为 ldflags 注入。
-const Version = "0.2.0-m1"
+// Version 是构建版本。M2 先写死，发布前改为 ldflags 注入。
+const Version = "0.3.0-m2"
 
 // Run 启动 Wails 应用，阻塞到窗口关闭。
 func Run(assets fs.FS) error {
@@ -84,6 +85,7 @@ func Run(assets fs.FS) error {
 
 	// 每个平台一个 Sender（限速互不干扰），共享 Transport 复用连接池
 	transport := http.DefaultTransport
+	cipher := secretstore.New()
 	ykSender := sender.New(sender.Config{
 		Transport:   transport,
 		MinInterval: 300 * time.Millisecond,
@@ -94,17 +96,32 @@ func Run(assets fs.FS) error {
 		Logger: lg,
 		Now:    time.Now,
 	})
+	cxSender := sender.New(sender.Config{
+		Transport:   transport,
+		MinInterval: 250 * time.Millisecond,
+		Logger:      lg,
+	})
+	cx := chaoxing.New(chaoxing.Options{
+		Sender: cxSender,
+		Logger: lg,
+		Now:    time.Now,
+	})
 
 	svc := service.New(service.Deps{
 		Accounts:    repo,
-		Sessions:    sqlite.NewSessionRepo(db, secretstore.New()),
+		Sessions:    sqlite.NewSessionRepo(db, cipher),
+		Credentials: sqlite.NewCredentialRepo(db, cipher),
 		Assignments: repo,
 		Runs:        sqlite.NewFetchRunRepo(db),
 		Fetchers: map[entity.Platform]domain.Fetcher{
+			entity.PlatformChaoxing: cx,
 			entity.PlatformYuketang: yk,
 		},
 		Renewers: map[entity.Platform]domain.SessionRenewer{
 			entity.PlatformYuketang: yk,
+		},
+		Authenticators: map[entity.Platform]domain.PasswordAuthenticator{
+			entity.PlatformChaoxing: cx,
 		},
 		QRLogin: yk,
 		Config:  cfg,

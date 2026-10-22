@@ -220,22 +220,20 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 
 	// 自动续期只做一次，防止无限循环
 	if err != nil && errors.Is(err, entity.ErrAuthExpired) {
-		if renewer, ok := s.renewers[p]; ok {
-			renewed, renewErr := renewer.Renew(ctx, *session)
-			if renewErr == nil && renewed == nil {
-				renewErr = fmt.Errorf("续期实现没有返回会话")
-			}
-			if renewErr == nil {
-				if saveErr := s.sessions.Save(ctx, account.ID, renewed.Secret, nil, s.now()); saveErr != nil {
-					err = saveErr
-				} else {
-					session = renewed
-					s.logger.Info("会话已自动续期", "platform", p)
-					result, err = fetcher.Fetch(ctx, *account, *session, opts, progress)
-				}
+		renewed, renewErr := s.renew(ctx, *account, *session)
+		if renewErr == nil && renewed == nil {
+			renewErr = fmt.Errorf("续期实现没有返回会话")
+		}
+		if renewErr == nil {
+			if saveErr := s.sessions.Save(ctx, account.ID, renewed.Secret, nil, s.now()); saveErr != nil {
+				err = saveErr
 			} else {
-				err = fmt.Errorf("%w: 自动续期失败: %v", entity.ErrAuthExpired, renewErr)
+				session = renewed
+				s.logger.Info("会话已自动续期", "platform", p)
+				result, err = fetcher.Fetch(ctx, *account, *session, opts, progress)
 			}
+		} else {
+			err = fmt.Errorf("%w: 自动续期失败: %v", entity.ErrAuthExpired, renewErr)
 		}
 	}
 

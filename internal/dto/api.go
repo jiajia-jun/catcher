@@ -29,6 +29,7 @@ type PlatformView struct {
 	LoginState   string     `json:"loginState"`
 	LastRunAt    string     `json:"lastRunAt,omitempty"`
 	LastRunState string     `json:"lastRunState,omitempty"`
+	LastRunID    int64      `json:"lastRunId,omitempty"`
 	Counts       CountsView `json:"counts"`
 	Error        *APIError  `json:"error,omitempty"`
 	Experimental bool       `json:"experimental"`
@@ -102,6 +103,22 @@ type RefreshStartResult struct {
 	Platforms      []string  `json:"platforms,omitempty"`
 	AlreadyRunning bool      `json:"alreadyRunning"`
 	Error          *APIError `json:"error,omitempty"`
+}
+
+// PasswordLoginRequest 是学习通手机号+密码登录的入参。
+// Password 只在本次调用内存在，不会出现在响应里
+type PasswordLoginRequest struct {
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
+	Remember bool   `json:"remember"`
+}
+
+// PasswordLoginResult 是密码登录结果。明文密码绝不回传
+type PasswordLoginResult struct {
+	OK          bool      `json:"ok"`
+	LoginState  string    `json:"loginState,omitempty"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Error       *APIError `json:"error,omitempty"`
 }
 
 // FetchIssueView 是一次刷新的问题摘要，不含任何凭据

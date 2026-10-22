@@ -38,12 +38,14 @@ type Bootstrap struct {
 type Deps struct {
 	Accounts    domain.AccountRepository
 	Sessions    domain.SessionRepository
+	Credentials domain.CredentialRepository
 	Assignments domain.AssignmentRepository
 	Runs        domain.FetchRunRepository
 
-	Fetchers map[entity.Platform]domain.Fetcher
-	Renewers map[entity.Platform]domain.SessionRenewer
-	QRLogin  domain.QRLogin
+	Fetchers       map[entity.Platform]domain.Fetcher
+	Renewers       map[entity.Platform]domain.SessionRenewer
+	Authenticators map[entity.Platform]domain.PasswordAuthenticator
+	QRLogin        domain.QRLogin
 
 	Config  *config.App
 	DataDir string
@@ -55,12 +57,14 @@ type Deps struct {
 type Service struct {
 	accounts    domain.AccountRepository
 	sessions    domain.SessionRepository
+	credentials domain.CredentialRepository
 	assignments domain.AssignmentRepository
 	runs        domain.FetchRunRepository
 
-	fetchers map[entity.Platform]domain.Fetcher
-	renewers map[entity.Platform]domain.SessionRenewer
-	qrLogin  domain.QRLogin
+	fetchers       map[entity.Platform]domain.Fetcher
+	renewers       map[entity.Platform]domain.SessionRenewer
+	authenticators map[entity.Platform]domain.PasswordAuthenticator
+	qrLogin        domain.QRLogin
 
 	cfg     *config.App
 	dataDir string
@@ -79,18 +83,20 @@ type Service struct {
 
 func New(d Deps) *Service {
 	s := &Service{
-		accounts:    d.Accounts,
-		sessions:    d.Sessions,
-		assignments: d.Assignments,
-		runs:        d.Runs,
-		fetchers:    d.Fetchers,
-		renewers:    d.Renewers,
-		qrLogin:     d.QRLogin,
-		cfg:         d.Config,
-		dataDir:     d.DataDir,
-		version:     d.Version,
-		now:         d.Now,
-		logger:      d.Logger,
+		accounts:       d.Accounts,
+		sessions:       d.Sessions,
+		credentials:    d.Credentials,
+		assignments:    d.Assignments,
+		runs:           d.Runs,
+		fetchers:       d.Fetchers,
+		renewers:       d.Renewers,
+		authenticators: d.Authenticators,
+		qrLogin:        d.QRLogin,
+		cfg:            d.Config,
+		dataDir:        d.DataDir,
+		version:        d.Version,
+		now:            d.Now,
+		logger:         d.Logger,
 
 		refreshJobs: make(map[string]*refreshJob),
 		running:     make(map[entity.Platform]string),
@@ -101,6 +107,9 @@ func New(d Deps) *Service {
 	}
 	if s.renewers == nil {
 		s.renewers = make(map[entity.Platform]domain.SessionRenewer)
+	}
+	if s.authenticators == nil {
+		s.authenticators = make(map[entity.Platform]domain.PasswordAuthenticator)
 	}
 	if s.now == nil {
 		s.now = time.Now
