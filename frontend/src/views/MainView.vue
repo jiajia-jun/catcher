@@ -69,7 +69,6 @@ function showSuccessToast(ev: RefreshFinishedEvent) {
 const showSettings = ref(false)
 
 const platforms = computed(() => store.bootstrap?.platforms ?? [])
-const dataDir = computed(() => store.bootstrap?.dataDir ?? '')
 const stats = computed(() => store.bootstrap?.stats ?? {
   openUnsubmitted: 0,
   overdueUnsubmitted: 0,
@@ -239,7 +238,6 @@ function rowKey(row: AssignmentView) {
         <span class="brand-sub">catch your work</span>
       </div>
       <div class="top-actions">
-        <n-text depth="3" class="data-dir" :title="dataDir">{{ dataDir }}</n-text>
         <n-button quaternary @click="showSettings = true">设置</n-button>
       </div>
     </n-layout-header>
@@ -413,14 +411,6 @@ function rowKey(row: AssignmentView) {
   align-items: center;
   gap: 16px;
   min-width: 0;
-}
-
-.data-dir {
-  max-width: 460px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
 }
 
 .content {
