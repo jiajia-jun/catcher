@@ -62,13 +62,20 @@ type SessionRepository interface {
 	Delete(ctx context.Context, accountID int64) error
 }
 
-// AssignmentRepository 读取作业。写入在 M1 随刷新编排一起补齐。
+// AssignmentRepository 读取作业，并按一次抓取结果写入快照
 type AssignmentRepository interface {
 	ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error)
+	// SaveSnapshot 在一个事务内 upsert 课程与作业，返回写入的作业条数。
+	// 只有 in.Result.Complete 时才软删除本次未出现的旧记录。
+	SaveSnapshot(ctx context.Context, in entity.PersistInput) (upserted int, err error)
 }
 
-// FetchRunRepository 记录刷新任务与问题明细。
+// FetchRunRepository 记录刷新任务与问题明细
 type FetchRunRepository interface {
 	Create(ctx context.Context, run *entity.FetchRun) error
 	Finish(ctx context.Context, run entity.FetchRun, issues []entity.FetchIssue, finishedAt time.Time) error
+	// ListIssues 按写入顺序返回某次刷新的问题明细
+	ListIssues(ctx context.Context, runID int64) ([]entity.FetchIssue, error)
+	// LatestRuns 返回每个平台最近一次刷新记录，没有记录的平台不出现在结果里
+	LatestRuns(ctx context.Context) (map[entity.Platform]entity.FetchRun, error)
 }

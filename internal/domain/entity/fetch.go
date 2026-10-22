@@ -21,6 +21,18 @@ type FetchResult struct {
 	Complete    bool
 }
 
+// PersistInput 是一次抓取结果落库所需的全部上下文
+//
+// Complete 为 false 时只做 upsert，不软删除任何旧记录；
+// 这是保守策略：宁可留下已消失的作业，也不误删没抓到的作业
+type PersistInput struct {
+	AccountID int64
+	Platform  Platform
+	RunID     int64
+	Result    FetchResult
+	At        time.Time
+}
+
 // FetchIssue 记录一次部分失败或警告。
 type FetchIssue struct {
 	Scope   IssueScope

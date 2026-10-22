@@ -46,6 +46,7 @@ type Assignment struct {
 	Platform         Platform
 	CourseID         int64
 	CourseExternalID string
+	ClassroomID      string // 雨课堂 classroom_id，用于关联复合身份的课程；其他平台为空
 	CourseName       string
 	ExternalID       string
 	DedupKey         string
