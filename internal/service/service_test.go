@@ -88,14 +88,24 @@ func (f *fakeSessions) Save(_ context.Context, _ int64, secret []byte, _ *time.T
 func (f *fakeSessions) Delete(context.Context, int64) error { return nil }
 
 type fakeAssignments struct {
-	mu       sync.Mutex
-	snapshot []entity.PersistInput
-	list     []entity.Assignment
-	err      error
+	mu         sync.Mutex
+	snapshot   []entity.PersistInput
+	list       []entity.Assignment
+	err        error
+	lastFilter entity.AssignmentFilter
 }
 
-func (f *fakeAssignments) ListAssignments(context.Context, entity.AssignmentFilter) ([]entity.Assignment, error) {
+func (f *fakeAssignments) ListAssignments(_ context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
+	f.mu.Lock()
+	f.lastFilter = filter
+	f.mu.Unlock()
 	return f.list, nil
+}
+
+func (f *fakeAssignments) filter() entity.AssignmentFilter {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastFilter
 }
 func (f *fakeAssignments) SaveSnapshot(_ context.Context, in entity.PersistInput) (int, error) {
 	if f.err != nil {
@@ -599,7 +609,7 @@ func TestBootstrapAggregatesCounts(t *testing.T) {
 		{Platform: entity.PlatformYuketang, Status: entity.StatusSubmitted},
 	}
 
-	b, err := h.svc.Bootstrap(context.Background())
+	b, err := h.svc.Bootstrap(context.Background(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,5 +639,37 @@ func TestErrorCodeMapping(t *testing.T) {
 		if got := ErrorCode(c.err); got != c.want {
 			t.Errorf("%v -> %s, want %s", c.err, got, c.want)
 		}
+	}
+}
+
+func TestTermOnlyResolvesSemesterStart(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	if _, err := h.svc.ListAssignments(ctx, entity.AssignmentFilter{TermOnly: true}); err != nil {
+		t.Fatal(err)
+	}
+	f := h.assignments.filter()
+	if f.DeadlineFrom == nil {
+		t.Fatal("TermOnly 必须换算成 DeadlineFrom")
+	}
+	want := entity.SemesterStart(time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC))
+	if !f.DeadlineFrom.Equal(want) {
+		t.Fatalf("DeadlineFrom = %s, want %s", f.DeadlineFrom, want)
+	}
+
+	// 平台卡统计与列表必须同口径
+	if _, err := h.svc.Bootstrap(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	if b := h.assignments.filter(); b.DeadlineFrom == nil || !b.ShowSubmitted {
+		t.Fatalf("Bootstrap 未按学期过滤: %#v", b)
+	}
+
+	if _, err := h.svc.ListAssignments(ctx, entity.AssignmentFilter{}); err != nil {
+		t.Fatal(err)
+	}
+	if f := h.assignments.filter(); f.DeadlineFrom != nil {
+		t.Fatalf("关闭 TermOnly 后不应过滤: %#v", f)
 	}
 }

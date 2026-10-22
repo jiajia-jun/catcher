@@ -151,6 +151,11 @@ func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilt
 	} else if !filter.ShowSubmitted {
 		query += ` AND status <> 'submitted'`
 	}
+	if filter.DeadlineFrom != nil {
+		// 截止时间未知的作业要保留：读不到时间不等于不是本学期的作业
+		query += ` AND (deadline_at IS NULL OR deadline_at >= ?)`
+		args = append(args, formatTime(*filter.DeadlineFrom))
+	}
 	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
 		query += ` AND (title LIKE ? OR course_name LIKE ?)`
 		like := "%" + keyword + "%"

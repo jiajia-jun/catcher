@@ -54,6 +54,8 @@ type AssignmentFilter struct {
 	Statuses      []string `json:"statuses,omitempty"`
 	ShowSubmitted bool     `json:"showSubmitted"`
 	Keyword       string   `json:"keyword,omitempty"`
+	// TermOnly 只看本学期（9 月 1 日起）；学期起点由后端计算
+	TermOnly bool `json:"termOnly"`
 }
 
 type AssignmentView struct {

@@ -71,6 +71,10 @@ type AssignmentFilter struct {
 	Statuses      []SubmissionStatus
 	ShowSubmitted bool
 	Keyword       string
+	// TermOnly 只看本学期；学期起点由 service 按当前时间换算成 DeadlineFrom
+	TermOnly bool
+	// DeadlineFrom 只要截止时间不早于该时刻的作业；截止时间未知的保留
+	DeadlineFrom *time.Time
 }
 
 // NormalizeTitle 只做 TrimSpace + 连续空白折叠。

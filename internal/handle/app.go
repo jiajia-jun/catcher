@@ -43,7 +43,8 @@ func (a *App) context() context.Context {
 }
 
 // GetBootstrap 返回平台卡、统计、数据目录与版本。
-func (a *App) GetBootstrap() (res dto.BootstrapResult) {
+// termOnly 与列表的「只看本学期」开关保持一致
+func (a *App) GetBootstrap(termOnly bool) (res dto.BootstrapResult) {
 	defer func() {
 		if r := recover(); r != nil {
 			res = dto.BootstrapResult{
@@ -53,7 +54,7 @@ func (a *App) GetBootstrap() (res dto.BootstrapResult) {
 		}
 	}()
 
-	b, err := a.svc.Bootstrap(a.context())
+	b, err := a.svc.Bootstrap(a.context(), termOnly)
 	if err != nil {
 		return dto.BootstrapResult{
 			OK:    false,
@@ -415,6 +416,7 @@ func toEntityFilter(f dto.AssignmentFilter) (entity.AssignmentFilter, *dto.APIEr
 	out := entity.AssignmentFilter{
 		ShowSubmitted: f.ShowSubmitted,
 		Keyword:       f.Keyword,
+		TermOnly:      f.TermOnly,
 	}
 	for _, raw := range f.Platforms {
 		p, err := entity.ParsePlatform(raw)

@@ -136,13 +136,15 @@ func (s *Service) emitEvent(name string, payload any) {
 	}
 }
 
-// Bootstrap 读取账号、全部 active 作业与每平台最近一次刷新，并按平台聚合统计
-func (s *Service) Bootstrap(ctx context.Context) (*Bootstrap, error) {
+// Bootstrap 读取账号、active 作业与每平台最近一次刷新，并按平台聚合统计。
+// termOnly 为 true 时只统计本学期的作业，与列表口径保持一致
+func (s *Service) Bootstrap(ctx context.Context, termOnly bool) (*Bootstrap, error) {
 	accounts, err := s.accounts.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.assignments.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+	filter := s.resolveTerm(entity.AssignmentFilter{ShowSubmitted: true, TermOnly: termOnly})
+	items, err := s.assignments.ListAssignments(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +198,18 @@ func addCount(c *Counts, item entity.Assignment, now time.Time) {
 
 // ListAssignments 返回符合筛选条件的作业
 func (s *Service) ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
-	return s.assignments.ListAssignments(ctx, filter)
+	return s.assignments.ListAssignments(ctx, s.resolveTerm(filter))
+}
+
+// resolveTerm 把「只看本学期」换算成具体的截止时间下界。
+// 学期起点按 9 月 1 日、东八区计算，由 service 决定，仓储只认绝对时刻
+func (s *Service) resolveTerm(filter entity.AssignmentFilter) entity.AssignmentFilter {
+	if !filter.TermOnly {
+		return filter
+	}
+	start := entity.SemesterStart(s.now())
+	filter.DeadlineFrom = &start
+	return filter
 }
 
 // FetchIssues 返回某次刷新的问题明细

@@ -188,3 +188,54 @@ func TestListAssignmentsFilters(t *testing.T) {
 		t.Fatalf("未知截止时间应排在最后: %#v", items)
 	}
 }
+
+// 只看本学期：截止时间早于学期起点的隐藏，截止时间未知的保留
+func TestListAssignmentsDeadlineFrom(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := repo.EnsurePlatforms(ctx, now); err != nil {
+		t.Fatal(err)
+	}
+	account, err := repo.GetAccount(ctx, entity.PlatformChaoxing)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	insert := func(title string, deadline any) {
+		t.Helper()
+		_, err := db.SQL().ExecContext(ctx, `
+			INSERT INTO assignments (account_id, platform, course_id, course_external_id,
+				course_name, external_id, dedup_key, title, status, deadline_at,
+				deadline_source, deadline_raw, detail_url, description,
+				first_seen_at, last_seen_at, active)
+			VALUES (?, 'chaoxing', NULL, '1001', '高等数学', '', ?, ?, 'unsubmitted', ?,
+				'platform_exact', '', '', '', ?, ?, 1)`,
+			account.ID, "chaoxing:1001:"+title, title, deadline, formatTime(now), formatTime(now))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	insert("上学期作业", formatTime(now.AddDate(0, -3, 0)))
+	insert("本学期作业", formatTime(now.AddDate(0, 0, 3)))
+	insert("截止时间未知", nil)
+
+	from := now
+	items, err := repo.ListAssignments(ctx, entity.AssignmentFilter{
+		ShowSubmitted: true,
+		DeadlineFrom:  &from,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("应保留 2 条（本学期 + 未知），实际 %d: %#v", len(items), items)
+	}
+	for _, item := range items {
+		if item.Title == "上学期作业" {
+			t.Fatalf("上学期作业不应出现: %#v", item)
+		}
+	}
+}
