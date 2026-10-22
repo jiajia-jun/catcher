@@ -90,6 +90,8 @@ export const useAppStore = defineStore('app', () => {
     })
 
     EventsOn('auth.yuketang.qr', (ev: QRCodeEvent) => {
+      // 旧任务取消时可能晚到，已知当前 job 后只接收它的事件
+      if (login.jobId && ev.jobId !== login.jobId) return
       login.qrContent = ev.qrContent
       login.expiresAt = ev.expiresAt
       login.state = 'waiting'
@@ -97,6 +99,7 @@ export const useAppStore = defineStore('app', () => {
     })
 
     EventsOn('auth.yuketang.state', (ev: QRStateEvent) => {
+      if (login.jobId && ev.jobId !== login.jobId) return
       login.state = ev.state
       login.message = ev.message
       if (ev.state === 'succeeded') {
