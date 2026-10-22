@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   NAlert,
   NButton,
@@ -18,15 +18,36 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import LoginModal from '../components/LoginModal.vue'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 import PlatformCard from '../components/PlatformCard.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import { useAppStore } from '../stores/app'
-import type { AssignmentView } from '../types'
+import type { AssignmentView, RefreshFinishedEvent } from '../types'
 
 type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 
 const store = useAppStore()
 const message = useMessage()
+
+const toast = ref({ visible: false, title: '', content: '' })
+let toastTimer: number | undefined
+let offRefreshFinished: (() => void) | undefined
+
+function showSuccessToast(ev: RefreshFinishedEvent) {
+  if (ev.status !== 'success') return
+  const name = platformNames[ev.platform] ?? ev.platform
+  toast.value = {
+    visible: true,
+    title: `${name}抓取成功`,
+    content: ev.counts.itemsUpserted > 0
+      ? `课程 ${ev.counts.coursesOk}/${ev.counts.coursesTotal} 门，更新 ${ev.counts.itemsUpserted} 条作业`
+      : `课程 ${ev.counts.coursesOk}/${ev.counts.coursesTotal} 门，当前学期没有作业`,
+  }
+  if (toastTimer) window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => {
+    toast.value = { ...toast.value, visible: false }
+  }, 3500)
+}
 
 const showSettings = ref(false)
 
@@ -116,6 +137,13 @@ const columns: DataTableColumns<AssignmentView> = [
 
 onMounted(() => {
   void store.init()
+  // 直接用 Wails 事件驱动右下角提示，不依赖通知组件
+  offRefreshFinished = EventsOn('refresh.finished', showSuccessToast)
+})
+
+onBeforeUnmount(() => {
+  offRefreshFinished?.()
+  if (toastTimer) window.clearTimeout(toastTimer)
 })
 
 function reportError(err: unknown) {
@@ -297,6 +325,13 @@ function rowKey(row: AssignmentView) {
 
     <settings-modal v-model:show="showSettings" />
     <login-modal />
+
+    <transition name="toast">
+      <div v-if="toast.visible" class="success-toast" role="status">
+        <div class="success-toast-title">{{ toast.title }}</div>
+        <div class="success-toast-content">{{ toast.content }}</div>
+      </div>
+    </transition>
   </n-layout>
 </template>
 
@@ -407,5 +442,42 @@ function rowKey(row: AssignmentView) {
   margin: 22px 0 0;
   font-size: 12px;
   opacity: 0.5;
+}
+
+.success-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 6000;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 16px;
+  border: 1px solid #18a058;
+  border-radius: 10px;
+  background: #e8f7ee;
+  color: #18a058;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.success-toast-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.success-toast-content {
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 </style>
