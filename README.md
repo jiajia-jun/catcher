@@ -74,8 +74,8 @@ data/
 需要 Go 1.27、Node 24、Wails v2.13。
 
 ```bash
-wails build            # 产物 build/bin/Catcher.exe
-wails build -nsis      # 额外生成安装包（需要 NSIS）
+wails build                              # 产物 build/bin/Catcher.exe
+wails build -nsis -installscope user     # 额外生成用户级安装包（需要 NSIS）
 ```
 
 开发模式：
