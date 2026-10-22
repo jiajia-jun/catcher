@@ -158,6 +158,5 @@ keepData:
 
     !insertmacro wails.deleteUninstaller
 
-    # 保留数据时目录非空，RMDir 不会删除；目录已空则顺手清掉
-    RMDir "$INSTDIR"
+    # 安装目录本身不删除：用户可能手工创建并共用这个目录，清空它容易误删
 SectionEnd
