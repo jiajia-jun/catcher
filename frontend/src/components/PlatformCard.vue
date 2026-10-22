@@ -1,11 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NCard, NTag } from 'naive-ui'
+import { NButton, NCard, NSpace, NTag } from 'naive-ui'
 import type { PlatformView } from '../types'
 
 type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 
-const props = defineProps<{ data: PlatformView }>()
+const props = defineProps<{
+  data: PlatformView
+  refreshing?: boolean
+  progress?: string
+}>()
+
+const emit = defineEmits<{
+  (e: 'login'): void
+  (e: 'refresh'): void
+  (e: 'cancel'): void
+}>()
+
+const canLogin = computed(() => props.data.platform === 'yuketang')
+const loginText = computed(() =>
+  props.data.loginState === 'connected' ? '重新登录' : '扫码登录',
+)
 
 const platformNames: Record<string, string> = {
   chaoxing: '学习通',
@@ -61,6 +76,30 @@ const counts = computed(() => props.data.counts)
         <span>已提交</span>
       </div>
     </div>
+
+    <div v-if="refreshing && progress" class="progress-text">{{ progress }}</div>
+
+    <div v-if="data.error" class="card-error" :title="data.error.detail">
+      {{ data.error.message }}
+    </div>
+
+    <n-space class="card-actions" :size="8">
+      <n-button v-if="canLogin" size="small" secondary @click="emit('login')">
+        {{ loginText }}
+      </n-button>
+      <n-button
+        v-if="!refreshing"
+        size="small"
+        type="primary"
+        secondary
+        @click="emit('refresh')"
+      >
+        刷新
+      </n-button>
+      <n-button v-else size="small" quaternary type="error" @click="emit('cancel')">
+        取消刷新
+      </n-button>
+    </n-space>
   </n-card>
 </template>
 
@@ -110,5 +149,27 @@ const counts = computed(() => props.data.counts)
 
 .count-item.muted strong {
   opacity: 0.55;
+}
+
+.progress-text {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-error {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #d03050;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-actions {
+  margin-top: 12px;
 }
 </style>

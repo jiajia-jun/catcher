@@ -1,8 +1,14 @@
 import {
+  CancelRefresh,
+  CancelYuketangLogin,
   GetBootstrap,
+  GetFetchIssues,
   GetSettings,
   ListAssignments,
   OpenDataDir,
+  RefreshYuketangLogin,
+  StartRefresh,
+  StartYuketangLogin,
 } from '../../wailsjs/go/handle/App'
 import type {
   APIError,
@@ -12,6 +18,8 @@ import type {
   AssignmentListResult,
   BootstrapData,
   BootstrapResult,
+  FetchIssuesResult,
+  RefreshStartResult,
   SettingsResult,
   SettingsView,
 } from '../types'
@@ -61,6 +69,45 @@ export async function openDataDir(): Promise<void> {
   ensureRuntime()
   const res = (await OpenDataDir()) as APIResult
   if (!res?.ok) throw apiFailure(res?.error)
+}
+
+export async function startRefresh(platforms?: string[]): Promise<RefreshStartResult> {
+  ensureRuntime()
+  const res = (await StartRefresh(platforms ?? [])) as RefreshStartResult
+  if (!res?.ok) throw apiFailure(res?.error)
+  return res
+}
+
+export async function cancelRefresh(jobId: string): Promise<void> {
+  ensureRuntime()
+  const res = (await CancelRefresh(jobId)) as APIResult
+  if (!res?.ok) throw apiFailure(res?.error)
+}
+
+export async function startYuketangLogin(): Promise<RefreshStartResult> {
+  ensureRuntime()
+  const res = (await StartYuketangLogin()) as RefreshStartResult
+  if (!res?.ok) throw apiFailure(res?.error)
+  return res
+}
+
+export async function cancelYuketangLogin(jobId: string): Promise<void> {
+  ensureRuntime()
+  const res = (await CancelYuketangLogin(jobId)) as APIResult
+  if (!res?.ok) throw apiFailure(res?.error)
+}
+
+export async function refreshYuketangLogin(jobId: string): Promise<void> {
+  ensureRuntime()
+  const res = (await RefreshYuketangLogin(jobId)) as APIResult
+  if (!res?.ok) throw apiFailure(res?.error)
+}
+
+export async function loadFetchIssues(runId: number): Promise<FetchIssuesResult> {
+  ensureRuntime()
+  const res = (await GetFetchIssues(runId)) as FetchIssuesResult
+  if (!res?.ok) throw apiFailure(res?.error)
+  return { ...res, items: res.items ?? [] }
 }
 
 export function toErrorText(err: unknown): string {

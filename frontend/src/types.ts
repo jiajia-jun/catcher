@@ -93,3 +93,85 @@ export interface APIResult {
   ok: boolean
   error?: APIError
 }
+
+export interface RefreshStartResult {
+  ok: boolean
+  jobId?: string
+  platforms?: string[]
+  alreadyRunning: boolean
+  error?: APIError
+}
+
+export interface FetchIssueView {
+  scope: string
+  ref?: string
+  kind: string
+  message: string
+  rawPath?: string
+}
+
+export interface FetchIssuesResult {
+  ok: boolean
+  items: FetchIssueView[] | null
+  error?: APIError
+}
+
+export interface RefreshProgressEvent {
+  jobId: string
+  platform: string
+  phase: string
+  current: number
+  total: number
+  message: string
+}
+
+export interface RefreshIssueEvent {
+  scope: string
+  ref?: string
+  kind: string
+  message: string
+  rawPath?: string
+}
+
+export interface RefreshErrorEvent {
+  code: string
+  message: string
+}
+
+export interface RefreshFinishedEvent {
+  jobId: string
+  platform: string
+  status: 'success' | 'partial' | 'failed' | 'canceled'
+  counts: {
+    coursesTotal: number
+    coursesOk: number
+    itemsSeen: number
+    itemsUpserted: number
+    warningCount: number
+  }
+  warnings?: RefreshIssueEvent[]
+  error?: RefreshErrorEvent
+}
+
+export interface RefreshAllFinishedEvent {
+  jobId: string
+  statuses: Record<string, string>
+}
+
+export interface QRCodeEvent {
+  jobId: string
+  qrContent: string
+  expiresAt: string
+}
+
+export interface QRStateEvent {
+  jobId: string
+  state: 'waiting' | 'scanned' | 'succeeded' | 'expired' | 'failed'
+  message: string
+}
+
+export interface AccountStateEvent {
+  platform: string
+  loginState: string
+  error?: RefreshErrorEvent
+}

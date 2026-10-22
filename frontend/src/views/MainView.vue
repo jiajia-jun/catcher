@@ -17,6 +17,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import LoginModal from '../components/LoginModal.vue'
 import PlatformCard from '../components/PlatformCard.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import { useAppStore } from '../stores/app'
@@ -117,18 +118,56 @@ onMounted(() => {
   void store.init()
 })
 
-async function onRefresh() {
-  await store.refreshList()
-  if (store.error) {
-    message.error(store.error)
-    return
+function reportError(err: unknown) {
+  message.error(err instanceof Error ? err.message : String(err))
+}
+
+async function onRefreshAll() {
+  try {
+    const running = await store.beginRefresh()
+    if (running) message.info('所有可刷新平台都已在刷新中')
+  } catch (err) {
+    reportError(err)
   }
-  message.success('已重新读取本地数据；抓取适配器将在 M1 接入')
+}
+
+async function onRefreshPlatform(platform: string) {
+  try {
+    const running = await store.beginRefresh([platform])
+    if (running) message.info('该平台已在刷新中')
+  } catch (err) {
+    reportError(err)
+  }
+}
+
+async function onCancelRefresh() {
+  try {
+    await store.stopRefresh()
+  } catch (err) {
+    reportError(err)
+  }
+}
+
+async function onLogin() {
+  try {
+    await store.beginLogin()
+  } catch (err) {
+    reportError(err)
+  }
 }
 
 function onToggleSubmitted(value: boolean) {
   void store.setShowSubmitted(value)
 }
+
+const emptyText = computed(() => {
+  const items = platforms.value
+  const connected = items.some((p) => p.loginState === 'connected')
+  if (!connected) return '还没有登录任何平台，先完成雨课堂扫码登录'
+  if (store.refreshing) return '正在抓取作业，请稍候'
+  if (store.keyword.trim()) return '没有匹配当前搜索的作业'
+  return '当前筛选下没有作业，可以点「刷新全部」重新抓取'
+})
 
 function rowKey(row: AssignmentView) {
   return row.id
@@ -164,7 +203,16 @@ function rowKey(row: AssignmentView) {
         </section>
 
         <div class="platform-grid">
-          <platform-card v-for="item in platforms" :key="item.platform" :data="item" />
+          <platform-card
+            v-for="item in platforms"
+            :key="item.platform"
+            :data="item"
+            :refreshing="store.runningPlatforms.includes(item.platform)"
+            :progress="store.progressByPlatform[item.platform]"
+            @login="onLogin"
+            @refresh="onRefreshPlatform(item.platform)"
+            @cancel="onCancelRefresh"
+          />
         </div>
 
         <section class="toolbar">
@@ -181,9 +229,21 @@ function rowKey(row: AssignmentView) {
             <span class="toggle-label">显示已提交</span>
             <n-switch :value="store.showSubmitted" @update:value="onToggleSubmitted" />
           </n-space>
-          <n-button type="primary" :loading="store.listLoading" @click="onRefresh">
-            刷新本地数据
-          </n-button>
+          <n-space :size="8">
+            <n-button :loading="store.listLoading" @click="store.refreshList">
+              重新读取
+            </n-button>
+            <n-button
+              v-if="!store.refreshing"
+              type="primary"
+              @click="onRefreshAll"
+            >
+              刷新全部
+            </n-button>
+            <n-button v-else type="error" secondary @click="onCancelRefresh">
+              取消刷新
+            </n-button>
+          </n-space>
         </section>
 
         <n-alert
@@ -197,6 +257,17 @@ function rowKey(row: AssignmentView) {
           {{ store.error }}
         </n-alert>
 
+        <n-alert
+          v-if="store.lastRefreshError"
+          type="warning"
+          title="最近一次抓取未完全成功"
+          closable
+          class="error-alert"
+          @close="store.lastRefreshError = ''"
+        >
+          {{ store.lastRefreshError }}
+        </n-alert>
+
         <n-data-table
           v-else
           :columns="columns"
@@ -208,10 +279,10 @@ function rowKey(row: AssignmentView) {
           size="small"
         >
           <template #empty>
-            <n-empty description="还没有作业数据">
+            <n-empty :description="emptyText">
               <template #extra>
                 <div class="empty-hint">
-                  M0 已完成基础设施；抓取适配器将在 M1（雨课堂）与 M2（学习通）接入。
+                  作业数据只来自平台抓取，不会凭空生成；未登录或抓取失败时保留上次成功的数据。
                 </div>
               </template>
             </n-empty>
@@ -225,6 +296,7 @@ function rowKey(row: AssignmentView) {
     </n-layout-content>
 
     <settings-modal v-model:show="showSettings" />
+    <login-modal />
   </n-layout>
 </template>
 
