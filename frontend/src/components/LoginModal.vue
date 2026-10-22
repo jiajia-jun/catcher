@@ -71,6 +71,12 @@ const failed = computed(
   () => store.login.state === 'failed' || store.login.state === 'expired',
 )
 
+const stateTone = computed(() => {
+  if (store.login.state === 'succeeded') return 'is-success'
+  if (failed.value) return 'is-error'
+  return 'is-neutral'
+})
+
 async function onRenew() {
   try {
     await store.renewQR()
@@ -102,7 +108,9 @@ async function onClose() {
         </div>
       </n-spin>
       <n-text depth="3" class="expire">{{ remainingText }}</n-text>
-      <n-text v-if="store.login.message" class="state-text">{{ store.login.message }}</n-text>
+      <div v-if="store.login.message" class="state-banner" :class="stateTone">
+        {{ store.login.message }}
+      </div>
     </div>
 
     <n-alert v-if="failed" type="warning" :bordered="false" class="alert">
@@ -149,8 +157,27 @@ async function onClose() {
   font-size: 12px;
 }
 
-.state-text {
+.state-banner {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
   font-size: 13px;
+  text-align: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.state-banner.is-success {
+  background: #e8f7ee;
+  color: #18a058;
+}
+
+.state-banner.is-error {
+  background: #ffece8;
+  color: #d03050;
+}
+
+.state-banner.is-neutral {
+  background: rgba(128, 128, 128, 0.1);
 }
 
 .alert {
