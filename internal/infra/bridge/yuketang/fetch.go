@@ -121,7 +121,8 @@ func (c *Client) learningList(ctx context.Context, sessionID string) ([]courseIt
 	if out.Op == "web_redirect" {
 		return nil, fmt.Errorf("%w: 课程列表被重定向到登录页", entity.ErrAuthExpired)
 	}
-	if !out.Success {
+	// 实测 2026-10 课程列表没有 success 字段，不能把「缺失」当成 false
+	if out.Success != nil && !*out.Success {
 		return nil, fmt.Errorf("%w: 课程列表 success=false msg=%s", entity.ErrPlatformChanged, out.Msg)
 	}
 	return out.Data, nil
@@ -145,7 +146,7 @@ func (c *Client) classroomLogs(ctx context.Context, item courseItem, sessionID s
 	if out.Op == "web_redirect" {
 		return nil, fmt.Errorf("%w: 作业列表被重定向到登录页", entity.ErrAuthExpired)
 	}
-	if !out.Success {
+	if out.Success != nil && !*out.Success {
 		return nil, fmt.Errorf("%w: 作业列表 success=false msg=%s", entity.ErrPlatformChanged, out.Msg)
 	}
 	return &out, nil

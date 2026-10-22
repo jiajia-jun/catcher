@@ -30,8 +30,9 @@ type errorResp struct {
 	Msg  string `json:"msg"`
 }
 
+// 课程列表实测不返回 success 字段，只有 data；指针用于区分「缺失」与「显式 false」
 type courseListResp struct {
-	Success bool         `json:"success"`
+	Success *bool        `json:"success"`
 	Op      string       `json:"op"`
 	Msg     string       `json:"msg"`
 	Data    []courseItem `json:"data"`
@@ -47,7 +48,7 @@ type courseItem struct {
 }
 
 type classroomLogsResp struct {
-	Success bool   `json:"success"`
+	Success *bool  `json:"success"`
 	Msg     string `json:"msg"`
 	Op      string `json:"op"`
 	Data    struct {

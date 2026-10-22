@@ -6,12 +6,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"catcher/internal/domain/entity"
+	"catcher/internal/infra/sender"
 )
 
 func testSession(t *testing.T, sessionID string) entity.Session {
@@ -30,6 +32,53 @@ func fixture(t *testing.T, name string) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+// 2026-10 实测：课程列表响应只有 data，没有 success 字段
+func TestLearningListWithoutSuccessField(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":[{"course_id":1000001,"classroom_id":20000001,"course_name":"课程","classroom_name":"2026秋-课程-1班"}]}`)
+	}))
+	defer srv.Close()
+
+	c := New(Options{BaseURL: srv.URL, Sender: sender.New(sender.Config{})})
+	items, err := c.learningList(context.Background(), "sid")
+	if err != nil {
+		t.Fatalf("缺少 success 字段不应报错: %v", err)
+	}
+	if len(items) != 1 || items[0].CourseID.String() != "1000001" {
+		t.Fatalf("课程解析异常: %#v", items)
+	}
+}
+
+func TestLearningListExplicitFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"success":false,"msg":"无权限","data":[]}`)
+	}))
+	defer srv.Close()
+
+	c := New(Options{BaseURL: srv.URL, Sender: sender.New(sender.Config{})})
+	_, err := c.learningList(context.Background(), "sid")
+	if !errors.Is(err, entity.ErrPlatformChanged) {
+		t.Fatalf("显式 success=false 应报平台变化错误: %v", err)
+	}
+}
+
+func TestClassroomLogsWithoutSuccessField(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"now_time":1792563600,"activities":[]}}`)
+	}))
+	defer srv.Close()
+
+	c := New(Options{BaseURL: srv.URL, Sender: sender.New(sender.Config{})})
+	item := courseItem{CourseID: json.Number("1"), ClassroomID: json.Number("2")}
+	logs, err := c.classroomLogs(context.Background(), item, "sid")
+	if err != nil {
+		t.Fatalf("缺少 success 字段不应报错: %v", err)
+	}
+	if logs.Data.NowTime.String() != "1792563600" {
+		t.Fatalf("now_time 解析异常: %s", logs.Data.NowTime.String())
+	}
 }
 
 func TestFetchFlattensAndFiltersSemester(t *testing.T) {
