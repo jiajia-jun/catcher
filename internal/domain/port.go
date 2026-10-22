@@ -64,6 +64,14 @@ type SessionRepository interface {
 	Delete(ctx context.Context, accountID int64) error
 }
 
+// CredentialRepository 维护加密后的密码凭据（学习通手机号+密码）。
+// 只用于会话失效后的自动重登；用户取消「记住密码」时必须删除。
+type CredentialRepository interface {
+	Get(ctx context.Context, accountID int64) (*entity.PasswordCredential, error)
+	Save(ctx context.Context, accountID int64, creds entity.PasswordCredential, at time.Time) error
+	Delete(ctx context.Context, accountID int64) error
+}
+
 // AssignmentRepository 读取作业，并按一次抓取结果写入快照
 type AssignmentRepository interface {
 	ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error)

@@ -48,3 +48,11 @@ type TronclassSecret struct {
 	Session string `json:"session"`
 	UserID  string `json:"user_id"`
 }
+
+// MaskPhone 把 11 位手机号变成 138****1234，用于 accounts.display_name
+func MaskPhone(phone string) string {
+	if len(phone) != 11 {
+		return phone
+	}
+	return phone[:3] + "****" + phone[7:]
+}

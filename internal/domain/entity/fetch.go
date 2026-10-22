@@ -88,8 +88,8 @@ type QRChallenge struct {
 	ExpiresAt time.Time
 }
 
-// PasswordCredential 是密码登录输入。
+// PasswordCredential 是密码登录输入。落库前整体交给 secretstore 加密
 type PasswordCredential struct {
-	Phone    string
-	Password string
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }
