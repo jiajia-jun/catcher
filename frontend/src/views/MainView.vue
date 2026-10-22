@@ -136,27 +136,14 @@ const columns: DataTableColumns<AssignmentView> = [
   },
 ]
 
-// 表格区域固定占满剩余高度，行多时在表格内部滚动，表头保持可见
-const tableWrap = ref<HTMLElement | null>(null)
-const tableHeight = ref(420)
-let tableObserver: ResizeObserver | undefined
-
 onMounted(() => {
   void store.init()
   // 直接用 Wails 事件驱动右下角提示，不依赖通知组件
   offRefreshFinished = EventsOn('refresh.finished', showSuccessToast)
-  if (tableWrap.value) {
-    tableObserver = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? 0
-      if (height > 0) tableHeight.value = Math.max(200, Math.floor(height))
-    })
-    tableObserver.observe(tableWrap.value)
-  }
 })
 
 onBeforeUnmount(() => {
   offRefreshFinished?.()
-  tableObserver?.disconnect()
   if (toastTimer) window.clearTimeout(toastTimer)
 })
 
@@ -326,15 +313,16 @@ function rowKey(row: AssignmentView) {
           {{ store.lastRefreshError }}
         </n-alert>
 
-        <div v-else ref="tableWrap" class="table-wrap">
+        <div v-else class="table-wrap">
           <n-data-table
+            flex-height
+            style="height: 100%"
             :columns="columns"
             :data="store.assignments"
             :loading="store.listLoading"
             :row-key="rowKey"
             :bordered="false"
             :single-line="false"
-            :max-height="tableHeight"
             size="small"
           >
             <template #empty>

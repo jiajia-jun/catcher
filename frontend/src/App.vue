@@ -8,7 +8,8 @@ const theme = computed(() => (osTheme.value === 'dark' ? darkTheme : null))
 </script>
 
 <template>
-  <n-config-provider :theme="theme">
+  <!-- 必须给高度，否则主布局的 height: 100% 会退化成内容高度，整页撑出窗口 -->
+  <n-config-provider :theme="theme" style="height: 100%">
     <n-message-provider>
       <main-view />
     </n-message-provider>
