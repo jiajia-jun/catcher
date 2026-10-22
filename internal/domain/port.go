@@ -53,6 +53,8 @@ type AccountRepository interface {
 	ListAccounts(ctx context.Context) ([]entity.Account, error)
 	GetAccount(ctx context.Context, platform entity.Platform) (*entity.Account, error)
 	SetLoginState(ctx context.Context, platform entity.Platform, state entity.LoginState, at time.Time) error
+	// SetDisplayName 只写入脱敏标识，并同时记录最近登录时间
+	SetDisplayName(ctx context.Context, platform entity.Platform, name string, at time.Time) error
 }
 
 // SessionRepository 维护加密后的会话秘密。

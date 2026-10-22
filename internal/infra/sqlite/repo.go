@@ -103,6 +103,28 @@ func (r *Repo) SetLoginState(ctx context.Context, platform entity.Platform, stat
 	return nil
 }
 
+// SetDisplayName 写入脱敏后的账号标识，并更新最近登录时间
+func (r *Repo) SetDisplayName(ctx context.Context, platform entity.Platform, name string, at time.Time) error {
+	var affected int64
+	err := r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE accounts SET display_name = ?, last_login_at = ?, updated_at = ? WHERE platform = ?`,
+			name, formatTime(at), formatTime(at), string(platform))
+		if err != nil {
+			return err
+		}
+		affected, err = res.RowsAffected()
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("更新账号显示名失败: %w", err)
+	}
+	if affected == 0 {
+		return entity.ErrNotFound
+	}
+	return nil
+}
+
 // ListAssignments 支持平台、课程、状态、关键字筛选；默认隐藏已提交作业。
 func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
 	query := `

@@ -1,5 +1,5 @@
 // Package service 编排业务用例。它只依赖 domain 定义的端口，
-// 具体实现在 cmd/app 中注入。
+// 具体实现在 cmd/app 中注入
 package service
 
 import (
@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"sync"
 	"time"
 
 	"catcher/internal/domain"
 	"catcher/internal/domain/entity"
 	"catcher/pkg/config"
+	"catcher/pkg/logger"
 )
 
-// Counts 是作业统计。unknown 永远不计入未交。
+// Counts 是作业统计。unknown 永远不计入未交
 type Counts struct {
 	OpenUnsubmitted    int
 	OverdueUnsubmitted int
@@ -22,37 +24,110 @@ type Counts struct {
 	Submitted          int
 }
 
-// Bootstrap 是首屏所需的聚合数据。
+// Bootstrap 是首屏所需的聚合数据
 type Bootstrap struct {
 	Accounts []entity.Account
 	Counts   map[entity.Platform]Counts
 	Stats    Counts
+	LastRuns map[entity.Platform]entity.FetchRun
 	DataDir  string
 	Version  string
 }
 
-type Service struct {
-	accounts    domain.AccountRepository
-	assignments domain.AssignmentRepository
-	cfg         *config.App
-	dataDir     string
-	version     string
-	now         func() time.Time
+// Deps 是 Service 的依赖集合，由 cmd/app 装配
+type Deps struct {
+	Accounts    domain.AccountRepository
+	Sessions    domain.SessionRepository
+	Assignments domain.AssignmentRepository
+	Runs        domain.FetchRunRepository
+
+	Fetchers map[entity.Platform]domain.Fetcher
+	Renewers map[entity.Platform]domain.SessionRenewer
+	QRLogin  domain.QRLogin
+
+	Config  *config.App
+	DataDir string
+	Version string
+	Logger  logger.Logger
+	Now     func() time.Time
 }
 
-func New(accounts domain.AccountRepository, assignments domain.AssignmentRepository,
-	cfg *config.App, dataDir, version string) *Service {
-	return &Service{
-		accounts:    accounts,
-		assignments: assignments,
-		cfg:         cfg,
-		dataDir:     dataDir,
-		version:     version,
-		now:         time.Now,
+type Service struct {
+	accounts    domain.AccountRepository
+	sessions    domain.SessionRepository
+	assignments domain.AssignmentRepository
+	runs        domain.FetchRunRepository
+
+	fetchers map[entity.Platform]domain.Fetcher
+	renewers map[entity.Platform]domain.SessionRenewer
+	qrLogin  domain.QRLogin
+
+	cfg     *config.App
+	dataDir string
+	version string
+	now     func() time.Time
+	logger  logger.Logger
+
+	emitMu sync.RWMutex
+	emit   func(name string, payload any)
+
+	jobsMu      sync.Mutex
+	refreshJobs map[string]*refreshJob
+	running     map[entity.Platform]string
+	loginJobs   map[string]*loginJob
+}
+
+func New(d Deps) *Service {
+	s := &Service{
+		accounts:    d.Accounts,
+		sessions:    d.Sessions,
+		assignments: d.Assignments,
+		runs:        d.Runs,
+		fetchers:    d.Fetchers,
+		renewers:    d.Renewers,
+		qrLogin:     d.QRLogin,
+		cfg:         d.Config,
+		dataDir:     d.DataDir,
+		version:     d.Version,
+		now:         d.Now,
+		logger:      d.Logger,
+
+		refreshJobs: make(map[string]*refreshJob),
+		running:     make(map[entity.Platform]string),
+		loginJobs:   make(map[string]*loginJob),
+	}
+	if s.fetchers == nil {
+		s.fetchers = make(map[entity.Platform]domain.Fetcher)
+	}
+	if s.renewers == nil {
+		s.renewers = make(map[entity.Platform]domain.SessionRenewer)
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
+	if s.logger == nil {
+		s.logger = logger.Discard()
+	}
+	return s
+}
+
+// SetEmitter 注入事件出口。handle 在 Wails 启动后调用一次
+func (s *Service) SetEmitter(emit func(name string, payload any)) {
+	s.emitMu.Lock()
+	s.emit = emit
+	s.emitMu.Unlock()
+}
+
+func (s *Service) emitEvent(name string, payload any) {
+	s.emitMu.RLock()
+	emit := s.emit
+	s.emitMu.RUnlock()
+	if emit != nil {
+		emit(name, payload)
 	}
 }
 
-// Bootstrap 读取账号与全部 active 作业，并按平台聚合统计。
+// Bootstrap 读取账号、全部 active 作业与每平台最近一次刷新，并按平台聚合统计
 func (s *Service) Bootstrap(ctx context.Context) (*Bootstrap, error) {
 	accounts, err := s.accounts.ListAccounts(ctx)
 	if err != nil {
@@ -77,10 +152,19 @@ func (s *Service) Bootstrap(ctx context.Context) (*Bootstrap, error) {
 		addCount(&stats, item, now)
 	}
 
+	lastRuns := map[entity.Platform]entity.FetchRun{}
+	if s.runs != nil {
+		lastRuns, err = s.runs.LatestRuns(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Bootstrap{
 		Accounts: accounts,
 		Counts:   counts,
 		Stats:    stats,
+		LastRuns: lastRuns,
 		DataDir:  s.dataDir,
 		Version:  s.version,
 	}, nil
@@ -101,12 +185,20 @@ func addCount(c *Counts, item entity.Assignment, now time.Time) {
 	}
 }
 
-// ListAssignments 返回符合筛选条件的作业。
+// ListAssignments 返回符合筛选条件的作业
 func (s *Service) ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
 	return s.assignments.ListAssignments(ctx, filter)
 }
 
-// Settings 返回配置副本。
+// FetchIssues 返回某次刷新的问题明细
+func (s *Service) FetchIssues(ctx context.Context, runID int64) ([]entity.FetchIssue, error) {
+	if s.runs == nil {
+		return nil, nil
+	}
+	return s.runs.ListIssues(ctx, runID)
+}
+
+// Settings 返回配置副本
 func (s *Service) Settings() config.App {
 	if s.cfg == nil {
 		return config.Default()
@@ -117,7 +209,7 @@ func (s *Service) Settings() config.App {
 func (s *Service) DataDir() string { return s.dataDir }
 func (s *Service) Version() string { return s.version }
 
-// OpenDataDir 在资源管理器中打开数据目录。
+// OpenDataDir 在资源管理器中打开数据目录
 func (s *Service) OpenDataDir(_ context.Context) error {
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("当前平台不支持打开目录: %s", runtime.GOOS)
