@@ -1,4 +1,4 @@
-Unicode true
+﻿Unicode true
 
 ####
 ## Please note: Template replacements don't work in this file. They are provided with default defines like
@@ -32,11 +32,21 @@ Unicode true
 ####
 ## Include the wails tools
 ####
+## 安装器元数据显式定义：本地生成的 wails_tools.nsh 可能保留模板占位符
+!define INFO_PROJECTNAME      "Catcher"
+!define INFO_COMPANYNAME      "SheckHall"
+!define INFO_PRODUCTNAME      "Catcher"
+!define INFO_PRODUCTVERSION   "0.3.0-rc.1"
+!define INFO_COPYRIGHT        "Copyright (c) 2026 SheckHall"
+!define PRODUCT_EXECUTABLE    "Catcher.exe"
+## NSIS 的文件版本必须是 X.X.X.X，不能带 -rc 后缀
+!define INSTALLER_FILE_VERSION "0.3.0.0"
+
 !include "wails_tools.nsh"
 
 # The version information for this two must consist of 4 parts
-VIProductVersion "${INFO_PRODUCTVERSION}.0"
-VIFileVersion    "${INFO_PRODUCTVERSION}.0"
+VIProductVersion "${INSTALLER_FILE_VERSION}"
+VIFileVersion    "${INSTALLER_FILE_VERSION}"
 
 VIAddVersionKey "CompanyName"     "${INFO_COMPANYNAME}"
 VIAddVersionKey "FileDescription" "${INFO_PRODUCTNAME} Installer"
@@ -58,13 +68,14 @@ ManifestDPIAware true
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
 # !insertmacro MUI_PAGE_LICENSE "resources\eula.txt" # Adds a EULA page to the installer
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE ValidateInstallDir
 !insertmacro MUI_PAGE_DIRECTORY # In which folder install page.
 !insertmacro MUI_PAGE_INSTFILES # Installing page.
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+!insertmacro MUI_LANGUAGE "SimpChinese" # Set the Language of the installer
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
@@ -85,6 +96,23 @@ ShowInstDetails show # This will always show the installation details.
 
 Function .onInit
    !insertmacro wails.checkArchitecture
+FunctionEnd
+
+# 目录页离开前确认当前用户能往安装目录写数据
+# 程序把数据放在 exe 同级 data/，装到 Program Files 这类目录时会启动失败
+Function ValidateInstallDir
+    CreateDirectory "$INSTDIR"
+    ClearErrors
+    FileOpen $0 "$INSTDIR\.catcher-write-test" w
+    IfErrors fail
+
+    FileClose $0
+    Delete "$INSTDIR\.catcher-write-test"
+    Return
+
+fail:
+    MessageBox MB_OK|MB_ICONEXCLAMATION "当前用户无法写入目录：$\r$\n$INSTDIR$\r$\n$\r$\n程序会把作业数据库和日志写在安装目录的 data 下。$\r$\n请换一个自己能写的目录（例如 D 盘下新建的文件夹），或改用便携版。"
+    Abort
 FunctionEnd
 
 Section
@@ -108,9 +136,19 @@ SectionEnd
 Section "uninstall"
     !insertmacro wails.setShellContext
 
+    # 默认保留数据；静默卸载不询问，同样保留，避免误删
+    IfSilent keepData
+    MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "是否同时删除数据目录？$\r$\n$INSTDIR\data$\r$\n$\r$\n作业记录、登录态和日志都在这里。选择「否」会保留数据，重新安装到同一目录即可继续使用。" IDYES deleteData
+    Goto keepData
+
+deleteData:
+    RMDir /r "$INSTDIR\data"
+
+keepData:
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
-    RMDir /r $INSTDIR
+    # 只删已知文件，不用 RMDir /r，避免误删用户放在安装目录里的其他内容
+    Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
@@ -119,4 +157,7 @@ Section "uninstall"
     !insertmacro wails.unassociateCustomProtocols
 
     !insertmacro wails.deleteUninstaller
+
+    # 保留数据时目录非空，RMDir 不会删除；目录已空则顺手清掉
+    RMDir "$INSTDIR"
 SectionEnd
