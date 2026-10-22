@@ -136,14 +136,27 @@ const columns: DataTableColumns<AssignmentView> = [
   },
 ]
 
+// 表格区域固定占满剩余高度，行多时在表格内部滚动，表头保持可见
+const tableWrap = ref<HTMLElement | null>(null)
+const tableHeight = ref(420)
+let tableObserver: ResizeObserver | undefined
+
 onMounted(() => {
   void store.init()
   // 直接用 Wails 事件驱动右下角提示，不依赖通知组件
   offRefreshFinished = EventsOn('refresh.finished', showSuccessToast)
+  if (tableWrap.value) {
+    tableObserver = new ResizeObserver((entries) => {
+      const height = entries[0]?.contentRect.height ?? 0
+      if (height > 0) tableHeight.value = Math.max(200, Math.floor(height))
+    })
+    tableObserver.observe(tableWrap.value)
+  }
 })
 
 onBeforeUnmount(() => {
   offRefreshFinished?.()
+  tableObserver?.disconnect()
   if (toastTimer) window.clearTimeout(toastTimer)
 })
 
@@ -313,26 +326,28 @@ function rowKey(row: AssignmentView) {
           {{ store.lastRefreshError }}
         </n-alert>
 
-        <n-data-table
-          v-else
-          :columns="columns"
-          :data="store.assignments"
-          :loading="store.listLoading"
-          :row-key="rowKey"
-          :bordered="false"
-          :single-line="false"
-          size="small"
-        >
-          <template #empty>
-            <n-empty :description="emptyText">
-              <template #extra>
-                <div class="empty-hint">
-                  作业数据只来自平台抓取，不会凭空生成；未登录或抓取失败时保留上次成功的数据。
-                </div>
-              </template>
-            </n-empty>
-          </template>
-        </n-data-table>
+        <div v-else ref="tableWrap" class="table-wrap">
+          <n-data-table
+            :columns="columns"
+            :data="store.assignments"
+            :loading="store.listLoading"
+            :row-key="rowKey"
+            :bordered="false"
+            :single-line="false"
+            :max-height="tableHeight"
+            size="small"
+          >
+            <template #empty>
+              <n-empty :description="emptyText">
+                <template #extra>
+                  <div class="empty-hint">
+                    作业数据只来自平台抓取，不会凭空生成；未登录或抓取失败时保留上次成功的数据。
+                  </div>
+                </template>
+              </n-empty>
+            </template>
+          </n-data-table>
+        </div>
 
         <p class="footer-note">
           所有数据只保存在本机数据目录；凭据使用 Windows DPAPI 加密。
@@ -407,6 +422,25 @@ function rowKey(row: AssignmentView) {
   padding: 24px 28px 32px;
   height: calc(100% - 64px);
   overflow: auto;
+}
+
+/* 让内容区变成纵向 flex，表格占满剩余高度 */
+.content :deep(.n-spin-container),
+.content :deep(.n-spin-content) {
+  height: 100%;
+}
+
+.content :deep(.n-spin-content) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 行多时由表格自己滚动，表头固定 */
+.table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .section-head {
