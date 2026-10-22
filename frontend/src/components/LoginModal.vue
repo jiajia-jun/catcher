@@ -18,6 +18,7 @@ function tick() {
 watch(
   () => store.login.qrContent,
   async (content) => {
+    tick()
     if (!content) {
       qrImage.value = ''
       return
@@ -34,8 +35,12 @@ watch(
 watch(
   () => store.login.show,
   (show) => {
-    if (show && !timer) {
-      timer = window.setInterval(tick, 1000)
+    if (show) {
+      // 弹窗可能是启动很久后才打开的，先用当前时间刷新，避免倒计时凭空少一截
+      tick()
+      if (!timer) {
+        timer = window.setInterval(tick, 1000)
+      }
     }
     if (!show && timer) {
       window.clearInterval(timer)
@@ -51,7 +56,8 @@ onBeforeUnmount(() => {
 const remaining = computed(() => {
   if (!store.login.expiresAt) return 0
   const end = new Date(store.login.expiresAt).getTime()
-  return Math.max(0, Math.floor((end - now.value) / 1000))
+  // 向上取整：刚拿到码时显示 5:00，而不是立刻掉到 4:59
+  return Math.max(0, Math.ceil((end - now.value) / 1000))
 })
 
 const remainingText = computed(() => {
