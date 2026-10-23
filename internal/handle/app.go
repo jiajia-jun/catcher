@@ -5,6 +5,7 @@ package handle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -135,6 +136,54 @@ func (a *App) ListAssignments(filter dto.AssignmentFilter) (res dto.AssignmentLi
 		views = append(views, toAssignmentView(item, now))
 	}
 	return dto.AssignmentListResult{OK: true, Items: views, Total: len(views)}
+}
+
+// SetAssignmentStatus 手动标记一条作业的状态，空状态表示恢复平台值
+func (a *App) SetAssignmentStatus(req dto.AssignmentStatusRequest) (res dto.AssignmentStatusResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.AssignmentStatusResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "更新作业状态时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if req.ID <= 0 {
+		return dto.AssignmentStatusResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少作业 id"},
+		}
+	}
+
+	var status *entity.SubmissionStatus
+	if req.Status != "" {
+		s := entity.SubmissionStatus(req.Status)
+		if s != entity.StatusSubmitted && s != entity.StatusUnsubmitted {
+			return dto.AssignmentStatusResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "状态只能是已提交或未提交", Detail: req.Status},
+			}
+		}
+		status = &s
+	}
+
+	item, err := a.svc.SetAssignmentStatus(a.context(), req.ID, status)
+	if err != nil {
+		if errors.Is(err, entity.ErrNotFound) {
+			return dto.AssignmentStatusResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "NOT_FOUND", Message: "作业不存在或已被删除"},
+			}
+		}
+		return dto.AssignmentStatusResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "STORAGE", Message: "更新作业状态失败", Detail: err.Error()},
+		}
+	}
+
+	view := toAssignmentView(item, time.Now())
+	return dto.AssignmentStatusResult{OK: true, Item: &view}
 }
 
 // GetSettings 返回只读设置视图。
@@ -452,13 +501,20 @@ func toAssignmentView(a entity.Assignment, now time.Time) dto.AssignmentView {
 		CourseName:       a.CourseName,
 		CourseExternalID: a.CourseExternalID,
 		Title:            a.Title,
-		Status:           string(a.Status),
+		Status:           string(a.EffectiveStatus()),
+		PlatformStatus:   string(a.Status),
 		Phase:            string(entity.PhaseOf(a.Deadline, now)),
 		DeadlineSource:   string(a.DeadlineSource),
 		DeadlineRaw:      a.DeadlineRaw,
 		DetailURL:        a.DetailURL,
 		FirstSeenAt:      a.FirstSeenAt.UTC().Format(time.RFC3339),
 		LastSeenAt:       a.LastSeenAt.UTC().Format(time.RFC3339),
+	}
+	if a.ManualStatus != nil {
+		view.ManualStatus = string(*a.ManualStatus)
+	}
+	if a.ManualStatusAt != nil {
+		view.ManualStatusAt = a.ManualStatusAt.UTC().Format(time.RFC3339)
 	}
 	if a.Deadline != nil {
 		view.DeadlineAt = a.Deadline.UTC().Format(time.RFC3339)

@@ -8,6 +8,7 @@ import {
   LoginChaoxing,
   OpenDataDir,
   RefreshYuketangLogin,
+  SetAssignmentStatus,
   StartRefresh,
   StartYuketangLogin,
 } from '../../wailsjs/go/handle/App'
@@ -17,6 +18,8 @@ import type {
   AssignmentFilter,
   AssignmentListData,
   AssignmentListResult,
+  AssignmentStatusResult,
+  AssignmentView,
   BootstrapData,
   BootstrapResult,
   FetchIssuesResult,
@@ -58,6 +61,17 @@ export async function loadAssignments(filter: AssignmentFilter): Promise<Assignm
     items: res.items ?? [],
     total: res.total ?? 0,
   }
+}
+
+// status 传空串表示恢复平台值
+export async function setAssignmentStatus(
+  id: number,
+  status: 'submitted' | 'unsubmitted' | '',
+): Promise<AssignmentView> {
+  ensureRuntime()
+  const res = (await SetAssignmentStatus({ id, status })) as AssignmentStatusResult
+  if (!res?.ok || !res.item) throw apiFailure(res?.error)
+  return res.item
 }
 
 export async function loadSettings(): Promise<SettingsView> {

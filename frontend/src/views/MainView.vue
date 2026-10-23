@@ -4,6 +4,7 @@ import {
   NAlert,
   NButton,
   NDataTable,
+  NDropdown,
   NEmpty,
   NInput,
   NLayout,
@@ -16,7 +17,7 @@ import {
   NText,
   useMessage,
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import type { DataTableColumns, DropdownOption } from 'naive-ui'
 import IssuesModal from '../components/IssuesModal.vue'
 import LoginModal from '../components/LoginModal.vue'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
@@ -30,29 +31,97 @@ type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 const store = useAppStore()
 const message = useMessage()
 
-// 成功提示可以同时存在多条：新提示从底部进入，旧的被顺势顶上去，各自 2 秒后淡出
+// 成功提示可以同时存在多条：新提示从底部进入，旧的被顺势顶上去
+// 带「撤销」的提示停留更久，并且悬停时暂停倒计时
 interface ToastItem {
   id: number
   title: string
   content: string
+  duration: number
+  assignmentId?: number
+  action?: {
+    label: string
+    run: () => void
+  }
+}
+
+interface ToastTimer {
+  remaining: number
+  startedAt: number
+  handle: number
 }
 
 const toasts = ref<ToastItem[]>([])
-const toastTimers = new Set<number>()
+const toastTimers = new Map<number, ToastTimer>()
 let toastSeq = 0
 let offRefreshFinished: (() => void) | undefined
 
-// 单条停留时长，到点后淡出并从列表移除
+// 普通提示的停留时长
 const toastDuration = 2000
 
-function enqueueToast(item: { title: string; content: string }) {
+function enqueueToast(item: {
+  title: string
+  content: string
+  duration?: number
+  assignmentId?: number
+  action?: ToastItem['action']
+}) {
   const id = ++toastSeq
-  toasts.value.push({ id, ...item })
-  const timer = window.setTimeout(() => {
-    toastTimers.delete(timer)
-    toasts.value = toasts.value.filter((t) => t.id !== id)
-  }, toastDuration)
-  toastTimers.add(timer)
+  // 同一行只保留最近一次可撤销的操作
+  if (item.assignmentId !== undefined) {
+    dismissToastsFor(item.assignmentId)
+  }
+  const duration = item.duration ?? toastDuration
+  toasts.value.push({
+    id,
+    title: item.title,
+    content: item.content,
+    duration,
+    assignmentId: item.assignmentId,
+    action: item.action,
+  })
+  toastTimers.set(id, { remaining: duration, startedAt: 0, handle: 0 })
+  scheduleToast(id)
+}
+
+function scheduleToast(id: number) {
+  const state = toastTimers.get(id)
+  if (!state) return
+  state.startedAt = Date.now()
+  state.handle = window.setTimeout(() => dismissToast(id), state.remaining)
+}
+
+function pauseToast(id: number) {
+  const state = toastTimers.get(id)
+  if (!state) return
+  window.clearTimeout(state.handle)
+  state.remaining = Math.max(0, state.remaining - (Date.now() - state.startedAt))
+  if (state.remaining === 0) dismissToast(id)
+}
+
+function resumeToast(id: number) {
+  const state = toastTimers.get(id)
+  if (!state || state.remaining <= 0) return
+  scheduleToast(id)
+}
+
+function dismissToast(id: number) {
+  const state = toastTimers.get(id)
+  if (state) window.clearTimeout(state.handle)
+  toastTimers.delete(id)
+  toasts.value = toasts.value.filter((t) => t.id !== id)
+}
+
+function dismissToastsFor(assignmentId: number) {
+  for (const item of [...toasts.value]) {
+    if (item.assignmentId === assignmentId) dismissToast(item.id)
+  }
+}
+
+function runToastAction(item: ToastItem) {
+  const action = item.action
+  dismissToast(item.id)
+  action?.run()
 }
 
 function showSuccessToast(ev: RefreshFinishedEvent) {
@@ -97,6 +166,71 @@ function statusMeta(row: AssignmentView): { text: string; type: TagType } {
   return { text: '未提交', type: 'warning' }
 }
 
+const statusNames: Record<string, string> = {
+  submitted: '已提交',
+  unsubmitted: '未提交',
+  unknown: '未知',
+}
+
+type StatusKey = 'submitted' | 'unsubmitted' | 'restore'
+
+function formatManualAt(iso: string): string {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`
+}
+
+function statusTooltip(row: AssignmentView): string {
+  if (!row.manualStatus) return '点击可手动标记状态'
+  const platform = statusNames[row.platformStatus] ?? row.platformStatus
+  const at = row.manualStatusAt ? formatManualAt(row.manualStatusAt) : ''
+  return at ? `平台状态：${platform}\n手动标记于 ${at}` : `平台状态：${platform}`
+}
+
+function statusOptions(row: AssignmentView): DropdownOption[] {
+  return [
+    { label: '标记为已提交', key: 'submitted', disabled: row.status === 'submitted' },
+    { label: '标记为未提交', key: 'unsubmitted', disabled: row.status === 'unsubmitted' },
+    { type: 'divider', key: 'divider' },
+    { label: '恢复平台值', key: 'restore', disabled: !row.manualStatus },
+  ]
+}
+
+async function onSetStatus(row: AssignmentView, key: StatusKey) {
+  // 撤销回到改之前的值；空串表示原本没有手动覆盖
+  const previous = row.manualStatus ?? ''
+  const status = key === 'restore' ? '' : key
+  try {
+    await store.setStatus(row.id, status)
+    const title = key === 'restore'
+      ? '已恢复平台状态'
+      : key === 'submitted' ? '已标记为已提交' : '已标记为未提交'
+    enqueueToast({
+      title,
+      content: row.title,
+      duration: 3000,
+      assignmentId: row.id,
+      action: {
+        label: '撤销',
+        run: () => {
+          void undoStatus(row.id, previous)
+        },
+      },
+    })
+  } catch (err) {
+    reportError(err)
+  }
+}
+
+async function undoStatus(id: number, previous: 'submitted' | 'unsubmitted' | '') {
+  try {
+    await store.setStatus(id, previous)
+  } catch (err) {
+    reportError(err)
+  }
+}
+
 const columns: DataTableColumns<AssignmentView> = [
   {
     title: '平台',
@@ -126,9 +260,31 @@ const columns: DataTableColumns<AssignmentView> = [
     width: 132,
     render: (row) => {
       const meta = statusMeta(row)
-      return h(NTag, { size: 'small', type: meta.type, bordered: false }, {
-        default: () => meta.text,
-      })
+      return h(
+        NDropdown,
+        {
+          trigger: 'click',
+          placement: 'bottom-start',
+          options: statusOptions(row),
+          onSelect: (key: string | number) => {
+            void onSetStatus(row, key as StatusKey)
+          },
+        },
+        {
+          default: () =>
+            h('span', {
+              class: 'status-cell',
+              title: statusTooltip(row),
+            }, [
+              h(NTag, { size: 'small', type: meta.type, bordered: false }, {
+                default: () => meta.text,
+              }),
+              row.manualStatus
+                ? h('span', { class: 'manual-badge' }, '手动')
+                : null,
+            ]),
+        },
+      )
     },
   },
   {
@@ -159,7 +315,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   offRefreshFinished?.()
-  for (const timer of toastTimers) window.clearTimeout(timer)
+  for (const state of toastTimers.values()) window.clearTimeout(state.handle)
   toastTimers.clear()
 })
 
@@ -367,9 +523,25 @@ function rowKey(row: AssignmentView) {
     />
 
     <transition-group name="toast" tag="div" class="toast-stack">
-      <div v-for="item in toasts" :key="item.id" class="success-toast" role="status">
+      <div
+        v-for="item in toasts"
+        :key="item.id"
+        class="success-toast"
+        :class="{ 'has-action': item.action }"
+        role="status"
+        @mouseenter="pauseToast(item.id)"
+        @mouseleave="resumeToast(item.id)"
+      >
         <div class="success-toast-title">{{ item.title }}</div>
         <div class="success-toast-content">{{ item.content }}</div>
+        <button
+          v-if="item.action"
+          type="button"
+          class="toast-action"
+          @click="runToastAction(item)"
+        >
+          {{ item.action.label }}
+        </button>
       </div>
     </transition-group>
   </n-layout>
@@ -528,6 +700,43 @@ function rowKey(row: AssignmentView) {
   margin-top: 4px;
   font-size: 13px;
   opacity: 0.85;
+}
+
+/* 带动作的提示要能点，普通提示仍然不挡操作 */
+.success-toast.has-action {
+  pointer-events: auto;
+}
+
+.toast-action {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast-action:hover {
+  opacity: 0.8;
+}
+
+:deep(.status-cell) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+:deep(.status-cell:hover) {
+  opacity: 0.82;
+}
+
+:deep(.manual-badge) {
+  font-size: 11px;
+  opacity: 0.55;
 }
 
 .toast-enter-active,

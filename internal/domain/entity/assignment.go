@@ -51,16 +51,27 @@ type Assignment struct {
 	ExternalID       string
 	DedupKey         string
 	Title            string
-	Status           SubmissionStatus
-	Deadline         *time.Time
-	DeadlineSource   DeadlineSource
-	DeadlineRaw      string
-	DetailURL        string
-	Description      string
-	FirstSeenAt      time.Time
-	LastSeenAt       time.Time
-	Active           bool
-	LastRunID        int64
+	Status           SubmissionStatus // 平台给出的状态
+	// ManualStatus 是用户手动标记的状态；nil 表示没有手动覆盖
+	ManualStatus   *SubmissionStatus
+	ManualStatusAt *time.Time
+	Deadline       *time.Time
+	DeadlineSource DeadlineSource
+	DeadlineRaw    string
+	DetailURL      string
+	Description    string
+	FirstSeenAt    time.Time
+	LastSeenAt     time.Time
+	Active         bool
+	LastRunID      int64
+}
+
+// EffectiveStatus 返回界面与统计使用的状态：有手动值以手动值为准
+func (a Assignment) EffectiveStatus() SubmissionStatus {
+	if a.ManualStatus != nil {
+		return *a.ManualStatus
+	}
+	return a.Status
 }
 
 // AssignmentFilter 是查询作业的条件。零值表示默认视图：

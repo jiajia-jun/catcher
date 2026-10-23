@@ -79,6 +79,9 @@ export namespace dto {
 	    courseExternalId: string;
 	    title: string;
 	    status: string;
+	    platformStatus: string;
+	    manualStatus?: string;
+	    manualStatusAt?: string;
 	    phase: string;
 	    deadlineAt?: string;
 	    deadlineLocal?: string;
@@ -100,6 +103,9 @@ export namespace dto {
 	        this.courseExternalId = source["courseExternalId"];
 	        this.title = source["title"];
 	        this.status = source["status"];
+	        this.platformStatus = source["platformStatus"];
+	        this.manualStatus = source["manualStatus"];
+	        this.manualStatusAt = source["manualStatusAt"];
 	        this.phase = source["phase"];
 	        this.deadlineAt = source["deadlineAt"];
 	        this.deadlineLocal = source["deadlineLocal"];
@@ -126,6 +132,54 @@ export namespace dto {
 	        this.error = this.convertValues(source["error"], APIError);
 	        this.items = this.convertValues(source["items"], AssignmentView);
 	        this.total = source["total"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AssignmentStatusRequest {
+	    id: number;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentStatusRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.status = source["status"];
+	    }
+	}
+	export class AssignmentStatusResult {
+	    ok: boolean;
+	    item?: AssignmentView;
+	    error?: APIError;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentStatusResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.item = this.convertValues(source["item"], AssignmentView);
+	        this.error = this.convertValues(source["error"], APIError);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -116,6 +116,19 @@ func (f *fakeAssignments) SaveSnapshot(_ context.Context, in entity.PersistInput
 	f.snapshot = append(f.snapshot, in)
 	return len(in.Result.Assignments), nil
 }
+
+func (f *fakeAssignments) SetManualStatus(_ context.Context, id int64,
+	status *entity.SubmissionStatus, _ time.Time) (entity.Assignment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, item := range f.list {
+		if item.ID == id {
+			item.ManualStatus = status
+			return item, nil
+		}
+	}
+	return entity.Assignment{}, entity.ErrNotFound
+}
 func (f *fakeAssignments) snapshots() []entity.PersistInput {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -602,11 +615,18 @@ func TestBootstrapAggregatesCounts(t *testing.T) {
 	h := newHarness(t)
 	future := time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
 	past := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	manualSubmitted := entity.StatusSubmitted
+	manualUnsubmitted := entity.StatusUnsubmitted
 	h.assignments.list = []entity.Assignment{
 		{Platform: entity.PlatformYuketang, Status: entity.StatusUnsubmitted, Deadline: &future},
 		{Platform: entity.PlatformYuketang, Status: entity.StatusUnsubmitted, Deadline: &past},
 		{Platform: entity.PlatformYuketang, Status: entity.StatusUnknown, Deadline: &past},
 		{Platform: entity.PlatformYuketang, Status: entity.StatusSubmitted},
+		// 手动值优先于平台值：unknown 被手改成已提交、平台已提交被手改成未提交
+		{Platform: entity.PlatformYuketang, Status: entity.StatusUnknown,
+			ManualStatus: &manualSubmitted, Deadline: &future},
+		{Platform: entity.PlatformYuketang, Status: entity.StatusSubmitted,
+			ManualStatus: &manualUnsubmitted, Deadline: &past},
 	}
 
 	b, err := h.svc.Bootstrap(context.Background(), false)
@@ -614,11 +634,42 @@ func TestBootstrapAggregatesCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := b.Counts[entity.PlatformYuketang]
-	if got.OpenUnsubmitted != 1 || got.OverdueUnsubmitted != 1 || got.Unknown != 1 || got.Submitted != 1 {
+	if got.OpenUnsubmitted != 1 || got.OverdueUnsubmitted != 2 || got.Unknown != 1 || got.Submitted != 2 {
 		t.Fatalf("统计 = %#v", got)
 	}
 	if b.Stats != got {
 		t.Fatalf("汇总统计 = %#v", b.Stats)
+	}
+}
+
+func TestSetAssignmentStatusValidatesAndDelegates(t *testing.T) {
+	h := newHarness(t)
+	h.assignments.list = []entity.Assignment{
+		{ID: 7, Platform: entity.PlatformYuketang, Status: entity.StatusUnknown},
+	}
+
+	if _, err := h.svc.SetAssignmentStatus(context.Background(), 0, nil); err == nil {
+		t.Fatal("缺少 id 时应当报错")
+	}
+	invalid := entity.StatusUnknown
+	if _, err := h.svc.SetAssignmentStatus(context.Background(), 7, &invalid); err == nil {
+		t.Fatal("手动状态不能是 unknown")
+	}
+
+	submitted := entity.StatusSubmitted
+	item, err := h.svc.SetAssignmentStatus(context.Background(), 7, &submitted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("有效状态 = %s, want submitted", item.EffectiveStatus())
+	}
+	if item.Status != entity.StatusUnknown {
+		t.Fatalf("平台状态不应被改写: %s", item.Status)
+	}
+
+	if _, err := h.svc.SetAssignmentStatus(context.Background(), 99, nil); !errors.Is(err, entity.ErrNotFound) {
+		t.Fatalf("不存在的作业应返回 ErrNotFound: %v", err)
 	}
 }
 

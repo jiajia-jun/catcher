@@ -9,6 +9,7 @@ import {
   loadSettings,
   loginChaoxing,
   refreshYuketangLogin,
+  setAssignmentStatus,
   startRefresh,
   startYuketangLogin,
   toErrorText,
@@ -155,8 +156,8 @@ export const useAppStore = defineStore('app', () => {
     await refreshList()
   }
 
-  async function refreshList() {
-    listLoading.value = true
+  async function loadList(silent: boolean) {
+    if (!silent) listLoading.value = true
     error.value = ''
     try {
       const res = await loadAssignments({
@@ -169,8 +170,28 @@ export const useAppStore = defineStore('app', () => {
       assignments.value = []
       error.value = toErrorText(err)
     } finally {
-      listLoading.value = false
+      if (!silent) listLoading.value = false
     }
+  }
+
+  async function refreshList() {
+    await loadList(false)
+  }
+
+  // 手动改状态后静默同步列表与统计，不弹整页 loading
+  async function reloadQuiet() {
+    try {
+      bootstrap.value = await loadBootstrap(termOnly.value)
+    } catch (err) {
+      error.value = toErrorText(err)
+    }
+    await loadList(true)
+  }
+
+  async function setStatus(id: number, status: 'submitted' | 'unsubmitted' | '') {
+    const item = await setAssignmentStatus(id, status)
+    await reloadQuiet()
+    return item
   }
 
   async function setShowSubmitted(value: boolean) {
@@ -291,6 +312,7 @@ export const useAppStore = defineStore('app', () => {
     init,
     reloadAll,
     refreshList,
+    setStatus,
     setShowSubmitted,
     setTermOnly,
     beginRefresh,

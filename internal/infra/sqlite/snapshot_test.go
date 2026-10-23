@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -181,6 +182,135 @@ func TestSaveSnapshotIncompleteKeepsOldRows(t *testing.T) {
 	}
 	if len(items) != 2 {
 		t.Fatalf("部分失败时不应软删除，实际 %d 条", len(items))
+	}
+}
+
+// 手动状态与平台状态分开存：刷新和软删除都不能冲掉手动值
+func TestManualStatusSurvivesRefreshAndFilters(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustYuketangAccount(t, repo)
+
+	at := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	deadline := at.Add(48 * time.Hour)
+	in := entity.PersistInput{
+		AccountID: account.ID,
+		Platform:  entity.PlatformYuketang,
+		At:        at,
+		Result: entity.FetchResult{
+			Complete:    true,
+			Courses:     []entity.Course{course("1001", "2001")},
+			Assignments: []entity.Assignment{yuketangAssignment("1001", "2001", "3001", "手动作业", &deadline)},
+		},
+	}
+	if _, err := repo.SaveSnapshot(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("初始作业 = %d 条, want 1", len(items))
+	}
+	id := items[0].ID
+
+	submitted := entity.StatusSubmitted
+	updated, err := repo.SetManualStatus(ctx, id, &submitted, at.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != entity.StatusUnknown {
+		t.Fatalf("平台状态被改写: %s", updated.Status)
+	}
+	if updated.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("有效状态 = %s, want submitted", updated.EffectiveStatus())
+	}
+	if updated.ManualStatusAt == nil || !updated.ManualStatusAt.Equal(at.Add(time.Hour)) {
+		t.Fatalf("手动时间 = %v", updated.ManualStatusAt)
+	}
+
+	// 默认视图隐藏手动已成已提交的记录，状态筛选也按有效状态
+	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("默认视图应隐藏已提交，实际 %d 条", len(items))
+	}
+	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{
+		Statuses: []entity.SubmissionStatus{entity.StatusSubmitted},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("状态筛选未按有效状态: %#v", items)
+	}
+
+	// 平台再次抓取到 unknown，手动值必须保留
+	in.At = at.Add(2 * time.Hour)
+	if _, err := repo.SaveSnapshot(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("刷新后手动值丢失: %#v", items)
+	}
+	if items[0].ManualStatusAt == nil || !items[0].ManualStatusAt.Equal(at.Add(time.Hour)) {
+		t.Fatalf("刷新改动了手动时间: %v", items[0].ManualStatusAt)
+	}
+
+	// 软删除后重新出现，手动值仍在
+	withoutAssignment := in
+	withoutAssignment.At = at.Add(3 * time.Hour)
+	withoutAssignment.Result.Assignments = nil
+	if _, err := repo.SaveSnapshot(ctx, withoutAssignment); err != nil {
+		t.Fatal(err)
+	}
+	in.At = at.Add(4 * time.Hour)
+	if _, err := repo.SaveSnapshot(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("软删除恢复后手动值丢失: %#v", items)
+	}
+
+	// 清除覆盖后回到平台值
+	restored, err := repo.SetManualStatus(ctx, id, nil, at.Add(5*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.EffectiveStatus() != entity.StatusUnknown {
+		t.Fatalf("恢复后有效状态 = %s, want unknown", restored.EffectiveStatus())
+	}
+	if restored.ManualStatus != nil || restored.ManualStatusAt != nil {
+		t.Fatalf("恢复后手动字段未清空: %#v", restored)
+	}
+	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("恢复平台值后应重新显示，实际 %d 条", len(items))
+	}
+
+	// 重复恢复不应报错，撤销可能重复调用
+	if _, err := repo.SetManualStatus(ctx, id, nil, at.Add(6*time.Hour)); err != nil {
+		t.Fatalf("重复恢复平台值失败: %v", err)
+	}
+
+	if _, err := repo.SetManualStatus(ctx, 999999, &submitted, at); !errors.Is(err, entity.ErrNotFound) {
+		t.Fatalf("不存在的作业应返回 ErrNotFound: %v", err)
 	}
 }
 

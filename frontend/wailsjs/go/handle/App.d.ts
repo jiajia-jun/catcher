@@ -20,6 +20,8 @@ export function OpenDataDir():Promise<dto.APIResult>;
 
 export function RefreshYuketangLogin(arg1:string):Promise<dto.APIResult>;
 
+export function SetAssignmentStatus(arg1:dto.AssignmentStatusRequest):Promise<dto.AssignmentStatusResult>;
+
 export function StartRefresh(arg1:Array<string>):Promise<dto.RefreshStartResult>;
 
 export function StartYuketangLogin():Promise<dto.RefreshStartResult>;

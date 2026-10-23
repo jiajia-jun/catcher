@@ -53,7 +53,12 @@ export interface AssignmentView {
   courseName: string
   courseExternalId: string
   title: string
+  // 有效状态：有手动值用手动值
   status: 'submitted' | 'unsubmitted' | 'unknown'
+  // 平台给出的原始状态
+  platformStatus: 'submitted' | 'unsubmitted' | 'unknown'
+  manualStatus?: 'submitted' | 'unsubmitted'
+  manualStatusAt?: string
   phase: 'open' | 'closed' | 'unknown'
   deadlineAt?: string
   deadlineLocal?: string
@@ -62,6 +67,12 @@ export interface AssignmentView {
   detailUrl?: string
   firstSeenAt: string
   lastSeenAt: string
+}
+
+export interface AssignmentStatusResult {
+  ok: boolean
+  item?: AssignmentView
+  error?: APIError
 }
 
 export interface AssignmentListResult {

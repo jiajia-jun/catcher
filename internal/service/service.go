@@ -182,7 +182,7 @@ func (s *Service) Bootstrap(ctx context.Context, termOnly bool) (*Bootstrap, err
 }
 
 func addCount(c *Counts, item entity.Assignment, now time.Time) {
-	switch item.Status {
+	switch item.EffectiveStatus() {
 	case entity.StatusSubmitted:
 		c.Submitted++
 	case entity.StatusUnsubmitted:
@@ -199,6 +199,19 @@ func addCount(c *Counts, item entity.Assignment, now time.Time) {
 // ListAssignments 返回符合筛选条件的作业
 func (s *Service) ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
 	return s.assignments.ListAssignments(ctx, s.resolveTerm(filter))
+}
+
+// SetAssignmentStatus 写入或清除一条作业的手动状态
+// status 为 nil 表示恢复平台值
+func (s *Service) SetAssignmentStatus(ctx context.Context, id int64,
+	status *entity.SubmissionStatus) (entity.Assignment, error) {
+	if id <= 0 {
+		return entity.Assignment{}, fmt.Errorf("缺少作业 id")
+	}
+	if status != nil && *status != entity.StatusSubmitted && *status != entity.StatusUnsubmitted {
+		return entity.Assignment{}, fmt.Errorf("手动状态只能是已提交或未提交")
+	}
+	return s.assignments.SetManualStatus(ctx, id, status, s.now())
 }
 
 // resolveTerm 把「只看本学期」换算成具体的截止时间下界。

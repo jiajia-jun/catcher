@@ -38,6 +38,10 @@ export function RefreshYuketangLogin(arg1) {
   return window['go']['handle']['App']['RefreshYuketangLogin'](arg1);
 }
 
+export function SetAssignmentStatus(arg1) {
+  return window['go']['handle']['App']['SetAssignmentStatus'](arg1);
+}
+
 export function StartRefresh(arg1) {
   return window['go']['handle']['App']['StartRefresh'](arg1);
 }

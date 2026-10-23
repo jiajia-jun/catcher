@@ -125,15 +125,19 @@ func (r *Repo) SetDisplayName(ctx context.Context, platform entity.Platform, nam
 	return nil
 }
 
+// assignmentColumns 是作业的完整列，ListAssignments 与 SetManualStatus 共用
+const assignmentColumns = `
+	SELECT id, account_id, platform, COALESCE(course_id, 0) AS course_id,
+	       course_external_id, course_name, external_id, dedup_key, title,
+	       status, manual_status, manual_status_at, deadline_at, deadline_source,
+	       deadline_raw, detail_url, description, first_seen_at, last_seen_at, active,
+	       COALESCE(last_run_id, 0) AS last_run_id
+	FROM assignments`
+
 // ListAssignments 支持平台、课程、状态、关键字筛选；默认隐藏已提交作业。
+// 状态筛选与「显示已提交」都按有效状态计算，手动覆盖优先于平台值
 func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
-	query := `
-		SELECT id, account_id, platform, COALESCE(course_id, 0) AS course_id,
-		       course_external_id, course_name, external_id, dedup_key, title,
-		       status, deadline_at, deadline_source, deadline_raw, detail_url,
-		       description, first_seen_at, last_seen_at, active,
-		       COALESCE(last_run_id, 0) AS last_run_id
-		FROM assignments
+	query := assignmentColumns + `
 		WHERE active = 1`
 	var args []any
 
@@ -146,10 +150,10 @@ func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilt
 		args = append(args, filter.CourseIDs)
 	}
 	if len(filter.Statuses) > 0 {
-		query += ` AND status IN (?)`
+		query += ` AND COALESCE(manual_status, status) IN (?)`
 		args = append(args, statusStrings(filter.Statuses))
 	} else if !filter.ShowSubmitted {
-		query += ` AND status <> 'submitted'`
+		query += ` AND COALESCE(manual_status, status) <> 'submitted'`
 	}
 	if filter.DeadlineFrom != nil {
 		// 截止时间未知的作业要保留：读不到时间不等于不是本学期的作业
@@ -184,6 +188,45 @@ func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilt
 			return nil, err
 		}
 		out = append(out, a)
+	}
+	return out, nil
+}
+
+// SetManualStatus 写入或清除一条作业的手动状态，返回更新后的作业
+// status 为 nil 时清空覆盖，恢复平台值
+func (r *Repo) SetManualStatus(ctx context.Context, id int64, status *entity.SubmissionStatus,
+	at time.Time) (entity.Assignment, error) {
+	var out entity.Assignment
+	err := r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
+		var value, markedAt any
+		if status != nil {
+			value = string(*status)
+			markedAt = formatTime(at)
+		}
+
+		res, err := tx.ExecContext(ctx,
+			`UPDATE assignments SET manual_status = ?, manual_status_at = ? WHERE id = ?`,
+			value, markedAt, id)
+		if err != nil {
+			return fmt.Errorf("更新手动状态失败: %w", err)
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("读取更新行数失败: %w", err)
+		}
+		if affected == 0 {
+			return entity.ErrNotFound
+		}
+
+		var row assignmentRow
+		if err := tx.GetContext(ctx, &row, assignmentColumns+` WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("回读作业失败: %w", err)
+		}
+		out, err = row.toEntity()
+		return err
+	})
+	if err != nil {
+		return entity.Assignment{}, err
 	}
 	return out, nil
 }
@@ -233,6 +276,8 @@ type assignmentRow struct {
 	DedupKey         string         `db:"dedup_key"`
 	Title            string         `db:"title"`
 	Status           string         `db:"status"`
+	ManualStatus     sql.NullString `db:"manual_status"`
+	ManualStatusAt   sql.NullString `db:"manual_status_at"`
 	DeadlineAt       sql.NullString `db:"deadline_at"`
 	DeadlineSource   string         `db:"deadline_source"`
 	DeadlineRaw      string         `db:"deadline_raw"`
@@ -248,6 +293,14 @@ func (r assignmentRow) toEntity() (entity.Assignment, error) {
 	deadline, err := parseNullableTime(r.DeadlineAt)
 	if err != nil {
 		return entity.Assignment{}, fmt.Errorf("解析作业 deadline_at 失败: %w", err)
+	}
+	manualStatus, err := parseNullableStatus(r.ManualStatus)
+	if err != nil {
+		return entity.Assignment{}, err
+	}
+	manualStatusAt, err := parseNullableTime(r.ManualStatusAt)
+	if err != nil {
+		return entity.Assignment{}, fmt.Errorf("解析作业 manual_status_at 失败: %w", err)
 	}
 	firstSeen, err := parseTime(r.FirstSeenAt)
 	if err != nil {
@@ -268,6 +321,8 @@ func (r assignmentRow) toEntity() (entity.Assignment, error) {
 		DedupKey:         r.DedupKey,
 		Title:            r.Title,
 		Status:           entity.SubmissionStatus(r.Status),
+		ManualStatus:     manualStatus,
+		ManualStatusAt:   manualStatusAt,
 		Deadline:         deadline,
 		DeadlineSource:   entity.DeadlineSource(r.DeadlineSource),
 		DeadlineRaw:      r.DeadlineRaw,
@@ -297,6 +352,18 @@ func parseNullableTime(v sql.NullString) (*time.Time, error) {
 		return nil, err
 	}
 	return &t, nil
+}
+
+// parseNullableStatus 只接受手动可写的两态；库里出现其他值说明数据被改坏了
+func parseNullableStatus(v sql.NullString) (*entity.SubmissionStatus, error) {
+	if !v.Valid || v.String == "" {
+		return nil, nil
+	}
+	status := entity.SubmissionStatus(v.String)
+	if status != entity.StatusSubmitted && status != entity.StatusUnsubmitted {
+		return nil, fmt.Errorf("作业 manual_status 无效: %q", v.String)
+	}
+	return &status, nil
 }
 
 func platformStrings(platforms []entity.Platform) []string {

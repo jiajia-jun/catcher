@@ -64,7 +64,10 @@ type AssignmentView struct {
 	CourseName       string `json:"courseName"`
 	CourseExternalID string `json:"courseExternalId"`
 	Title            string `json:"title"`
-	Status           string `json:"status"`
+	Status           string `json:"status"`         // 有效状态：有手动值用手动值
+	PlatformStatus   string `json:"platformStatus"` // 平台给出的原始状态
+	ManualStatus     string `json:"manualStatus,omitempty"`
+	ManualStatusAt   string `json:"manualStatusAt,omitempty"`
 	Phase            string `json:"phase"`
 	DeadlineAt       string `json:"deadlineAt,omitempty"`
 	DeadlineLocal    string `json:"deadlineLocal,omitempty"`
@@ -73,6 +76,19 @@ type AssignmentView struct {
 	DetailURL        string `json:"detailUrl,omitempty"`
 	FirstSeenAt      string `json:"firstSeenAt"`
 	LastSeenAt       string `json:"lastSeenAt"`
+}
+
+// AssignmentStatusRequest 手动标记一条作业的状态
+// Status 为空串表示恢复平台值
+type AssignmentStatusRequest struct {
+	ID     int64  `json:"id"`
+	Status string `json:"status"`
+}
+
+type AssignmentStatusResult struct {
+	OK    bool            `json:"ok"`
+	Item  *AssignmentView `json:"item,omitempty"`
+	Error *APIError       `json:"error,omitempty"`
 }
 
 type AssignmentListResult struct {

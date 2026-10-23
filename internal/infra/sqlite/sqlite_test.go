@@ -22,6 +22,65 @@ func openTestDB(t *testing.T) *DB {
 	return db
 }
 
+// 只有 001 的旧库升级到 002 时，原有作业行和状态必须保留
+func TestMigrateUpgradesExistingAssignments(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "catcher.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	body, err := migrationsFS.ReadFile("migrations/001_init.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.SQL().ExecContext(ctx, string(body)); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second).Format(time.RFC3339)
+	if _, err := db.SQL().ExecContext(ctx,
+		`INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.SQL().ExecContext(ctx,
+		`INSERT INTO accounts (platform, created_at, updated_at) VALUES ('yuketang', ?, ?)`,
+		now, now); err != nil {
+		t.Fatal(err)
+	}
+	var accountID int64
+	if err := db.SQL().GetContext(ctx, &accountID,
+		`SELECT id FROM accounts WHERE platform = 'yuketang'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.SQL().ExecContext(ctx, `
+		INSERT INTO assignments (account_id, platform, dedup_key, title, status,
+			first_seen_at, last_seen_at)
+		VALUES (?, 'yuketang', 'yuketang:1:2:3', '旧作业', 'unknown', ?, ?)`,
+		accountID, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var count, columns int
+	if err := db.SQL().GetContext(ctx, &count, `SELECT COUNT(*) FROM assignments`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SQL().GetContext(ctx, &columns,
+		`SELECT COUNT(*) FROM pragma_table_info('assignments') WHERE name IN ('manual_status', 'manual_status_at')`); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 || columns != 2 {
+		t.Fatalf("升级后作业 = %d 条，手动列 = %d 个, want 1/2", count, columns)
+	}
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("迁移不可重复执行: %v", err)
+	}
+}
+
 func TestMigrateAndSeed(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

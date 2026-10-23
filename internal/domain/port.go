@@ -78,6 +78,8 @@ type AssignmentRepository interface {
 	// SaveSnapshot 在一个事务内 upsert 课程与作业，返回写入的作业条数。
 	// 只有 in.Result.Complete 时才软删除本次未出现的旧记录。
 	SaveSnapshot(ctx context.Context, in entity.PersistInput) (upserted int, err error)
+	// SetManualStatus 写入或清除手动状态；status 为 nil 表示恢复平台值
+	SetManualStatus(ctx context.Context, id int64, status *entity.SubmissionStatus, at time.Time) (entity.Assignment, error)
 }
 
 // FetchRunRepository 记录刷新任务与问题明细
