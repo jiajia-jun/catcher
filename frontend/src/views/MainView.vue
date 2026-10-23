@@ -730,8 +730,17 @@ function rowKey(row: AssignmentView) {
   cursor: pointer;
 }
 
-:deep(.status-cell:hover) {
-  opacity: 0.82;
+/* NTag 自带 cursor: default，会盖住外层的手型；留透明边框避免悬停时抖动 */
+:deep(.status-cell .n-tag) {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+:deep(.status-cell:hover .n-tag) {
+  border-color: color-mix(in srgb, currentColor 60%, transparent);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px color-mix(in srgb, currentColor 22%, transparent);
 }
 
 :deep(.manual-badge) {
