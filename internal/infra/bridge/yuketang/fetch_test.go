@@ -265,6 +265,42 @@ func TestFetchUnknownTypeWithContentWarns(t *testing.T) {
 	}
 }
 
+// 2026-10-23 实测：type=15 是慕课视频学习任务，content.score_d 等于课堂 class_end
+// 它不是作业，但保留为一条带期限的任务，且不应再报「未知活动类型」
+func TestFetchType15IsKnownTask(t *testing.T) {
+	logs := `{"success":true,"data":{"now_time":1792563600,"activities":[[
+		{"id":8,"type":15,"title":"衔接课视频学习","create_time":1787889149,
+		 "content":{"score_d":1801411199000,"sku_id":12915963,"c_n":1}}]]}}`
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case learningListPath:
+			_, _ = w.Write(fixture(t, "learning_list.json"))
+		case classroomLogsPath:
+			_, _ = io.WriteString(w, logs)
+		}
+	}), 0)
+
+	result, err := client.Fetch(context.Background(), entity.Account{}, testSession(t, "sid"),
+		entity.FetchOptions{Now: func() time.Time { return time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC) }}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Assignments) != 1 {
+		t.Fatalf("type=15 应保留为一条任务，实际 %d", len(result.Assignments))
+	}
+	if result.Assignments[0].Status != entity.StatusUnknown {
+		t.Fatalf("状态必须是 unknown，实际 %s", result.Assignments[0].Status)
+	}
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Message, "type=15") {
+			t.Fatalf("type=15 是已知类型，不应再告警: %#v", result.Warnings)
+		}
+	}
+	if !result.Complete {
+		t.Fatal("已知类型不应把结果标记为 partial")
+	}
+}
+
 func TestFetchFallsBackToLatestSemester(t *testing.T) {
 	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

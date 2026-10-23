@@ -246,7 +246,9 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 	}
 
 	var warnings []entity.FetchIssue
-	if act.Type != 9 && act.Type != 14 && act.Type != 20 {
+	// 15 是慕课视频学习任务（2026-10-23 实测：content.score_d 等于课堂 class_end，
+	// 不是作业截止时间），但它确实是一条带期限的学习任务，保留且不算未知类型
+	if act.Type != 9 && act.Type != 14 && act.Type != 15 && act.Type != 20 {
 		warnings = append(warnings,
 			warn(fmt.Sprintf("未知活动类型 type=%d 带 content，请核对是否为作业", act.Type)))
 	}
