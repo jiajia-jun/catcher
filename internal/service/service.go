@@ -46,6 +46,7 @@ type Deps struct {
 	Renewers       map[entity.Platform]domain.SessionRenewer
 	Authenticators map[entity.Platform]domain.PasswordAuthenticator
 	QRLogin        domain.QRLogin
+	Importer       domain.SessionImporter
 
 	Config  *config.App
 	DataDir string
@@ -65,6 +66,7 @@ type Service struct {
 	renewers       map[entity.Platform]domain.SessionRenewer
 	authenticators map[entity.Platform]domain.PasswordAuthenticator
 	qrLogin        domain.QRLogin
+	importer       domain.SessionImporter
 
 	cfg     *config.App
 	dataDir string
@@ -92,6 +94,7 @@ func New(d Deps) *Service {
 		renewers:       d.Renewers,
 		authenticators: d.Authenticators,
 		qrLogin:        d.QRLogin,
+		importer:       d.Importer,
 		cfg:            d.Config,
 		dataDir:        d.DataDir,
 		version:        d.Version,

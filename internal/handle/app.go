@@ -412,6 +412,50 @@ func (a *App) LoginChaoxing(req dto.PasswordLoginRequest) (res dto.PasswordLogin
 	}
 }
 
+// ImportTronclassSession 导入浏览器里的学在重邮 session
+// 入参与错误详情都不回显会话值
+func (a *App) ImportTronclassSession(req dto.SessionImportRequest) (res dto.SessionImportResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.SessionImportResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "导入学在重邮会话时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	value := strings.TrimSpace(req.Session)
+	if value == "" || strings.EqualFold(value, "session=") {
+		return dto.SessionImportResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "请粘贴学在重邮的 session"},
+		}
+	}
+	if len(value) > 4096 {
+		return dto.SessionImportResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "session 长度异常"},
+		}
+	}
+
+	displayName, err := a.svc.ImportTronclassSession(a.context(), value)
+	if err != nil {
+		return dto.SessionImportResult{
+			OK: false,
+			Error: &dto.APIError{
+				Code:    service.ErrorCode(err),
+				Message: "学在重邮会话导入失败",
+				Detail:  err.Error(),
+			},
+		}
+	}
+	return dto.SessionImportResult{
+		OK:          true,
+		LoginState:  string(entity.LoginConnected),
+		DisplayName: displayName,
+	}
+}
+
 // GetFetchIssues 返回某次刷新的问题明细
 func (a *App) GetFetchIssues(runID int64) (res dto.FetchIssuesResult) {
 	defer func() {

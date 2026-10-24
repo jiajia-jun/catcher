@@ -15,6 +15,8 @@ var (
 	ErrAuthFailed = errors.New("登录失败")
 	// ErrPlatformChanged 表示响应结构无法按文档解析
 	ErrPlatformChanged = errors.New("平台返回格式变化")
+	// ErrBusiness 表示平台明确拒绝（权限不足、参数被拒等），不是会话失效
+	ErrBusiness = errors.New("平台拒绝请求")
 	// ErrNetwork 表示连接、DNS、TLS 或超时
 	ErrNetwork = errors.New("网络请求失败或超时")
 	// ErrCanceled 表示用户取消

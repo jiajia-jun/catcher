@@ -273,6 +273,19 @@ func (f *fakeQR) PollQR(context.Context, *entity.QRChallenge) (entity.QRState, *
 	return step.state, step.session, step.err
 }
 
+type fakeImporter struct {
+	session *entity.Session
+	err     error
+	raw     string
+	calls   int
+}
+
+func (f *fakeImporter) ImportSession(_ context.Context, raw string) (*entity.Session, error) {
+	f.calls++
+	f.raw = raw
+	return f.session, f.err
+}
+
 type harness struct {
 	svc         *Service
 	accounts    *fakeAccounts
@@ -282,6 +295,7 @@ type harness struct {
 	fetcher     *fakeFetcher
 	renewer     *fakeRenewer
 	qr          *fakeQR
+	importer    *fakeImporter
 	events      chan string
 	eventBody   chan any
 }
@@ -296,6 +310,7 @@ func newHarness(t *testing.T) *harness {
 		fetcher:     &fakeFetcher{},
 		renewer:     &fakeRenewer{},
 		qr:          &fakeQR{},
+		importer:    &fakeImporter{},
 		events:      make(chan string, 64),
 		eventBody:   make(chan any, 64),
 	}
@@ -307,6 +322,7 @@ func newHarness(t *testing.T) *harness {
 		Fetchers:    map[entity.Platform]domainFetcher{entity.PlatformYuketang: h.fetcher},
 		Renewers:    map[entity.Platform]domainRenewer{entity.PlatformYuketang: h.renewer},
 		QRLogin:     h.qr,
+		Importer:    h.importer,
 		Logger:      logger.Discard(),
 		Now:         func() time.Time { return time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC) },
 	})
@@ -682,14 +698,98 @@ func TestErrorCodeMapping(t *testing.T) {
 		{entity.ErrAuthExpired, "AUTH_EXPIRED"},
 		{entity.ErrAuthFailed, "AUTH_FAILED"},
 		{entity.ErrNetwork, "NETWORK"},
+		{entity.ErrBusiness, "BUSINESS"},
 		{entity.ErrPlatformChanged, "PLATFORM_CHANGED"},
 		{entity.ErrCanceled, "CANCELED"},
+		{ErrRefreshRunning, "REFRESH_RUNNING"},
 		{errors.New("其他"), "INTERNAL"},
 	}
 	for _, c := range cases {
 		if got := ErrorCode(c.err); got != c.want {
 			t.Errorf("%v -> %s, want %s", c.err, got, c.want)
 		}
+	}
+}
+
+func tronclassSession(t *testing.T, uid string) *entity.Session {
+	t.Helper()
+	raw, err := json.Marshal(entity.TronclassSecret{Session: "V2-1-uuid.MTIzNDU.1700000000.sig", UserID: uid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &entity.Session{Platform: entity.PlatformTronclass, Secret: raw}
+}
+
+func TestImportTronclassSessionSavesAndMarksConnected(t *testing.T) {
+	h := newHarness(t)
+	h.importer.session = tronclassSession(t, "2024001")
+
+	name, err := h.svc.ImportTronclassSession(context.Background(), "  V2-1-x ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "2024001" {
+		t.Fatalf("显示名 = %q, want 2024001", name)
+	}
+	if h.importer.raw != "  V2-1-x " {
+		t.Fatalf("适配器收到 %q（归一化由适配器负责）", h.importer.raw)
+	}
+	if h.sessions.saves != 1 {
+		t.Fatalf("保存次数 = %d, want 1", h.sessions.saves)
+	}
+	if got := h.accounts.names[entity.PlatformTronclass]; got != "2024001" {
+		t.Fatalf("账号显示名 = %q", got)
+	}
+	if h.accounts.state(entity.PlatformTronclass) != entity.LoginConnected {
+		t.Fatalf("登录态 = %s", h.accounts.state(entity.PlatformTronclass))
+	}
+}
+
+func TestImportTronclassSessionFallsBackToImportedName(t *testing.T) {
+	h := newHarness(t)
+	h.importer.session = tronclassSession(t, "")
+
+	name, err := h.svc.ImportTronclassSession(context.Background(), "V2-1-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "已导入" {
+		t.Fatalf("显示名 = %q, want 已导入", name)
+	}
+}
+
+func TestImportTronclassSessionFailureKeepsOldSession(t *testing.T) {
+	h := newHarness(t)
+	before := h.sessions.secret
+	h.importer.err = entity.ErrAuthExpired
+
+	if _, err := h.svc.ImportTronclassSession(context.Background(), "V2-1-x"); !errors.Is(err, entity.ErrAuthExpired) {
+		t.Fatalf("err = %v, want ErrAuthExpired", err)
+	}
+	if h.sessions.saves != 0 {
+		t.Fatal("验证失败不应写入会话")
+	}
+	if string(h.sessions.secret) != string(before) {
+		t.Fatal("验证失败不应改动已保存的会话")
+	}
+	if h.accounts.state(entity.PlatformTronclass) != "" {
+		t.Fatalf("验证失败不应改动登录态: %s", h.accounts.state(entity.PlatformTronclass))
+	}
+}
+
+func TestImportTronclassSessionRejectsWhileRefreshing(t *testing.T) {
+	h := newHarness(t)
+	h.importer.session = tronclassSession(t, "2024001")
+	h.svc.jobsMu.Lock()
+	h.svc.running[entity.PlatformTronclass] = "refresh-1"
+	h.svc.jobsMu.Unlock()
+
+	_, err := h.svc.ImportTronclassSession(context.Background(), "V2-1-x")
+	if !errors.Is(err, ErrRefreshRunning) {
+		t.Fatalf("err = %v, want ErrRefreshRunning", err)
+	}
+	if h.importer.calls != 0 {
+		t.Fatal("刷新进行中不应验证或保存会话")
 	}
 }
 

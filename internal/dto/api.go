@@ -139,6 +139,20 @@ type PasswordLoginResult struct {
 	Error       *APIError `json:"error,omitempty"`
 }
 
+// SessionImportRequest 是浏览器会话导入的入参
+// Session 只在本次调用内存在，不会出现在响应里
+type SessionImportRequest struct {
+	Session string `json:"session"`
+}
+
+// SessionImportResult 是会话导入结果
+type SessionImportResult struct {
+	OK          bool      `json:"ok"`
+	LoginState  string    `json:"loginState,omitempty"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Error       *APIError `json:"error,omitempty"`
+}
+
 // FetchIssueView 是一次刷新的问题摘要，不含任何凭据
 type FetchIssueView struct {
 	Scope   string `json:"scope"`

@@ -22,6 +22,7 @@ import (
 	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
 	"catcher/internal/infra/bridge/chaoxing"
+	"catcher/internal/infra/bridge/tronclass"
 	"catcher/internal/infra/bridge/yuketang"
 	"catcher/internal/infra/secretstore"
 	"catcher/internal/infra/sender"
@@ -106,6 +107,16 @@ func Run(assets fs.FS) error {
 		Logger: lg,
 		Now:    time.Now,
 	})
+	tronSender := sender.New(sender.Config{
+		Transport:   transport,
+		MinInterval: 250 * time.Millisecond,
+		Logger:      lg,
+	})
+	tron := tronclass.New(tronclass.Options{
+		Sender: tronSender,
+		Logger: lg,
+		Now:    time.Now,
+	})
 
 	svc := service.New(service.Deps{
 		Accounts:    repo,
@@ -123,12 +134,13 @@ func Run(assets fs.FS) error {
 		Authenticators: map[entity.Platform]domain.PasswordAuthenticator{
 			entity.PlatformChaoxing: cx,
 		},
-		QRLogin: yk,
-		Config:  cfg,
-		DataDir: dataDir,
-		Version: Version,
-		Logger:  lg,
-		Now:     time.Now,
+		QRLogin:  yk,
+		Importer: tron,
+		Config:   cfg,
+		DataDir:  dataDir,
+		Version:  Version,
+		Logger:   lg,
+		Now:      time.Now,
 	})
 	h := handle.New(svc)
 

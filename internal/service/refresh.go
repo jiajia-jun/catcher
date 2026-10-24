@@ -293,6 +293,8 @@ func (s *Service) finishWithError(ctx context.Context, run *entity.FetchRun, job
 		s.setLoginState(ctx, p, entity.LoginNeedsLogin, err)
 	case errors.Is(err, entity.ErrNetwork):
 		kind = entity.IssueNetwork
+	case errors.Is(err, entity.ErrBusiness):
+		kind = entity.IssueBusiness
 	case errors.Is(err, entity.ErrPlatformChanged):
 		kind = entity.IssueParse
 	}
@@ -403,6 +405,10 @@ func ErrorCode(err error) string {
 		return "AUTH_FAILED"
 	case errors.Is(err, entity.ErrNetwork):
 		return "NETWORK"
+	case errors.Is(err, entity.ErrBusiness):
+		return "BUSINESS"
+	case errors.Is(err, ErrRefreshRunning):
+		return "REFRESH_RUNNING"
 	case errors.Is(err, entity.ErrPlatformChanged):
 		return "PLATFORM_CHANGED"
 	case errors.Is(err, entity.ErrCanceled):
