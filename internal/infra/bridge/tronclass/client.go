@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	// DefaultBaseURL 是学在重邮数据接口的域名
-	DefaultBaseURL = "https://lms.tc.cqupt.edu.cn"
+	// DefaultBaseURL 是学在重邮数据接口的地址
+	// 2026-10-24 实测 443 端口拒绝连接，站点只监听 80，接口文档里的 https 示例不成立
+	DefaultBaseURL = "http://lms.tc.cqupt.edu.cn"
 
 	// maxSessionBytes 是导入会话的长度上限
 	maxSessionBytes = 4096

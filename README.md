@@ -56,7 +56,7 @@ data/
 
 ## 安全与隐私
 
-- 所有网络请求都是出站 HTTPS，程序不监听本地端口，没有本地 HTTP 服务
+- 程序不监听本地端口，没有本地 HTTP 服务；雨课堂与学习通走 HTTPS，学在重邮的校园站点只开放 HTTP，session 在该站内为明文传输
 - 登录态与学习通密码使用 Windows DPAPI 加密后存入本地 sqlite，只对当前 Windows 用户可解密
 - 日志不记录 Cookie、Set-Cookie、Authorization、密码、token 或二维码内容
 - 数据不会上传到任何第三方服务器
