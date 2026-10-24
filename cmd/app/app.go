@@ -33,7 +33,7 @@ import (
 )
 
 // Version 是构建版本，预发布期间写死，后续改为 ldflags 注入
-const Version = "0.3.0-rc.1"
+const Version = "0.4.0-dev"
 
 // Run 启动 Wails 应用，阻塞到窗口关闭。
 func Run(assets fs.FS) error {
