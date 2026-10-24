@@ -350,7 +350,7 @@ async function onCancelRefresh() {
 }
 
 async function onLogin(platform: string) {
-  if (platform !== 'yuketang' && platform !== 'chaoxing') return
+  if (platform !== 'yuketang' && platform !== 'chaoxing' && platform !== 'tronclass') return
   try {
     await store.beginLogin(platform)
   } catch (err) {

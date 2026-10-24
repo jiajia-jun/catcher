@@ -8,6 +8,7 @@ import {
   loadBootstrap,
   loadSettings,
   loginChaoxing,
+  importTronclassSession,
   refreshYuketangLogin,
   setAssignmentStatus,
   startRefresh,
@@ -28,7 +29,7 @@ import type {
 
 interface LoginState {
   show: boolean
-  platform: '' | 'yuketang' | 'chaoxing'
+  platform: '' | 'yuketang' | 'chaoxing' | 'tronclass'
   jobId: string
   qrContent: string
   expiresAt: string
@@ -221,7 +222,7 @@ export const useAppStore = defineStore('app', () => {
     await cancelRefresh(refreshJobId.value)
   }
 
-  async function beginLogin(platform: 'yuketang' | 'chaoxing') {
+  async function beginLogin(platform: 'yuketang' | 'chaoxing' | 'tronclass') {
     Object.assign(login, {
       show: true,
       platform,
@@ -257,6 +258,36 @@ export const useAppStore = defineStore('app', () => {
       login.message = res.displayName ? `登录成功：${res.displayName}` : '登录成功'
       window.setTimeout(() => {
         if (login.platform === 'chaoxing') {
+          login.show = false
+          login.message = ''
+          login.state = ''
+        }
+      }, 800)
+      void reloadAll()
+      return true
+    } finally {
+      login.submitting = false
+    }
+  }
+
+  // 学在重邮只需验证并保存浏览器 session，失败原因回显在弹窗里
+  async function submitImportSession(session: string) {
+    login.submitting = true
+    login.state = 'waiting'
+    login.message = ''
+    try {
+      const res = await importTronclassSession({ session })
+      if (!res.ok) {
+        login.state = 'failed'
+        login.message = res.error?.detail
+          ? `${res.error.message}：${res.error.detail}`
+          : res.error?.message ?? '导入失败'
+        return false
+      }
+      login.state = 'succeeded'
+      login.message = res.displayName ? `登录成功：${res.displayName}` : '登录成功'
+      window.setTimeout(() => {
+        if (login.platform === 'tronclass') {
           login.show = false
           login.message = ''
           login.state = ''
@@ -319,6 +350,7 @@ export const useAppStore = defineStore('app', () => {
     stopRefresh,
     beginLogin,
     submitPasswordLogin,
+    submitImportSession,
     stopLogin,
     renewQR,
   }

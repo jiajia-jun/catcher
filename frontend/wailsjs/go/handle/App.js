@@ -22,6 +22,10 @@ export function GetSettings() {
   return window['go']['handle']['App']['GetSettings']();
 }
 
+export function ImportTronclassSession(arg1) {
+  return window['go']['handle']['App']['ImportTronclassSession'](arg1);
+}
+
 export function ListAssignments(arg1) {
   return window['go']['handle']['App']['ListAssignments'](arg1);
 }

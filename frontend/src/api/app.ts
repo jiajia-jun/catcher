@@ -4,6 +4,7 @@ import {
   GetBootstrap,
   GetFetchIssues,
   GetSettings,
+  ImportTronclassSession,
   ListAssignments,
   LoginChaoxing,
   OpenDataDir,
@@ -25,6 +26,8 @@ import type {
   FetchIssuesResult,
   PasswordLoginResult,
   RefreshStartResult,
+  SessionImportRequest,
+  SessionImportResult,
   SettingsResult,
   SettingsView,
 } from '../types'
@@ -117,6 +120,14 @@ export interface PasswordLoginInput {
 export async function loginChaoxing(input: PasswordLoginInput): Promise<PasswordLoginResult> {
   ensureRuntime()
   return (await LoginChaoxing(input)) as PasswordLoginResult
+}
+
+// 导入失败同样通过返回值展示，不抛异常
+export async function importTronclassSession(
+  input: SessionImportRequest,
+): Promise<SessionImportResult> {
+  ensureRuntime()
+  return (await ImportTronclassSession(input)) as SessionImportResult
 }
 
 export async function cancelYuketangLogin(jobId: string): Promise<void> {

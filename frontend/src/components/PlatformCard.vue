@@ -19,10 +19,17 @@ const emit = defineEmits<{
 }>()
 
 const canLogin = computed(
-  () => props.data.platform === 'yuketang' || props.data.platform === 'chaoxing',
+  () =>
+    props.data.platform === 'yuketang' ||
+    props.data.platform === 'chaoxing' ||
+    props.data.platform === 'tronclass',
 )
 const loginText = computed(() => {
-  if (props.data.loginState === 'connected') return '重新登录'
+  const connected = props.data.loginState === 'connected'
+  if (props.data.platform === 'tronclass') {
+    return connected ? '重新导入' : '导入会话'
+  }
+  if (connected) return '重新登录'
   return props.data.platform === 'chaoxing' ? '账号登录' : '扫码登录'
 })
 

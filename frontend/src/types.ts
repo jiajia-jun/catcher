@@ -190,6 +190,17 @@ export interface AccountStateEvent {
   error?: RefreshErrorEvent
 }
 
+export interface SessionImportRequest {
+  session: string
+}
+
+export interface SessionImportResult {
+  ok: boolean
+  loginState?: string
+  displayName?: string
+  error?: APIError
+}
+
 export interface PasswordLoginResult {
   ok: boolean
   loginState?: string

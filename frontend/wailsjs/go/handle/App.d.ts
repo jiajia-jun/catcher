@@ -12,6 +12,8 @@ export function GetFetchIssues(arg1:number):Promise<dto.FetchIssuesResult>;
 
 export function GetSettings():Promise<dto.SettingsResult>;
 
+export function ImportTronclassSession(arg1:dto.SessionImportRequest):Promise<dto.SessionImportResult>;
+
 export function ListAssignments(arg1:dto.AssignmentFilter):Promise<dto.AssignmentListResult>;
 
 export function LoginChaoxing(arg1:dto.PasswordLoginRequest):Promise<dto.PasswordLoginResult>;

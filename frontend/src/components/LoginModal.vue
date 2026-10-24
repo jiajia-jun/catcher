@@ -24,12 +24,16 @@ let timer: number | undefined
 const phone = ref('')
 const password = ref('')
 const remember = ref(true)
+const sessionText = ref('')
 const formError = ref('')
 
 const isChaoxing = computed(() => store.login.platform === 'chaoxing')
-const title = computed(() =>
-  isChaoxing.value ? '学习通账号登录' : '雨课堂扫码登录',
-)
+const isTronclass = computed(() => store.login.platform === 'tronclass')
+const isYuketang = computed(() => store.login.platform === 'yuketang')
+const title = computed(() => {
+  if (isTronclass.value) return '学在重邮导入会话'
+  return isChaoxing.value ? '学习通账号登录' : '雨课堂扫码登录'
+})
 
 function tick() {
   now.value = Date.now()
@@ -57,12 +61,14 @@ watch(
   (show) => {
     if (!show) {
       password.value = ''
+      sessionText.value = ''
       formError.value = ''
     }
     if (show) {
       // 弹窗可能是启动很久后才打开的，先用当前时间刷新，避免倒计时凭空少一截
       tick()
-      if (!timer) {
+      // 只有雨课堂二维码需要倒计时
+      if (!timer && store.login.platform === 'yuketang') {
         timer = window.setInterval(tick, 1000)
       }
     }
@@ -130,6 +136,21 @@ async function onSubmit() {
   }
 }
 
+async function onSubmitImport() {
+  formError.value = ''
+  const value = sessionText.value.trim()
+  if (!value) {
+    formError.value = '请粘贴 session'
+    return
+  }
+  try {
+    const ok = await store.submitImportSession(value)
+    if (ok) sessionText.value = ''
+  } catch (err) {
+    formError.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 async function onClose() {
   await store.stopLogin()
 }
@@ -145,7 +166,27 @@ async function onClose() {
     :closable="true"
     @update:show="(value: boolean) => { if (!value) onClose() }"
   >
-    <div v-if="!isChaoxing" class="qr-wrap">
+    <div v-if="isTronclass" class="form-wrap">
+      <n-input
+        v-model:value="sessionText"
+        type="password"
+        show-password-on="click"
+        placeholder="粘贴 session"
+        :disabled="store.login.submitting"
+        @keyup.enter="onSubmitImport"
+      />
+      <div v-if="bannerText" class="state-banner" :class="stateTone">
+        {{ bannerText }}
+      </div>
+      <n-text depth="3" class="hint">
+        从浏览器开发者工具的 Cookie 中复制 session 值；有效期约 24 小时，失效后需要重新导入
+      </n-text>
+      <n-alert type="warning" :bordered="false">
+        学在重邮接口尚未完整验证，当前只支持导入浏览器 session
+      </n-alert>
+    </div>
+
+    <div v-else-if="!isChaoxing" class="qr-wrap">
       <n-spin :show="!qrImage && !failed" size="large">
         <div class="qr-box">
           <img v-if="qrImage" :src="qrImage" alt="雨课堂登录二维码" class="qr-image" />
@@ -185,14 +226,14 @@ async function onClose() {
       </n-text>
     </div>
 
-    <n-alert v-if="!isChaoxing && failed" type="warning" :bordered="false" class="alert">
+    <n-alert v-if="isYuketang && failed" type="warning" :bordered="false" class="alert">
       二维码过期或登录失败时可以换一张；仍未成功请确认手机端雨课堂可正常使用
     </n-alert>
 
     <n-space justify="space-between" class="actions">
       <n-button quaternary @click="onClose">取消</n-button>
       <n-button
-        v-if="!isChaoxing"
+        v-if="isYuketang"
         type="primary"
         secondary
         @click="onRenew"
@@ -200,12 +241,21 @@ async function onClose() {
         换一张
       </n-button>
       <n-button
-        v-else
+        v-else-if="isChaoxing"
         type="primary"
         :loading="store.login.submitting"
         @click="onSubmit"
       >
         登录
+      </n-button>
+      <n-button
+        v-else
+        type="primary"
+        :loading="store.login.submitting"
+        :disabled="!sessionText.trim()"
+        @click="onSubmitImport"
+      >
+        导入
       </n-button>
     </n-space>
   </n-modal>
