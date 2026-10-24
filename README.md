@@ -21,13 +21,13 @@
 
 ### 安装器
 
-下载 `Catcher-0.3.0-rc.1-amd64-installer.exe` 运行。安装器默认装到当前用户目录，**不需要管理员权限**，也可以在安装页改成任意当前用户可写的目录（包括 D:、E: 等非系统盘）。
+下载 `Catcher-1.0.0-amd64-installer.exe` 运行。安装器默认装到当前用户目录，**不需要管理员权限**，也可以在安装页改成任意当前用户可写的目录（包括 D:、E: 等非系统盘）。
 
 > 安装目录必须对当前用户可写。`Program Files` 这类目录普通用户无法写入，安装器会拦下来并提示换一个位置。
 
 ### 便携版
 
-下载 `Catcher-0.3.0-rc.1-portable.zip`，解压到任意可写目录，运行 `Catcher.exe`。
+下载 `Catcher-1.0.0-portable.zip`，解压到任意可写目录，运行 `Catcher.exe`。
 
 ### 卸载
 
@@ -79,7 +79,7 @@ data/
 
 ```bash
 wails build            # 产物 build/bin/Catcher.exe
-wails build -nsis      # 额外生成安装包（需要 NSIS）
+wails build -nsis -installscope user   # 额外生成用户级安装包（需要 NSIS）
 ```
 
 开发模式：
