@@ -10,6 +10,7 @@ import {
   NTag,
   useMessage,
 } from 'naive-ui'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { openDataDir } from '../api/app'
 import { useAppStore } from '../stores/app'
 
@@ -26,6 +27,8 @@ const visible = computed({
 
 const settings = computed(() => store.settings)
 
+const FEEDBACK_URL = 'https://github.com/jiajia-jun/catcher/issues'
+
 async function onOpenDir() {
   try {
     await openDataDir()
@@ -33,6 +36,10 @@ async function onOpenDir() {
   } catch (err) {
     message.error(err instanceof Error ? err.message : String(err))
   }
+}
+
+function onFeedback() {
+  BrowserOpenURL(FEEDBACK_URL)
 }
 </script>
 
@@ -66,6 +73,9 @@ async function onOpenDir() {
         <n-descriptions-item label="主题">
           {{ settings.theme }}
         </n-descriptions-item>
+        <n-descriptions-item label="反馈">
+          <a href="#" class="feedback-link" @click.prevent="onFeedback">提交问题或建议</a>
+        </n-descriptions-item>
       </n-descriptions>
 
       <template #footer>
@@ -88,5 +98,15 @@ async function onOpenDir() {
   margin-left: 8px;
   opacity: 0.6;
   font-size: 12px;
+}
+
+.feedback-link {
+  color: #18a058;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.feedback-link:hover {
+  color: #0f7b41;
 }
 </style>
