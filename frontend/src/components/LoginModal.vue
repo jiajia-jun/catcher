@@ -214,7 +214,8 @@ async function onClose() {
         </tbody>
       </table>
       <n-text depth="3" class="hint">
-        如果失效请重新导入
+        如果失效请重新导入<br />
+        该站点仅支持 HTTP，建议在校园网或 VPN 下导入
       </n-text>
       <n-alert type="warning" :bordered="false">
         学在重邮接口尚未完整验证，当前只支持导入浏览器 session
