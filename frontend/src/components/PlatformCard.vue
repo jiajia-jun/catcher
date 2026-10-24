@@ -125,6 +125,14 @@ const counts = computed(() => props.data.counts)
 <style scoped>
 .platform-card {
   height: 100%;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+/* 边框色由 Naive UI 的 .n-card 规则控制，同权重下按注入顺序可能被盖掉，这里提高优先级 */
+.platform-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(24, 160, 88, 0.55) !important;
+  box-shadow: 0 10px 24px rgba(24, 160, 88, 0.14);
 }
 
 .platform-head {
