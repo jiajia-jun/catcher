@@ -150,7 +150,7 @@ func (s *Sender) Do(ctx context.Context, r *Request) (*Response, error) {
 		s.logRequest(method, r.URL, 0, 0, nil, classified, time.Since(started))
 		return nil, classified
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, s.maxBody+1))
 	if readErr != nil {

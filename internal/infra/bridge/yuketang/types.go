@@ -70,10 +70,3 @@ type activityContent struct {
 	ScoreD json.Number `json:"score_d"`
 	LeafID json.Number `json:"leaf_id"`
 }
-
-// webLoginResp 是 ③ 成功时的 JSON；失败时返回 HTML，解析失败不算异常
-type webLoginResp struct {
-	Success  bool        `json:"success"`
-	UserID   json.Number `json:"user_id"`
-	UserRole int         `json:"user_role"`
-}

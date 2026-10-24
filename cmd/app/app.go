@@ -178,7 +178,7 @@ func Run(assets fs.FS) error {
 		Bind: []interface{}{h},
 	})
 	if wailsErr != nil {
-		return fmt.Errorf("Wails 运行失败: %w", wailsErr)
+		return fmt.Errorf("启动 Wails 窗口失败: %w", wailsErr)
 	}
 	return nil
 }
