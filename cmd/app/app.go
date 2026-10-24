@@ -125,8 +125,9 @@ func Run(assets fs.FS) error {
 		Assignments: repo,
 		Runs:        sqlite.NewFetchRunRepo(db),
 		Fetchers: map[entity.Platform]domain.Fetcher{
-			entity.PlatformChaoxing: cx,
-			entity.PlatformYuketang: yk,
+			entity.PlatformChaoxing:  cx,
+			entity.PlatformYuketang:  yk,
+			entity.PlatformTronclass: tron,
 		},
 		Renewers: map[entity.Platform]domain.SessionRenewer{
 			entity.PlatformYuketang: yk,
