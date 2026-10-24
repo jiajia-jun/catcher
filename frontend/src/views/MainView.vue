@@ -529,6 +529,7 @@ function rowKey(row: AssignmentView) {
         <p class="footer-note">
           所有数据只保存在本机数据目录；凭据使用 Windows DPAPI 加密。
         </p>
+        <p class="disclaimer">作业详细情况请以实际情况为准，本页面仅供参考</p>
       </n-spin>
     </n-layout-content>
 
@@ -683,6 +684,13 @@ function rowKey(row: AssignmentView) {
   margin: 22px 0 0;
   font-size: 12px;
   opacity: 0.5;
+}
+
+.disclaimer {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.72;
 }
 
 /* 多条提示从底部往上叠：容器固定在右下角，新条目追加在末尾 */
