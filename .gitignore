@@ -29,3 +29,6 @@ catcher.json
 
 # Wails NSIS 构建时下载的 WebView2 引导程序
 build/windows/installer/tmp/
+
+# 发布资产（安装包、便携包）
+build/release/
