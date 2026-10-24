@@ -214,7 +214,7 @@ async function onClose() {
         </tbody>
       </table>
       <n-text depth="3" class="hint">
-        session 有效期约 24 小时，失效后需要重新导入
+        如果失效请重新导入
       </n-text>
       <n-alert type="warning" :bordered="false">
         学在重邮接口尚未完整验证，当前只支持导入浏览器 session
