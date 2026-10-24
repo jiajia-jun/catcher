@@ -12,6 +12,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import QRCode from 'qrcode'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
@@ -151,6 +152,11 @@ async function onSubmitImport() {
   }
 }
 
+function openTronclass() {
+  // 用系统浏览器打开，避免 WebView 被导航离开应用
+  BrowserOpenURL('http://lms.tc.cqupt.edu.cn/user/index#/')
+}
+
 async function onClose() {
   await store.stopLogin()
 }
@@ -161,7 +167,7 @@ async function onClose() {
     :show="store.login.show"
     preset="card"
     :title="title"
-    style="width: 380px"
+    :style="{ width: isTronclass ? '560px' : '380px' }"
     :mask-closable="false"
     :closable="true"
     @update:show="(value: boolean) => { if (!value) onClose() }"
@@ -178,8 +184,37 @@ async function onClose() {
       <div v-if="bannerText" class="state-banner" :class="stateTone">
         {{ bannerText }}
       </div>
+      <div class="guide">
+        <span>登录</span><a href="#" class="guide-link" @click.prevent="openTronclass">学在重邮</a>
+        <span class="guide-sep">-</span>
+        <span>F12 开发者工具</span>
+        <span class="guide-sep">-</span>
+        <span>应用程序</span>
+        <span class="guide-sep">-</span>
+        <span>Cookie</span>
+        <span class="guide-sep">-</span>
+        <span>Session</span>
+      </div>
+      <table class="cookie-table">
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>域名</th>
+            <th>名称</th>
+            <th>值</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cookie</td>
+            <td>lms.tc.cqupt.edu.cn</td>
+            <td class="cookie-name">session</td>
+            <td class="cookie-value">V2-1-…（复制整段）</td>
+          </tr>
+        </tbody>
+      </table>
       <n-text depth="3" class="hint">
-        从浏览器开发者工具的 Cookie 中复制 session 值；有效期约 24 小时，失效后需要重新导入
+        session 有效期约 24 小时，失效后需要重新导入
       </n-text>
       <n-alert type="warning" :bordered="false">
         学在重邮接口尚未完整验证，当前只支持导入浏览器 session
@@ -304,6 +339,71 @@ async function onClose() {
 .hint {
   font-size: 12px;
   line-height: 1.6;
+}
+
+.guide {
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.guide-link {
+  color: #18a058;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.guide-link:hover {
+  color: #0f7b41;
+}
+
+.guide-sep {
+  margin: 0 5px;
+  opacity: 0.45;
+}
+
+.cookie-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.cookie-table th,
+.cookie-table td {
+  padding: 5px 8px;
+  border: 1px solid rgba(128, 128, 128, 0.22);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cookie-table th {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.6);
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.cookie-table th:nth-child(1) {
+  width: 64px;
+}
+
+.cookie-table th:nth-child(3) {
+  width: 72px;
+}
+
+.cookie-table th:nth-child(4) {
+  width: 148px;
+}
+
+.cookie-name {
+  font-weight: 600;
+  color: #18a058;
+}
+
+.cookie-value {
+  color: rgba(0, 0, 0, 0.5);
 }
 
 .state-banner {
