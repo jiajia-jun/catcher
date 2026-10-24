@@ -151,6 +151,13 @@ const platformNames: Record<string, string> = {
   tronclass: '学在重邮',
 }
 
+// 平台标签配色：学习通红、雨课堂蓝、学在重邮青，白字压在实色底上
+const platformTones: Record<string, { bg: string; fg: string }> = {
+  chaoxing: { bg: '#d03050', fg: '#fff' },
+  yuketang: { bg: '#1668dc', fg: '#fff' },
+  tronclass: { bg: '#0a756b', fg: '#fff' },
+}
+
 const deadlineSourceNames: Record<string, string> = {
   platform_exact: '平台给出',
   detail_exact: '详情页',
@@ -236,10 +243,21 @@ const columns: DataTableColumns<AssignmentView> = [
     title: '平台',
     key: 'platform',
     width: 104,
-    render: (row) =>
-      h(NTag, { size: 'small', bordered: false }, {
-        default: () => platformNames[row.platform] ?? row.platform,
-      }),
+    render: (row) => {
+      const tone = platformTones[row.platform]
+      return h(
+        NTag,
+        {
+          size: 'small',
+          bordered: false,
+          color: tone
+            ? { color: tone.bg, textColor: tone.fg, borderColor: 'transparent' }
+            : undefined,
+          style: { fontWeight: 600 },
+        },
+        { default: () => platformNames[row.platform] ?? row.platform },
+      )
+    },
   },
   {
     title: '课程',
