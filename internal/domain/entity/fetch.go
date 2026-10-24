@@ -18,13 +18,20 @@ type FetchResult struct {
 	Assignments []Assignment
 	Warnings    []FetchIssue
 	ServerNow   *time.Time
-	Complete    bool
+	// Complete 表示本次完整枚举了目标范围
+	Complete bool
+	// CourseListComplete 表示课程列表本身被完整枚举
+	CourseListComplete bool
+	// FailedCourses 是本次作业列表抓取失败的课程 external_id
+	// nil 表示课程列表不完整，不能据此清理旧数据
+	FailedCourses []string
 }
 
 // PersistInput 是一次抓取结果落库所需的全部上下文
 //
-// Complete 为 false 时只做 upsert，不软删除任何旧记录；
-// 这是保守策略：宁可留下已消失的作业，也不误删没抓到的作业
+// Complete 为 false 时默认只做 upsert，不软删除旧记录；
+// 课程列表完整（CourseListComplete）时可以清理旧课程，
+// 作业则只清理不在 FailedCourses 里的课程
 type PersistInput struct {
 	AccountID int64
 	Platform  Platform

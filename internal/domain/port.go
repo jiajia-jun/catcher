@@ -76,7 +76,8 @@ type CredentialRepository interface {
 type AssignmentRepository interface {
 	ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error)
 	// SaveSnapshot 在一个事务内 upsert 课程与作业，返回写入的作业条数。
-	// 只有 in.Result.Complete 时才软删除本次未出现的旧记录。
+	// Complete 时平台级软删除；课程列表完整但部分课程失败时按课程清理，
+	// FailedCourses 里的课程保留旧作业。
 	SaveSnapshot(ctx context.Context, in entity.PersistInput) (upserted int, err error)
 	// SetManualStatus 写入或清除手动状态；status 为 nil 表示恢复平台值
 	SetManualStatus(ctx context.Context, id int64, status *entity.SubmissionStatus, at time.Time) (entity.Assignment, error)

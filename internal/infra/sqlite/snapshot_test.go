@@ -185,6 +185,140 @@ func TestSaveSnapshotIncompleteKeepsOldRows(t *testing.T) {
 	}
 }
 
+// 课程列表完整但部分课程失败时，只清理失败课程以外的旧数据
+func TestSaveSnapshotCourseScopedSoftDelete(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustYuketangAccount(t, repo)
+
+	base := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	deadline := base.Add(72 * time.Hour)
+	full := entity.PersistInput{
+		AccountID: account.ID,
+		Platform:  entity.PlatformYuketang,
+		At:        base,
+		Result: entity.FetchResult{
+			Complete: true,
+			Courses: []entity.Course{
+				course("1001", "2001"),
+				course("1002", "2002"),
+				course("1003", "2003"),
+			},
+			Assignments: []entity.Assignment{
+				yuketangAssignment("1001", "2001", "3001", "课程一作业", &deadline),
+				yuketangAssignment("1002", "2002", "3002", "课程二作业", &deadline),
+				yuketangAssignment("1003", "2003", "3003", "旧学期作业", &deadline),
+			},
+		},
+	}
+	if _, err := repo.SaveSnapshot(ctx, full); err != nil {
+		t.Fatal(err)
+	}
+
+	// 课程列表完整，课程二作业抓取失败，旧学期课程不再出现
+	partial := full
+	partial.At = base.Add(time.Hour)
+	partial.Result = entity.FetchResult{
+		Complete:           false,
+		CourseListComplete: true,
+		Courses: []entity.Course{
+			course("1001", "2001"),
+			course("1002", "2002"),
+		},
+		Assignments: []entity.Assignment{
+			yuketangAssignment("1001", "2001", "3001", "课程一作业", &deadline),
+		},
+		FailedCourses: []string{"1002"},
+	}
+	if _, err := repo.SaveSnapshot(ctx, partial); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("active 作业 = %d, want 2（失败课程豁免）", len(items))
+	}
+	for _, item := range items {
+		if item.CourseExternalID == "1003" {
+			t.Fatalf("旧学期作业应被软删除: %#v", item)
+		}
+	}
+
+	var activeCourses, inactiveCourses int
+	if err := db.SQL().GetContext(ctx, &activeCourses,
+		`SELECT COUNT(*) FROM courses WHERE active = 1`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SQL().GetContext(ctx, &inactiveCourses,
+		`SELECT COUNT(*) FROM courses WHERE active = 0`); err != nil {
+		t.Fatal(err)
+	}
+	if activeCourses != 2 || inactiveCourses != 1 {
+		t.Fatalf("课程 active/inactive = %d/%d, want 2/1", activeCourses, inactiveCourses)
+	}
+}
+
+// 课程列表本身不完整时不做任何软删除
+func TestSaveSnapshotCourseListIncompleteKeepsEverything(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustYuketangAccount(t, repo)
+
+	base := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	deadline := base.Add(72 * time.Hour)
+	full := entity.PersistInput{
+		AccountID: account.ID,
+		Platform:  entity.PlatformYuketang,
+		At:        base,
+		Result: entity.FetchResult{
+			Complete: true,
+			Courses:  []entity.Course{course("1001", "2001"), course("1002", "2002")},
+			Assignments: []entity.Assignment{
+				yuketangAssignment("1001", "2001", "3001", "课程一作业", &deadline),
+				yuketangAssignment("1002", "2002", "3002", "课程二作业", &deadline),
+			},
+		},
+	}
+	if _, err := repo.SaveSnapshot(ctx, full); err != nil {
+		t.Fatal(err)
+	}
+
+	partial := full
+	partial.At = base.Add(time.Hour)
+	partial.Result = entity.FetchResult{
+		Complete:           false,
+		CourseListComplete: false,
+		Courses:            []entity.Course{course("1001", "2001")},
+		Assignments: []entity.Assignment{
+			yuketangAssignment("1001", "2001", "3001", "课程一作业", &deadline),
+		},
+	}
+	if _, err := repo.SaveSnapshot(ctx, partial); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("active 作业 = %d, want 2", len(items))
+	}
+	var activeCourses int
+	if err := db.SQL().GetContext(ctx, &activeCourses,
+		`SELECT COUNT(*) FROM courses WHERE active = 1`); err != nil {
+		t.Fatal(err)
+	}
+	if activeCourses != 2 {
+		t.Fatalf("active 课程 = %d, want 2", activeCourses)
+	}
+}
+
 // 手动状态与平台状态分开存：刷新和软删除都不能冲掉手动值
 func TestManualStatusSurvivesRefreshAndFilters(t *testing.T) {
 	ctx := context.Background()

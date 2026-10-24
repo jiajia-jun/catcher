@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 
@@ -13,7 +14,8 @@ import (
 //
 // 软删除顺序是「先全部置 active=0，再 upsert 回 active=1」，
 // 这样不必拼一个可能超过 SQLite 参数上限的 NOT IN 列表；
-// 事务隔离保证读连接看不到中间状态
+// 事务隔离保证读连接看不到中间状态。
+// 课程列表完整但部分课程作业失败时，失败课程下的旧作业保持 active
 func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, error) {
 	if in.AccountID <= 0 {
 		return 0, fmt.Errorf("落库缺少 account_id")
@@ -25,9 +27,8 @@ func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, e
 	upserted := 0
 	err := r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
 		upserted = 0
-		complete := in.Result.Complete
-
-		if complete {
+		switch {
+		case in.Result.Complete:
 			if _, err := tx.ExecContext(ctx,
 				`UPDATE courses SET active = 0 WHERE account_id = ? AND platform = ?`,
 				in.AccountID, string(in.Platform)); err != nil {
@@ -37,6 +38,15 @@ func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, e
 				`UPDATE assignments SET active = 0 WHERE account_id = ? AND platform = ?`,
 				in.AccountID, string(in.Platform)); err != nil {
 				return fmt.Errorf("标记旧作业失败: %w", err)
+			}
+		case in.Result.CourseListComplete:
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE courses SET active = 0 WHERE account_id = ? AND platform = ?`,
+				in.AccountID, string(in.Platform)); err != nil {
+				return fmt.Errorf("标记旧课程失败: %w", err)
+			}
+			if err := deactivateAssignments(ctx, tx, in); err != nil {
+				return err
 			}
 		}
 
@@ -65,6 +75,35 @@ func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, e
 
 func courseKey(externalID, classroomID string) string {
 	return externalID + "\x00" + classroomID
+}
+
+// deactivateAssignments 清理本次未出现的旧作业，失败课程下的记录豁免
+func deactivateAssignments(ctx context.Context, tx *sqlx.Tx, in entity.PersistInput) error {
+	failed := make([]string, 0, len(in.Result.FailedCourses))
+	seen := make(map[string]struct{}, len(in.Result.FailedCourses))
+	for _, externalID := range in.Result.FailedCourses {
+		if externalID == "" {
+			continue
+		}
+		if _, ok := seen[externalID]; ok {
+			continue
+		}
+		seen[externalID] = struct{}{}
+		failed = append(failed, externalID)
+	}
+
+	query := `UPDATE assignments SET active = 0 WHERE account_id = ? AND platform = ?`
+	args := []any{in.AccountID, string(in.Platform)}
+	if len(failed) > 0 {
+		query += ` AND course_external_id NOT IN (?` + strings.Repeat(",?", len(failed)-1) + `)`
+		for _, externalID := range failed {
+			args = append(args, externalID)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("标记旧作业失败: %w", err)
+	}
+	return nil
 }
 
 func validateAssignment(item entity.Assignment) error {
