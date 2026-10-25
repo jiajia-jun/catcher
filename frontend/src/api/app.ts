@@ -1,6 +1,7 @@
 import {
   CancelRefresh,
   CancelYuketangLogin,
+  CheckForUpdate,
   GetBootstrap,
   GetFetchIssues,
   GetSettings,
@@ -30,6 +31,7 @@ import type {
   SessionImportResult,
   SettingsResult,
   SettingsView,
+  UpdateCheckResult,
 } from '../types'
 
 function ensureRuntime() {
@@ -88,6 +90,12 @@ export async function openDataDir(): Promise<void> {
   ensureRuntime()
   const res = (await OpenDataDir()) as APIResult
   if (!res?.ok) throw apiFailure(res?.error)
+}
+
+// 更新检查失败通过返回值展示；manual 为 false 时由调用方静默处理
+export async function checkForUpdate(manual: boolean): Promise<UpdateCheckResult> {
+  ensureRuntime()
+  return (await CheckForUpdate(manual)) as UpdateCheckResult
 }
 
 export async function startRefresh(platforms?: string[]): Promise<RefreshStartResult> {

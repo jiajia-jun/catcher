@@ -108,6 +108,19 @@ export interface APIResult {
   error?: APIError
 }
 
+// 一次版本检查的结果；skipped 表示开发模式跳过了自动检查
+export interface UpdateCheckResult {
+  ok: boolean
+  current: string
+  latest?: string
+  releaseName?: string
+  releaseUrl?: string
+  hasUpdate: boolean
+  checkedAt?: string
+  skipped?: boolean
+  error?: APIError
+}
+
 export interface RefreshStartResult {
   ok: boolean
   jobId?: string

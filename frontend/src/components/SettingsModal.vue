@@ -41,6 +41,26 @@ async function onOpenDir() {
 function onFeedback() {
   BrowserOpenURL(FEEDBACK_URL)
 }
+
+const updateInfo = computed(() => store.updateInfo)
+
+// 手动检查无论成败都要给明确反馈；自动检查失败是静默的
+function onCheckUpdate() {
+  void store
+    .checkUpdateManually()
+    .then((res) => {
+      if (!res) return
+      if (res.hasUpdate) message.info(`发现新版本 ${res.latest}`)
+      else message.success(`已是最新版本 ${res.current}`)
+    })
+    .catch((err: unknown) => {
+      message.error(err instanceof Error ? err.message : String(err))
+    })
+}
+
+function onOpenRelease() {
+  if (updateInfo.value.releaseUrl) BrowserOpenURL(updateInfo.value.releaseUrl)
+}
 </script>
 
 <template>
@@ -53,7 +73,26 @@ function onFeedback() {
     >
       <n-descriptions v-if="settings" label-placement="left" :column="1" bordered>
         <n-descriptions-item label="版本">
-          {{ settings.version }}
+          <span>{{ settings.version }}</span>
+          <n-tag
+            v-if="updateInfo.hasUpdate"
+            size="small"
+            type="info"
+            :bordered="false"
+            class="update-tag"
+            @click="onOpenRelease"
+          >
+            新版本 {{ updateInfo.latest }}
+          </n-tag>
+          <n-button
+            size="tiny"
+            class="check-button"
+            :loading="updateInfo.checking"
+            :disabled="updateInfo.checking"
+            @click="onCheckUpdate"
+          >
+            检查更新
+          </n-button>
         </n-descriptions-item>
         <n-descriptions-item label="数据目录">
           <span class="path">{{ settings.dataDir }}</span>
@@ -98,6 +137,15 @@ function onFeedback() {
   margin-left: 8px;
   opacity: 0.6;
   font-size: 12px;
+}
+
+.update-tag {
+  margin-left: 10px;
+  cursor: pointer;
+}
+
+.check-button {
+  margin-left: 12px;
 }
 
 .feedback-link {

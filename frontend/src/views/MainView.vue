@@ -20,7 +20,7 @@ import {
 import type { DataTableColumns, DropdownOption } from 'naive-ui'
 import IssuesModal from '../components/IssuesModal.vue'
 import LoginModal from '../components/LoginModal.vue'
-import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime'
 import PlatformCard from '../components/PlatformCard.vue'
 import SettingsModal from '../components/SettingsModal.vue'
 import { useAppStore } from '../stores/app'
@@ -390,6 +390,11 @@ function onToggleTermOnly(value: boolean) {
   void store.setTermOnly(value)
 }
 
+// 只打开仓库的发布页，下载与安装都在浏览器里完成
+function onOpenRelease() {
+  if (store.updateInfo.releaseUrl) BrowserOpenURL(store.updateInfo.releaseUrl)
+}
+
 const emptyText = computed(() => {
   const items = platforms.value
   const connected = items.some((p) => p.loginState === 'connected')
@@ -444,6 +449,23 @@ function rowKey(row: AssignmentView) {
             @issues="onOpenIssues(item)"
           />
         </div>
+
+        <n-alert
+          v-if="store.updateInfo.hasUpdate && !store.updateInfo.dismissed"
+          type="info"
+          class="update-alert"
+          closable
+          @close="store.dismissUpdate"
+        >
+          <div class="update-row">
+            <span>
+              发现新版本 {{ store.updateInfo.latest }}（当前 {{ store.updateInfo.current }}）
+            </span>
+            <n-button size="small" type="primary" ghost @click="onOpenRelease">
+              查看
+            </n-button>
+          </div>
+        </n-alert>
 
         <section class="toolbar">
           <n-space align="center" :wrap="true">
@@ -670,6 +692,17 @@ function rowKey(row: AssignmentView) {
 
 .error-alert {
   margin-bottom: 16px;
+}
+
+.update-alert {
+  margin-bottom: 16px;
+}
+
+.update-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .empty-hint {

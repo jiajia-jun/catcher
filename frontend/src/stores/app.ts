@@ -4,6 +4,7 @@ import { EventsOn } from '../../wailsjs/runtime/runtime'
 import {
   cancelRefresh,
   cancelYuketangLogin,
+  checkForUpdate,
   loadAssignments,
   loadBootstrap,
   loadSettings,
@@ -25,6 +26,7 @@ import type {
   RefreshFinishedEvent,
   RefreshProgressEvent,
   SettingsView,
+  UpdateCheckResult,
 } from '../types'
 
 interface LoginState {
@@ -66,6 +68,20 @@ export const useAppStore = defineStore('app', () => {
     state: '',
     message: '',
     submitting: false,
+  })
+
+  // 更新检查结果只在本次运行内有效；关闭提示条只影响当前会话
+  const updateInfo = reactive({
+    current: '',
+    latest: '',
+    releaseName: '',
+    releaseUrl: '',
+    hasUpdate: false,
+    checkedAt: '',
+    skipped: false,
+    dismissed: false,
+    checking: false,
+    error: '',
   })
 
   let eventsBound = false
@@ -146,6 +162,43 @@ export const useAppStore = defineStore('app', () => {
     } finally {
       loading.value = false
     }
+    // 首屏就绪后再查更新，失败静默，不拖慢启动
+    void runUpdateCheck(false)
+  }
+
+  // manual 为 true 时失败抛错给设置页展示；自动检查失败只留状态
+  async function runUpdateCheck(manual: boolean): Promise<UpdateCheckResult | null> {
+    if (updateInfo.checking) return null
+    updateInfo.checking = true
+    updateInfo.error = ''
+    try {
+      const res = await checkForUpdate(manual)
+      if (!res.ok) {
+        updateInfo.error = res.error?.message ?? '检查更新失败'
+        if (manual) throw new Error(updateInfo.error)
+        return null
+      }
+      updateInfo.current = res.current || updateInfo.current
+      updateInfo.latest = res.latest ?? ''
+      updateInfo.releaseName = res.releaseName ?? ''
+      updateInfo.releaseUrl = res.releaseUrl ?? ''
+      updateInfo.hasUpdate = res.hasUpdate
+      updateInfo.checkedAt = res.checkedAt ?? ''
+      updateInfo.skipped = res.skipped === true
+      // 手动检查发现新版时，重新显示本次运行里关过的提示条
+      if (res.hasUpdate) updateInfo.dismissed = false
+      return res
+    } finally {
+      updateInfo.checking = false
+    }
+  }
+
+  async function checkUpdateManually() {
+    return runUpdateCheck(true)
+  }
+
+  function dismissUpdate() {
+    updateInfo.dismissed = true
   }
 
   async function reloadAll() {
@@ -340,12 +393,15 @@ export const useAppStore = defineStore('app', () => {
     progressByPlatform,
     lastRefreshError,
     login,
+    updateInfo,
     init,
     reloadAll,
     refreshList,
     setStatus,
     setShowSubmitted,
     setTermOnly,
+    checkUpdateManually,
+    dismissUpdate,
     beginRefresh,
     stopRefresh,
     beginLogin,
