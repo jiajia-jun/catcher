@@ -242,6 +242,85 @@ func TestFetchScoreDMustBe13Digits(t *testing.T) {
 	}
 }
 
+// 2026-10-25 用户反馈：某门课的数字字段返回 ""，整段响应解码失败，作业一条都没入库
+// 空字符串要降级成单条 warning，不能连带整门课失败
+func TestFetchToleratesEmptyNumericFields(t *testing.T) {
+	logs := `{"success":true,"data":{"now_time":1792563600,"activities":[[
+		{"id":11,"type":20,"title":"正常作业","create_time":1790000000,
+		 "content":{"score_d":1793001599000,"leaf_id":""}},
+		{"id":12,"type":20,"title":"没有截止时间的作业","create_time":1790000000,
+		 "content":{"score_d":""}},
+		{"id":13,"type":20,"title":"没有创建时间的作业","create_time":"",
+		 "content":{"score_d":1793001599000}}]]}}`
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case learningListPath:
+			_, _ = w.Write(fixture(t, "learning_list.json"))
+		case classroomLogsPath:
+			_, _ = io.WriteString(w, logs)
+		}
+	}), 0)
+
+	result, err := client.Fetch(context.Background(), entity.Account{}, testSession(t, "sid"),
+		entity.FetchOptions{Now: func() time.Time { return time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC) }}, nil)
+	if err != nil {
+		t.Fatalf("空字符串数字字段不应让整门课失败: %v", err)
+	}
+	if len(result.Courses) != 1 {
+		t.Fatalf("课程应照常入库，实际 %d 门", len(result.Courses))
+	}
+	if len(result.Assignments) != 3 {
+		t.Fatalf("三条作业都该保留，实际 %d", len(result.Assignments))
+	}
+	normal := result.Assignments[0]
+	if normal.Deadline == nil || !normal.Deadline.Equal(time.UnixMilli(1793001599000).UTC()) {
+		t.Fatalf("leaf_id 为空不应影响截止时间: %v", normal.Deadline)
+	}
+	empty := result.Assignments[1]
+	if empty.Deadline != nil || empty.DeadlineSource != entity.DeadlineUnknown {
+		t.Fatalf("score_d 为空时截止时间应为未知: %#v", empty)
+	}
+
+	var sawScoreD, sawCreateTime bool
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Message, "缺少 score_d") {
+			sawScoreD = true
+		}
+		if strings.Contains(w.Message, "缺少 create_time") {
+			sawCreateTime = true
+		}
+	}
+	if !sawScoreD || !sawCreateTime {
+		t.Fatalf("空字段应各留一条 warning: %#v", result.Warnings)
+	}
+	// 有解析降级时要标记不完整，避免软删除把正常数据一起清掉
+	if result.Complete {
+		t.Fatal("解析降级时 Complete 应为 false")
+	}
+}
+
+func TestNumAcceptsQuotedAndEmptyValues(t *testing.T) {
+	var v struct {
+		A num `json:"a"`
+		B num `json:"b"`
+		C num `json:"c"`
+	}
+	if err := json.Unmarshal([]byte(`{"a":"123","b":"","c":456}`), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.A.String() != "123" || v.B.String() != "" || v.C.String() != "456" {
+		t.Fatalf("a=%q b=%q c=%q", v.A.String(), v.B.String(), v.C.String())
+	}
+
+	// 非数字文本仍然要失败，不能把脏数据当 0
+	var bad struct {
+		A num `json:"a"`
+	}
+	if err := json.Unmarshal([]byte(`{"a":"abc"}`), &bad); err == nil {
+		t.Fatal("非数字字符串应报错")
+	}
+}
+
 func TestFetchUnknownTypeWithContentWarns(t *testing.T) {
 	logs := `{"success":true,"data":{"now_time":1792563600,"activities":[[
 		{"id":7,"type":99,"title":"未知活动","create_time":1790000000,
@@ -298,6 +377,82 @@ func TestFetchType15IsKnownTask(t *testing.T) {
 	}
 	if !result.Complete {
 		t.Fatal("已知类型不应把结果标记为 partial")
+	}
+}
+
+// 2026-10-25 用户账号「计算机组成原理A」实测：新课用 19（习题/练习/作业）
+// 与 17（视频），整门课没有 20/15，不能当未知类型刷 warning
+func TestFetchType17And19AreKnownTasks(t *testing.T) {
+	logs := `{"success":true,"data":{"now_time":1792904417,"activities":[[
+		{"id":101,"type":19,"title":"线下课程9课前预习习题","create_time":1792888844,
+		 "content":{"score_d":1792943999000,"leaf_id":48013198}},
+		{"id":102,"type":17,"title":"线下课程9课前预习视频","create_time":1792888796,
+		 "content":{"score_d":1792943999000,"leaf_id":48013194}}]]}}`
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case learningListPath:
+			_, _ = w.Write(fixture(t, "learning_list.json"))
+		case classroomLogsPath:
+			_, _ = io.WriteString(w, logs)
+		}
+	}), 0)
+
+	result, err := client.Fetch(context.Background(), entity.Account{}, testSession(t, "sid"),
+		entity.FetchOptions{Now: func() time.Time { return time.Date(2026, 10, 25, 13, 0, 0, 0, time.UTC) }}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Assignments) != 2 {
+		t.Fatalf("19/17 都应落库，实际 %d 条", len(result.Assignments))
+	}
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Message, "未知活动类型") {
+			t.Fatalf("19/17 是已知类型，不该告警: %#v", result.Warnings)
+		}
+	}
+	if !result.Complete {
+		t.Fatal("已知类型不应把结果标记为 partial")
+	}
+}
+
+// type=19 的练习没有截止时间时也要保留：它是作业类，不能按「非作业类型」丢掉
+func TestFetchType19WithoutDeadlineIsKept(t *testing.T) {
+	logs := `{"success":true,"data":{"now_time":1792904417,"activities":[[
+		{"id":201,"type":19,"title":"线下课程3课堂练习","create_time":1789959009,
+		 "content":{"score_d":"","leaf_id":3772429}}]]}}`
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case learningListPath:
+			_, _ = w.Write(fixture(t, "learning_list.json"))
+		case classroomLogsPath:
+			_, _ = io.WriteString(w, logs)
+		}
+	}), 0)
+
+	result, err := client.Fetch(context.Background(), entity.Account{}, testSession(t, "sid"),
+		entity.FetchOptions{Now: func() time.Time { return time.Date(2026, 10, 25, 13, 0, 0, 0, time.UTC) }}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Assignments) != 1 {
+		t.Fatalf("无截止时间的课堂练习也应保留，实际 %d 条", len(result.Assignments))
+	}
+	got := result.Assignments[0]
+	if got.Title != "线下课程3课堂练习" || got.Deadline != nil ||
+		got.DeadlineSource != entity.DeadlineUnknown {
+		t.Fatalf("assignment = %#v", got)
+	}
+	var sawWarn bool
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Message, "缺少 score_d") {
+			sawWarn = true
+		}
+	}
+	if !sawWarn {
+		t.Fatalf("空 score_d 应留 warning: %#v", result.Warnings)
+	}
+	if result.Complete {
+		t.Fatal("有解析降级时 Complete 应为 false")
 	}
 }
 

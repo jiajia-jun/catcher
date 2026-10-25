@@ -226,6 +226,21 @@ func parseClassroomLogs(item courseItem, logs *classroomLogsResp) (entity.Course
 	return course, assignments, warnings, ok
 }
 
+// 活动类型有两套编码，同一账号的课程里并存
+//
+// 旧课用 20（作业）/15（视频）；2026-10-25 用户账号「计算机组成原理A」实测新课
+// 用 19（习题/练习/作业）和 17（视频），整门课没有一条 20/15。标题能一一对上，
+// 所以 19 按作业类、17 按视频类处理，不能再当未知类型
+func isExerciseType(t int) bool { return t == 19 || t == 20 }
+
+func isKnownActivityType(t int) bool {
+	switch t {
+	case 9, 14, 15, 17, 19, 20:
+		return true
+	}
+	return false
+}
+
 // toAssignment 把一条活动转成作业；nil 表示不是作业
 func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.FetchIssue, bool) {
 	warn := func(msg string) entity.FetchIssue {
@@ -238,24 +253,24 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 	}
 
 	if act.Content == nil {
-		if act.Type == 20 {
-			// 文档中 type=20 与 content 100% 重合；缺 content 说明结构变了
+		if isExerciseType(act.Type) {
+			// 作业类活动与 content 100% 重合；缺 content 说明结构变了
 			return nil, []entity.FetchIssue{warn(fmt.Sprintf("作业活动 %s 缺少 content", act.ID.String()))}, false
 		}
 		return nil, nil, true
 	}
 
 	var warnings []entity.FetchIssue
-	// 15 是慕课视频学习任务（2026-10-23 实测：content.score_d 等于课堂 class_end，
-	// 不是作业截止时间），但它确实是一条带期限的学习任务，保留且不算未知类型
-	if act.Type != 9 && act.Type != 14 && act.Type != 15 && act.Type != 20 {
+	// 视频类（15/17）也是带期限的学习任务，保留且不算未知类型。
+	// 2026-10-23 实测 type=15 的 content.score_d 等于课堂 class_end，不是作业截止时间
+	if !isKnownActivityType(act.Type) {
 		warnings = append(warnings,
 			warn(fmt.Sprintf("未知活动类型 type=%d 带 content，请核对是否为作业", act.Type)))
 	}
 
 	scoreRaw := act.Content.ScoreD.String()
 	if scoreRaw == "" {
-		if act.Type != 20 {
+		if !isExerciseType(act.Type) {
 			// 带 content 的非作业类型（如授课记录）不落库
 			return nil, warnings, true
 		}
@@ -319,7 +334,7 @@ func semesterKeyOf(classroomName string) string {
 }
 
 // parseMilliseconds 断言 13 位，拿错会得到 1970 年
-func parseMilliseconds(n json.Number) (time.Time, bool) {
+func parseMilliseconds(n num) (time.Time, bool) {
 	raw := n.String()
 	if len(raw) != 13 {
 		return time.Time{}, false
@@ -332,7 +347,7 @@ func parseMilliseconds(n json.Number) (time.Time, bool) {
 }
 
 // parseSeconds 断言 10 位
-func parseSeconds(n json.Number) (time.Time, bool) {
+func parseSeconds(n num) (time.Time, bool) {
 	raw := n.String()
 	if len(raw) != 10 {
 		return time.Time{}, false
