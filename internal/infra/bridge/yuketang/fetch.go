@@ -15,11 +15,14 @@ import (
 const (
 	learningListPath  = "/v/course_meta/learning_list/"
 	classroomLogsPath = "/v/course_meta/classroom_logs"
+	// todoListPathFormat 需要 classroom_id 与 classroom 级 sku_id
+	todoListPathFormat = "/c27/online_courseware/course/classroom/%s/%s/todo_list/?client_type=h5"
 )
 
 // Fetch 抓取当前学期的课程与作业
 //
-// 提交状态平台没有暴露，全部是 unknown；绝不推断成已交
+// 提交状态按课堂待办列表换算：待办里的是未完成，不在待办里的习题视为已完成；
+// 视频的「看完」不等同「提交」，不在待办时保持 unknown
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
 	secret, err := decodeSecret(session.Secret)
@@ -76,7 +79,22 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			continue
 		}
 
-		course, assignments, parseWarnings, ok := parseClassroomLogs(item, logs)
+		// 待办列表是提交状态的唯一来源。失败只降级成 unknown 并记 warning，
+		// 不影响课程与作业本身落库
+		unfinished, todoErr := c.unfinishedLeaves(ctx, item, logs, secret.SessionID)
+		if todoErr != nil {
+			if errors.Is(todoErr, entity.ErrAuthExpired) || errors.Is(todoErr, entity.ErrCanceled) {
+				return nil, todoErr
+			}
+			result.Warnings = append(result.Warnings, entity.FetchIssue{
+				Scope:   entity.ScopeCourse,
+				Ref:     item.CourseID.String(),
+				Kind:    issueKindOf(todoErr),
+				Message: fmt.Sprintf("课程 %s 待办列表获取失败，作业状态保持未知: %v", item.CourseName, todoErr),
+			})
+		}
+
+		course, assignments, parseWarnings, ok := parseClassroomLogs(item, logs, unfinished)
 		result.Courses = append(result.Courses, course)
 		result.Assignments = append(result.Assignments, assignments...)
 		result.Warnings = append(result.Warnings, parseWarnings...)
@@ -152,6 +170,91 @@ func (c *Client) classroomLogs(ctx context.Context, item courseItem, sessionID s
 	return &out, nil
 }
 
+// unfinishedLeaves 返回课堂待办列表里未完成叶子的集合
+//
+// 返回 nil,nil 表示这节课没有需要跟踪状态的学习任务，或缺少 sku 无法查询；
+// 返回 nil,err 表示查询失败。两种情况调用方都按 unknown 处理
+func (c *Client) unfinishedLeaves(ctx context.Context, item courseItem,
+	logs *classroomLogsResp, sessionID string) (map[string]struct{}, error) {
+	if !hasLearningTask(logs) {
+		return nil, nil
+	}
+	sku := classroomSku(logs)
+	if sku == "" {
+		return nil, fmt.Errorf("%w: 课堂缺少 sku_id，无法读取待办列表", entity.ErrPlatformChanged)
+	}
+
+	uni := item.UniversityID.String()
+	if uni == "" {
+		uni = logs.Data.Classroom.UVId.String()
+	}
+	path := fmt.Sprintf(todoListPathFormat, item.ClassroomID.String(), sku)
+	resp, err := c.getWithHeaders(ctx, path, sessionID, map[string]string{
+		"Accept":        "application/json, text/plain, */*",
+		"xtbz":          "ykt",
+		"Xt-Agent":      "web",
+		"X-Client":      "web",
+		"university-id": uni,
+		"uv-id":         uni,
+		"classroom-id":  item.ClassroomID.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var out todoListResp
+	if err := json.Unmarshal(resp.Raw, &out); err != nil {
+		return nil, fmt.Errorf("%w: 待办列表不是 JSON: %v", entity.ErrPlatformChanged, err)
+	}
+	if out.Success != nil && !*out.Success {
+		return nil, fmt.Errorf("%w: 待办列表 success=false msg=%s", entity.ErrPlatformChanged, out.Msg)
+	}
+	// total 与 result 长度对不上说明列表被截断，宁可全部保持 unknown
+	if total := out.Data.Count.Total.String(); total != "" {
+		if n, err := strconv.Atoi(total); err != nil || n != len(out.Data.Result) {
+			return nil, fmt.Errorf("%w: 待办列表不完整 total=%s items=%d",
+				entity.ErrPlatformChanged, total, len(out.Data.Result))
+		}
+	}
+
+	unfinished := make(map[string]struct{}, len(out.Data.Result))
+	for _, it := range out.Data.Result {
+		if leaf := it.LeafID.String(); leaf != "" {
+			unfinished[leaf] = struct{}{}
+		}
+	}
+	return unfinished, nil
+}
+
+// hasLearningTask 判断这节课有没有需要状态的学习任务
+//
+// 只认作业类（19/20）与视频类（15/17）；纯课件/授课记录不查待办
+func hasLearningTask(logs *classroomLogsResp) bool {
+	for _, group := range logs.Data.Activities {
+		for _, act := range group {
+			if act.Content != nil && (isExerciseType(act.Type) || isVideoType(act.Type)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// classroomSku 优先取课堂级 sku，缺失时退化到活动 content 里的 sku
+func classroomSku(logs *classroomLogsResp) string {
+	if sku := logs.Data.Classroom.SkuID.String(); sku != "" {
+		return sku
+	}
+	for _, group := range logs.Data.Activities {
+		for _, act := range group {
+			if act.Content != nil && act.Content.SkuID.String() != "" {
+				return act.Content.SkuID.String()
+			}
+		}
+	}
+	return ""
+}
+
 // selectCurrentSemester 只保留当前学期课程
 // 找不到目标学期时退化为列表中最新的学期前缀，并记 warning
 func selectCurrentSemester(items []courseItem, now time.Time) ([]courseItem, string, []entity.FetchIssue, bool) {
@@ -195,8 +298,10 @@ func filterBySemester(items []courseItem, target semester) []courseItem {
 }
 
 // parseClassroomLogs 摊平嵌套 activities 并转成领域对象
+// unfinished 是待办列表叶子集合；nil 表示状态不可知
 // 返回的 ok 表示本次是否正确解析了全部条目；false 时调用方不做软删除
-func parseClassroomLogs(item courseItem, logs *classroomLogsResp) (entity.Course, []entity.Assignment, []entity.FetchIssue, bool) {
+func parseClassroomLogs(item courseItem, logs *classroomLogsResp,
+	unfinished map[string]struct{}) (entity.Course, []entity.Assignment, []entity.FetchIssue, bool) {
 	course := entity.Course{
 		Platform:    entity.PlatformYuketang,
 		ExternalID:  item.CourseID.String(),
@@ -213,7 +318,7 @@ func parseClassroomLogs(item courseItem, logs *classroomLogsResp) (entity.Course
 	// 不摊平会稳定拿到空列表：这是文档实测复现过的静默失败
 	for _, group := range logs.Data.Activities {
 		for _, act := range group {
-			assignment, warns, valid := toAssignment(item, act)
+			assignment, warns, valid := toAssignment(item, act, unfinished)
 			warnings = append(warnings, warns...)
 			if !valid {
 				ok = false
@@ -233,6 +338,8 @@ func parseClassroomLogs(item courseItem, logs *classroomLogsResp) (entity.Course
 // 所以 19 按作业类、17 按视频类处理，不能再当未知类型
 func isExerciseType(t int) bool { return t == 19 || t == 20 }
 
+func isVideoType(t int) bool { return t == 15 || t == 17 }
+
 func isKnownActivityType(t int) bool {
 	switch t {
 	case 9, 14, 15, 17, 19, 20:
@@ -242,7 +349,8 @@ func isKnownActivityType(t int) bool {
 }
 
 // toAssignment 把一条活动转成作业；nil 表示不是作业
-func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.FetchIssue, bool) {
+func toAssignment(item courseItem, act activity,
+	unfinished map[string]struct{}) (*entity.Assignment, []entity.FetchIssue, bool) {
 	warn := func(msg string) entity.FetchIssue {
 		return entity.FetchIssue{
 			Scope:   entity.ScopeAssignment,
@@ -260,6 +368,7 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 		return nil, nil, true
 	}
 
+	status := statusOf(act, unfinished)
 	var warnings []entity.FetchIssue
 	// 视频类（15/17）也是带期限的学习任务，保留且不算未知类型。
 	// 2026-10-23 实测 type=15 的 content.score_d 等于课堂 class_end，不是作业截止时间
@@ -275,7 +384,7 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 			return nil, warnings, true
 		}
 		warnings = append(warnings, warn(fmt.Sprintf("作业活动 %s 缺少 score_d", act.ID.String())))
-		return buildAssignment(item, act, nil, entity.DeadlineUnknown, ""), warnings, false
+		return buildAssignment(item, act, nil, entity.DeadlineUnknown, "", status), warnings, false
 	}
 
 	if act.ID.String() == "" {
@@ -292,14 +401,39 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 	if !ok {
 		warnings = append(warnings,
 			warn(fmt.Sprintf("score_d 不是 13 位毫秒: %s，已保留作业但截止时间未知", scoreRaw)))
-		return buildAssignment(item, act, nil, entity.DeadlineUnknown, scoreRaw), warnings, false
+		return buildAssignment(item, act, nil, entity.DeadlineUnknown, scoreRaw, status), warnings, false
 	}
 
-	return buildAssignment(item, act, &deadline, entity.DeadlinePlatformExact, scoreRaw), warnings, true
+	return buildAssignment(item, act, &deadline, entity.DeadlinePlatformExact, scoreRaw, status), warnings, true
+}
+
+// statusOf 用课堂待办列表换算提交状态
+//
+// 2026-10-25 实测：待办里的 6 条习题全都未答完（含 2/4 部分作答），
+// 已全部答完的 16 条都不在列表里。视频同理，但「看完」不等同「提交」，
+// 不在待办的视频保持 unknown，避免把学习进度说成交卷
+func statusOf(act activity, unfinished map[string]struct{}) entity.SubmissionStatus {
+	if unfinished == nil || act.Content == nil {
+		return entity.StatusUnknown
+	}
+	if !isExerciseType(act.Type) && !isVideoType(act.Type) {
+		return entity.StatusUnknown
+	}
+	leaf := act.Content.LeafID.String()
+	if leaf == "" {
+		return entity.StatusUnknown
+	}
+	if _, ok := unfinished[leaf]; ok {
+		return entity.StatusUnsubmitted
+	}
+	if isExerciseType(act.Type) {
+		return entity.StatusSubmitted
+	}
+	return entity.StatusUnknown
 }
 
 func buildAssignment(item courseItem, act activity, deadline *time.Time,
-	source entity.DeadlineSource, raw string) *entity.Assignment {
+	source entity.DeadlineSource, raw string, status entity.SubmissionStatus) *entity.Assignment {
 	courseID := item.CourseID.String()
 	classroomID := item.ClassroomID.String()
 	activityID := act.ID.String()
@@ -311,11 +445,10 @@ func buildAssignment(item courseItem, act activity, deadline *time.Time,
 		ExternalID:       activityID,
 		DedupKey:         entity.YuketangDedupKey(courseID, classroomID, activityID),
 		Title:            entity.NormalizeTitle(act.Title),
-		// 平台没有提交状态字段；未知就是未知
-		Status:         entity.StatusUnknown,
-		Deadline:       deadline,
-		DeadlineSource: source,
-		DeadlineRaw:    raw,
+		Status:           status,
+		Deadline:         deadline,
+		DeadlineSource:   source,
+		DeadlineRaw:      raw,
 	}
 }
 

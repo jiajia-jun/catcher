@@ -57,8 +57,15 @@ type classroomLogsResp struct {
 	Op      string `json:"op"`
 	Data    struct {
 		NowTime    num          `json:"now_time"`
+		Classroom  classroomRef `json:"classroom"`
 		Activities [][]activity `json:"activities"`
 	} `json:"data"`
+}
+
+// classroomRef 只需要待办列表要用的 sku 与 uv
+type classroomRef struct {
+	SkuID num `json:"sku_id"`
+	UVId  num `json:"uv_id"`
 }
 
 // activity 的 ID / 时间也用 num；content 只有部分 type 才有
@@ -73,6 +80,27 @@ type activity struct {
 type activityContent struct {
 	ScoreD num `json:"score_d"`
 	LeafID num `json:"leaf_id"`
+	SkuID  num `json:"sku_id"`
+}
+
+// todoListResp 是课堂待办列表，记录「未完成」的叶子
+//
+// 2026-10-25 用户账号实测：count.total 与课程页「未完成 (N)」一致，
+// result 里同时有习题（type=6）、视频（0）、课件（7）与授课（8）
+type todoListResp struct {
+	Success *bool  `json:"success"`
+	Msg     string `json:"msg"`
+	Data    struct {
+		Count struct {
+			Total num `json:"total"`
+		} `json:"count"`
+		Result []todoItem `json:"result"`
+	} `json:"data"`
+}
+
+type todoItem struct {
+	LeafID num `json:"leaf_id"`
+	Type   int `json:"type"`
 }
 
 // num 承接作业列表里的数字字段
