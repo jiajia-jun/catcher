@@ -36,11 +36,11 @@
 !define INFO_PROJECTNAME      "Catcher"
 !define INFO_COMPANYNAME      "SheckHall"
 !define INFO_PRODUCTNAME      "Catcher"
-!define INFO_PRODUCTVERSION   "1.0.0"
+!define INFO_PRODUCTVERSION   "1.1.0"
 !define INFO_COPYRIGHT        "Copyright (c) 2026 SheckHall"
 !define PRODUCT_EXECUTABLE    "Catcher.exe"
 ## NSIS 的文件版本必须是 X.X.X.X，不能带 -rc 后缀
-!define INSTALLER_FILE_VERSION "1.0.0.0"
+!define INSTALLER_FILE_VERSION "1.1.0.0"
 
 !include "wails_tools.nsh"
 
