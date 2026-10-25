@@ -27,6 +27,7 @@ import (
 	"catcher/internal/infra/secretstore"
 	"catcher/internal/infra/sender"
 	"catcher/internal/infra/sqlite"
+	"catcher/internal/infra/updater"
 	"catcher/internal/service"
 	"catcher/pkg/config"
 	"catcher/pkg/logger"
@@ -118,6 +119,15 @@ func Run(assets fs.FS) error {
 		Now:    time.Now,
 	})
 
+	// 更新检查只读 GitHub Releases 的版本信息，不下载任何内容
+	releases := updater.New(updater.Options{
+		BaseURL: updater.DefaultBaseURL,
+		Owner:   updater.DefaultOwner,
+		Repo:    updater.DefaultRepo,
+		Current: Version,
+		Logger:  lg,
+	})
+
 	svc := service.New(service.Deps{
 		Accounts:    repo,
 		Sessions:    sqlite.NewSessionRepo(db, cipher),
@@ -137,9 +147,11 @@ func Run(assets fs.FS) error {
 		},
 		QRLogin:  yk,
 		Importer: tron,
+		Releases: releases,
 		Config:   cfg,
 		DataDir:  dataDir,
 		Version:  Version,
+		DevMode:  dataDirOpts.DevMode,
 		Logger:   lg,
 		Now:      time.Now,
 	})

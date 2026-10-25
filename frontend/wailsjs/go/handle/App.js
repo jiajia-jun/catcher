@@ -10,6 +10,10 @@ export function CancelYuketangLogin(arg1) {
   return window['go']['handle']['App']['CancelYuketangLogin'](arg1);
 }
 
+export function CheckForUpdate(arg1) {
+  return window['go']['handle']['App']['CheckForUpdate'](arg1);
+}
+
 export function GetBootstrap(arg1) {
   return window['go']['handle']['App']['GetBootstrap'](arg1);
 }

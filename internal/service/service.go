@@ -47,10 +47,13 @@ type Deps struct {
 	Authenticators map[entity.Platform]domain.PasswordAuthenticator
 	QRLogin        domain.QRLogin
 	Importer       domain.SessionImporter
+	Releases       domain.ReleaseChecker
 
 	Config  *config.App
 	DataDir string
 	Version string
+	// DevMode 为 true 时启动后的自动更新检查直接跳过，手动检查不受影响
+	DevMode bool
 	Logger  logger.Logger
 	Now     func() time.Time
 }
@@ -67,10 +70,12 @@ type Service struct {
 	authenticators map[entity.Platform]domain.PasswordAuthenticator
 	qrLogin        domain.QRLogin
 	importer       domain.SessionImporter
+	releases       domain.ReleaseChecker
 
 	cfg     *config.App
 	dataDir string
 	version string
+	devMode bool
 	now     func() time.Time
 	logger  logger.Logger
 
@@ -95,9 +100,11 @@ func New(d Deps) *Service {
 		authenticators: d.Authenticators,
 		qrLogin:        d.QRLogin,
 		importer:       d.Importer,
+		releases:       d.Releases,
 		cfg:            d.Config,
 		dataDir:        d.DataDir,
 		version:        d.Version,
+		devMode:        d.DevMode,
 		now:            d.Now,
 		logger:         d.Logger,
 

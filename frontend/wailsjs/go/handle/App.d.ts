@@ -6,6 +6,8 @@ export function CancelRefresh(arg1:string):Promise<dto.APIResult>;
 
 export function CancelYuketangLogin(arg1:string):Promise<dto.APIResult>;
 
+export function CheckForUpdate(arg1:boolean):Promise<dto.UpdateCheckResult>;
+
 export function GetBootstrap(arg1:boolean):Promise<dto.BootstrapResult>;
 
 export function GetFetchIssues(arg1:number):Promise<dto.FetchIssuesResult>;

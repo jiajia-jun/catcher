@@ -114,6 +114,20 @@ type SettingsResult struct {
 	Settings *SettingsView `json:"settings,omitempty"`
 }
 
+// UpdateCheckResult 是一次版本检查的结果。
+// Skipped 表示开发模式下跳过了自动检查，不代表已是最新
+type UpdateCheckResult struct {
+	OK          bool      `json:"ok"`
+	Current     string    `json:"current"`
+	Latest      string    `json:"latest,omitempty"`
+	ReleaseName string    `json:"releaseName,omitempty"`
+	ReleaseURL  string    `json:"releaseUrl,omitempty"`
+	HasUpdate   bool      `json:"hasUpdate"`
+	CheckedAt   string    `json:"checkedAt,omitempty"`
+	Skipped     bool      `json:"skipped,omitempty"`
+	Error       *APIError `json:"error,omitempty"`
+}
+
 // RefreshStartResult 是刷新/扫码任务的受理结果
 type RefreshStartResult struct {
 	OK             bool      `json:"ok"`

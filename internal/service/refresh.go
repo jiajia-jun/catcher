@@ -413,6 +413,12 @@ func ErrorCode(err error) string {
 		return "PLATFORM_CHANGED"
 	case errors.Is(err, entity.ErrCanceled):
 		return "CANCELED"
+	case errors.Is(err, entity.ErrReleaseUnavailable):
+		return "RELEASE_UNAVAILABLE"
+	case errors.Is(err, entity.ErrReleaseRateLimited):
+		return "RELEASE_RATE_LIMITED"
+	case errors.Is(err, entity.ErrReleaseInvalid):
+		return "RELEASE_INVALID"
 	default:
 		return "INTERNAL"
 	}
