@@ -7,7 +7,7 @@
 //   - 登录态看响应体 op == "web_redirect"，不看 HTTP 200
 //   - activities 是按日期分组的嵌套数组，必须先摊平
 //   - score_d 是 13 位毫秒，create_time 是 10 位秒
-//   - 提交状态只能从课堂 todo_list 换算；拿不到时必须是 unknown
+//   - 提交状态平台未暴露，全部落到 unknown
 package yuketang
 
 import (
@@ -80,29 +80,17 @@ func (c *Client) Platform() entity.Platform { return entity.PlatformYuketang }
 
 // get 发送带上 sessionid 的 GET；错误统一收敛为领域错误
 func (c *Client) get(ctx context.Context, path, sessionID string) (*sender.Response, error) {
-	return c.getWithHeaders(ctx, path, sessionID, nil)
-}
-
-// getWithHeaders 在默认 Accept 上叠加平台要求的额外请求头
-//
-// /mooc-api/ 与 /c27/ 需要一整套七个头，缺一条就返回业务失败；
-// 其余接口只用默认 Accept
-func (c *Client) getWithHeaders(ctx context.Context, path, sessionID string,
-	header map[string]string) (*sender.Response, error) {
-	reqHeader := make(map[string]string, len(header)+2)
-	reqHeader["Accept"] = "application/json"
-	for k, v := range header {
-		reqHeader[k] = v
-	}
-	if sessionID != "" {
-		reqHeader["Cookie"] = "sessionid=" + sessionID
-	}
-
-	resp, err := c.http.Do(ctx, &sender.Request{
+	req := &sender.Request{
 		Method: http.MethodGet,
 		URL:    c.baseURL + path,
-		Header: reqHeader,
-	})
+		Header: map[string]string{
+			"Accept": "application/json",
+		},
+	}
+	if sessionID != "" {
+		req.Header["Cookie"] = "sessionid=" + sessionID
+	}
+	resp, err := c.http.Do(ctx, req)
 	if err != nil {
 		return resp, classifySendError(err)
 	}
