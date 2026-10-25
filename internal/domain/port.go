@@ -40,6 +40,12 @@ type SessionRenewer interface {
 	Renew(ctx context.Context, session entity.Session) (*entity.Session, error)
 }
 
+// ReleaseChecker 查询最新的正式发布。实现是 infra/updater（GitHub Releases API）
+// 它只读取版本信息，不下载任何内容；失败必须返回实体定义的哨兵错误，方便上层区分
+type ReleaseChecker interface {
+	LatestRelease(ctx context.Context) (entity.ReleaseInfo, error)
+}
+
 // SecretCipher 加密/解密本机凭据。实现是 infra/secretstore（Windows DPAPI）
 // 解密失败必须返回错误，调用方据此把平台标记为需要重新登录，不能回退明文
 type SecretCipher interface {

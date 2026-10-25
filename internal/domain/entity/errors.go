@@ -21,4 +21,11 @@ var (
 	ErrNetwork = errors.New("网络请求失败或超时")
 	// ErrCanceled 表示用户取消
 	ErrCanceled = errors.New("已取消")
+
+	// ErrReleaseUnavailable 表示发布仓库不可访问：不存在、未公开或没有发布
+	ErrReleaseUnavailable = errors.New("发布仓库不可访问")
+	// ErrReleaseRateLimited 表示更新查询被 GitHub 限流
+	ErrReleaseRateLimited = errors.New("更新查询被限流")
+	// ErrReleaseInvalid 表示发布信息无法解析
+	ErrReleaseInvalid = errors.New("发布信息格式不正确")
 )
