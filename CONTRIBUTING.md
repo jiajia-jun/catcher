@@ -78,8 +78,9 @@ internal/infra -> internal/domain
 
 1. 在 `dev` 上把 `cmd/app/app.go` 的 `Version` 改成目标版本，提交 `chore(发布): 版本号改为 X.Y.Z`
 2. `git merge --no-ff dev` 到 `main` 并推送（会触发一次双架构构建，不建 Release）
-3. 打 tag `vX.Y.Z` 并推送，CI 校验 tag 与 `Version` 一致后自动建 Release，附带 amd64 / arm64 两个 zip
-4. 正式版本的 tag 不能带 `-`，否则会被自动标为 pre-release，`releases/latest` 查不到，客户端不会提示更新
+3. 打 tag `vX.Y.Z` 并推送，CI 校验 tag 与 `Version` 一致后自动建 Release，附带 amd64 / arm64 两个便携包
+4. 在本地构建 NSIS 安装包并手动上传到该 Release：`wails build -nsis -installscope user`，产物重命名成 `Catcher-<版本>-amd64-installer.exe`（安装器只有 x64）
+5. 正式版本的 tag 不能带 `-`，否则会被自动标为 pre-release，`releases/latest` 查不到，客户端不会提示更新
 
 ## 文档
 
