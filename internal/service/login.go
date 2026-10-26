@@ -120,6 +120,49 @@ func (s *Service) cancelLoginJobs() {
 	}
 }
 
+// pollResult 是一次轮询的结果
+type pollResult struct {
+	state   entity.QRState
+	session *entity.Session
+	err     error
+}
+
+// pollInterruptible 在轮询期间监听「换一张」。
+//
+// 雨课堂的轮询是长轮询、学习通内部还要睡 3 秒，直接调用 PollQR 会让按钮看起来失效：
+// 用户点换码后必须立刻中断旧轮询，否则信号只能积压在 channel 里，
+// 直到二维码自己过期才被处理
+func (s *Service) pollInterruptible(ctx context.Context, job *loginJob, qr domain.QRLogin,
+	challenge *entity.QRChallenge) (pollResult, bool) {
+	// 上一轮点过换码、信号还压在缓冲里
+	select {
+	case <-job.refresh:
+		return pollResult{}, true
+	default:
+	}
+
+	pollCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	done := make(chan pollResult, 1)
+	go func() {
+		state, session, err := qr.PollQR(pollCtx, challenge)
+		done <- pollResult{state: state, session: session, err: err}
+	}()
+
+	select {
+	case res := <-done:
+		return res, false
+	case <-job.refresh:
+		// 只取消在途请求，不等它返回：适配器即使忽略 ctx 也不会卡住任务
+		cancel()
+		return pollResult{}, true
+	case <-ctx.Done():
+		cancel()
+		return pollResult{err: fmt.Errorf("%w: %v", entity.ErrCanceled, ctx.Err())}, false
+	}
+}
+
 func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLogin) {
 	defer func() {
 		s.jobsMu.Lock()
@@ -148,28 +191,33 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 		s.emitQRState(job, entity.QRWaiting, "等待扫码")
 
 		needNewCode := false
+		manual := false
 		for !needNewCode {
-			state, session, err := qr.PollQR(ctx, challenge)
-			if err != nil {
-				if errors.Is(err, entity.ErrCanceled) {
+			res, refreshed := s.pollInterruptible(ctx, job, qr, challenge)
+			if refreshed {
+				manual = true
+				break
+			}
+			if res.err != nil {
+				if errors.Is(res.err, entity.ErrCanceled) {
 					s.emitQRState(job, entity.QRFailed, "已取消")
 				} else {
-					s.emitQRState(job, entity.QRFailed, err.Error())
+					s.emitQRState(job, entity.QRFailed, res.err.Error())
 				}
 				return
 			}
 
-			switch state {
+			switch res.state {
 			case entity.QRWaiting:
 				continue
 			case entity.QRScanned:
 				s.emitQRState(job, entity.QRScanned, qrScannedMessage(job.platform))
 			case entity.QRSucceeded:
-				if session == nil {
+				if res.session == nil {
 					s.emitQRState(job, entity.QRFailed, "登录成功但没有拿到会话")
 					return
 				}
-				if err := s.finishQRLogin(ctx, job.platform, *session); err != nil {
+				if err := s.finishQRLogin(ctx, job.platform, *res.session); err != nil {
 					s.emitQRState(job, entity.QRFailed, err.Error())
 					return
 				}
@@ -181,6 +229,12 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 				s.emitQRState(job, entity.QRFailed, "扫码登录失败")
 				return
 			}
+		}
+
+		// 用户主动换码：不算过期，也不消耗自动换码次数
+		if manual {
+			autoRefreshes = 0
+			continue
 		}
 
 		autoRefreshes++

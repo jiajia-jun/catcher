@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -249,20 +250,49 @@ type fakeQR struct {
 	mu       sync.Mutex
 	steps    []qrStep
 	calls    int
+	begins   int
 	beginErr error
+
+	// firstPollBlock 非 nil 时，第一张码的轮询会阻塞，
+	// 用来模拟雨课堂的长轮询（以及学习通内部的 3 秒等待）
+	firstPollBlock chan struct{}
+	// pollEntered 在第一张码的轮询刚进入阻塞时关闭
+	pollEntered chan struct{}
+	enteredOnce sync.Once
 }
 
 func (f *fakeQR) BeginQR(context.Context) (*entity.QRChallenge, error) {
 	if f.beginErr != nil {
 		return nil, f.beginErr
 	}
+	f.mu.Lock()
+	f.begins++
+	n := f.begins
+	f.mu.Unlock()
 	return &entity.QRChallenge{
-		Content:   "qr-content",
+		Content:   fmt.Sprintf("qr-content-%d", n),
 		ExpiresAt: time.Date(2026, 10, 22, 12, 5, 0, 0, time.UTC),
 	}, nil
 }
 
-func (f *fakeQR) PollQR(context.Context, *entity.QRChallenge) (entity.QRState, *entity.Session, error) {
+func (f *fakeQR) PollQR(ctx context.Context, _ *entity.QRChallenge) (entity.QRState, *entity.Session, error) {
+	f.mu.Lock()
+	block := f.firstPollBlock
+	entered := f.pollEntered
+	first := f.begins == 1
+	f.mu.Unlock()
+
+	if first && block != nil {
+		if entered != nil {
+			f.enteredOnce.Do(func() { close(entered) })
+		}
+		select {
+		case <-block:
+		case <-ctx.Done():
+			return entity.QRFailed, nil, fmt.Errorf("%w", entity.ErrCanceled)
+		}
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	step := qrStep{state: entity.QRWaiting}
@@ -495,6 +525,45 @@ func TestChaoxingLoginPersistsSession(t *testing.T) {
 	}
 	if h.accounts.state(entity.PlatformChaoxing) != entity.LoginConnected {
 		t.Fatalf("登录态 = %s", h.accounts.state(entity.PlatformChaoxing))
+	}
+}
+
+// 换一张必须在等待扫码期间就生效：旧实现只在 3 次自动换码用尽后才读 refresh 信号
+func TestManualRefreshInterruptsWaitingPoll(t *testing.T) {
+	h := newHarness(t)
+	secret := mustSecret(t, "sid-refresh")
+	h.qr.firstPollBlock = make(chan struct{})
+	h.qr.pollEntered = make(chan struct{})
+	defer close(h.qr.firstPollBlock)
+	h.qr.steps = []qrStep{
+		{state: entity.QRWaiting},
+		{state: entity.QRSucceeded, session: &entity.Session{Platform: entity.PlatformYuketang, Secret: secret}},
+	}
+
+	start, err := h.svc.StartYuketangLogin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-h.qr.pollEntered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("第一张码的轮询没有开始")
+	}
+
+	if err := h.svc.RefreshYuketangLogin(start.JobID); err != nil {
+		t.Fatal(err)
+	}
+	h.waitQRState(t, entity.PlatformYuketang, entity.QRSucceeded)
+
+	h.qr.mu.Lock()
+	begins := h.qr.begins
+	h.qr.mu.Unlock()
+	if begins != 2 {
+		t.Fatalf("换码后 BeginQR 调用 = %d, want 2（旧码的轮询必须先被中断）", begins)
+	}
+	if string(h.sessions.secret) != string(secret) {
+		t.Fatal("换码后扫码成功的会话未持久化")
 	}
 }
 
