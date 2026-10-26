@@ -2,20 +2,21 @@ import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import {
+  cancelQRLogin,
   cancelRefresh,
-  cancelYuketangLogin,
   checkForUpdate,
   loadAssignments,
   loadBootstrap,
   loadSettings,
   loginChaoxing,
   importTronclassSession,
-  refreshYuketangLogin,
+  refreshQRLogin,
   setAssignmentStatus,
+  startQRLogin,
   startRefresh,
-  startYuketangLogin,
   toErrorText,
 } from '../api/app'
+import type { QRPlatform } from '../api/app'
 import type {
   AccountStateEvent,
   AssignmentView,
@@ -32,6 +33,8 @@ import type {
 interface LoginState {
   show: boolean
   platform: '' | 'yuketang' | 'chaoxing' | 'tronclass'
+  // 学习通支持扫码与账号密码两种方式，其余平台忽略
+  mode: 'qr' | 'password'
   jobId: string
   qrContent: string
   expiresAt: string
@@ -62,6 +65,7 @@ export const useAppStore = defineStore('app', () => {
   const login = reactive<LoginState>({
     show: false,
     platform: '',
+    mode: 'qr',
     jobId: '',
     qrContent: '',
     expiresAt: '',
@@ -85,6 +89,37 @@ export const useAppStore = defineStore('app', () => {
   })
 
   let eventsBound = false
+
+  // 雨课堂与学习通的扫码事件结构一致，处理逻辑共用一份
+  function bindQREvents(platform: QRPlatform) {
+    const hint =
+      platform === 'chaoxing' ? '请使用学习通 App 扫码登录' : '请使用雨课堂扫码登录'
+
+    EventsOn(`auth.${platform}.qr`, (ev: QRCodeEvent) => {
+      if (login.platform !== platform || login.mode !== 'qr') return
+      // 旧任务取消时可能晚到，已知当前 job 后只接收它的事件
+      if (login.jobId && ev.jobId !== login.jobId) return
+      login.qrContent = ev.qrContent
+      login.expiresAt = ev.expiresAt
+      login.state = 'waiting'
+      login.message = hint
+    })
+
+    EventsOn(`auth.${platform}.state`, (ev: QRStateEvent) => {
+      if (login.platform !== platform || login.mode !== 'qr') return
+      if (login.jobId && ev.jobId !== login.jobId) return
+      login.state = ev.state
+      login.message = ev.message
+      if (ev.state === 'succeeded') {
+        window.setTimeout(() => {
+          if (login.platform !== platform) return
+          login.show = false
+          login.qrContent = ''
+        }, 800)
+        void reloadAll()
+      }
+    })
+  }
 
   function bindEvents() {
     if (eventsBound) return
@@ -113,29 +148,8 @@ export const useAppStore = defineStore('app', () => {
       void reloadAll()
     })
 
-    EventsOn('auth.yuketang.qr', (ev: QRCodeEvent) => {
-      if (login.platform !== 'yuketang') return
-      // 旧任务取消时可能晚到，已知当前 job 后只接收它的事件
-      if (login.jobId && ev.jobId !== login.jobId) return
-      login.qrContent = ev.qrContent
-      login.expiresAt = ev.expiresAt
-      login.state = 'waiting'
-      login.message = '请使用雨课堂扫码登录'
-    })
-
-    EventsOn('auth.yuketang.state', (ev: QRStateEvent) => {
-      if (login.platform !== 'yuketang') return
-      if (login.jobId && ev.jobId !== login.jobId) return
-      login.state = ev.state
-      login.message = ev.message
-      if (ev.state === 'succeeded') {
-        window.setTimeout(() => {
-          login.show = false
-          login.qrContent = ''
-        }, 800)
-        void reloadAll()
-      }
-    })
+    bindQREvents('yuketang')
+    bindQREvents('chaoxing')
 
     EventsOn('account.state', (ev: AccountStateEvent) => {
       const data = bootstrap.value
@@ -279,6 +293,8 @@ export const useAppStore = defineStore('app', () => {
     Object.assign(login, {
       show: true,
       platform,
+      // 学习通默认走扫码，可以在弹窗里切到账号密码
+      mode: 'qr',
       jobId: '',
       qrContent: '',
       expiresAt: '',
@@ -286,11 +302,43 @@ export const useAppStore = defineStore('app', () => {
       message: '',
       submitting: false,
     })
-    if (platform === 'yuketang') {
+    if (platform === 'yuketang' || platform === 'chaoxing') {
       login.message = '正在获取二维码…'
-      const res = await startYuketangLogin()
+      const res = await startQRLogin(platform)
       login.jobId = res.jobId ?? ''
     }
+  }
+
+  // 学习通切到账号密码：先停掉扫码任务，避免后台继续轮询
+  async function useChaoxingPassword() {
+    if (login.platform !== 'chaoxing') return
+    const jobId = login.jobId
+    login.mode = 'password'
+    login.jobId = ''
+    login.qrContent = ''
+    login.expiresAt = ''
+    login.state = 'waiting'
+    login.message = ''
+    if (jobId) {
+      try {
+        await cancelQRLogin('chaoxing', jobId)
+      } catch {
+        // 任务可能已自然结束，取消失败无需打扰用户
+      }
+    }
+  }
+
+  // 学习通从账号密码切回扫码：重新起一个扫码任务
+  async function useChaoxingQR() {
+    if (login.platform !== 'chaoxing') return
+    login.mode = 'qr'
+    login.jobId = ''
+    login.qrContent = ''
+    login.expiresAt = ''
+    login.state = 'waiting'
+    login.message = '正在获取二维码…'
+    const res = await startQRLogin('chaoxing')
+    login.jobId = res.jobId ?? ''
   }
 
   // 学习通使用手机号+密码登录，失败原因直接回显在弹窗里
@@ -355,16 +403,19 @@ export const useAppStore = defineStore('app', () => {
 
   async function stopLogin() {
     const jobId = login.jobId
+    const platform = login.platform
     login.show = false
     login.platform = ''
+    login.mode = 'qr'
     login.qrContent = ''
+    login.expiresAt = ''
     login.state = ''
     login.message = ''
     login.jobId = ''
     login.submitting = false
-    if (jobId) {
+    if (jobId && (platform === 'yuketang' || platform === 'chaoxing')) {
       try {
-        await cancelYuketangLogin(jobId)
+        await cancelQRLogin(platform, jobId)
       } catch {
         // 任务可能已自然结束，取消失败无需打扰用户
       }
@@ -372,9 +423,11 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function renewQR() {
-    if (!login.jobId) return
-    await refreshYuketangLogin(login.jobId)
+    const platform = login.platform
+    if (!login.jobId || (platform !== 'yuketang' && platform !== 'chaoxing')) return
+    // 先提示再请求：新码事件可能比 RPC 返回还早，晚写会把「等待扫码」覆盖掉
     login.message = '正在获取新的二维码…'
+    await refreshQRLogin(platform, login.jobId)
   }
 
   return {
@@ -405,6 +458,8 @@ export const useAppStore = defineStore('app', () => {
     beginRefresh,
     stopRefresh,
     beginLogin,
+    useChaoxingPassword,
+    useChaoxingQR,
     submitPasswordLogin,
     submitImportSession,
     stopLogin,

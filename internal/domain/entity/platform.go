@@ -2,7 +2,7 @@ package entity
 
 import "fmt"
 
-// Platform 是抓取目标平台的稳定标识。它以字符串落库，禁止随意改名。
+// Platform 是抓取目标平台的稳定标识。它以字符串落库，禁止随意改名
 type Platform string
 
 const (
@@ -11,7 +11,7 @@ const (
 	PlatformTronclass Platform = "tronclass"
 )
 
-// AllPlatforms 返回 UI 与初始化使用的固定顺序。
+// AllPlatforms 返回 UI 与初始化使用的固定顺序
 func AllPlatforms() []Platform {
 	return []Platform{PlatformChaoxing, PlatformYuketang, PlatformTronclass}
 }
@@ -25,7 +25,7 @@ func (p Platform) Valid() bool {
 	}
 }
 
-// DisplayName 用于界面展示。
+// DisplayName 用于界面展示
 func (p Platform) DisplayName() string {
 	switch p {
 	case PlatformChaoxing:
@@ -39,7 +39,7 @@ func (p Platform) DisplayName() string {
 	}
 }
 
-// ParsePlatform 把外部字符串转成 Platform，并拒绝未知值。
+// ParsePlatform 把外部字符串转成 Platform，并拒绝未知值
 func ParsePlatform(s string) (Platform, error) {
 	p := Platform(s)
 	if !p.Valid() {
@@ -48,7 +48,7 @@ func ParsePlatform(s string) (Platform, error) {
 	return p, nil
 }
 
-// LoginState 描述账号当前的登录态。
+// LoginState 描述账号当前的登录态
 type LoginState string
 
 const (
@@ -67,7 +67,7 @@ func (s LoginState) Valid() bool {
 	}
 }
 
-// RunStatus 是一次平台刷新任务的终态。
+// RunStatus 是一次平台刷新任务的终态
 type RunStatus string
 
 const (

@@ -5,8 +5,8 @@
 <p align="center">一个把雨课堂、学习通、学在重邮的作业抓取到一个本地窗口里的工具</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-4c6ef5">
-  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-4c6ef5">
+  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-4c6ef5">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4c6ef5">
   <a href="https://github.com/jiajia-jun/catcher/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/下载-最新版-4c6ef5"></a>
 </p>
@@ -16,7 +16,7 @@
 | 平台 | 登录方式 | 状态 |
 | --- | --- | --- |
 | 雨课堂 | 扫描二维码 | 已实机验证 |
-| 学习通 | 手机号 + 密码 | 已实机验证 |
+| 学习通 | 扫描二维码 / 手机号 + 密码 | 已实机验证 |
 | 学在重邮 | 导入浏览器 session | 实验性 |
 
 ## 功能
@@ -30,12 +30,12 @@
 
 ## 安装
 
-系统要求：Windows 10/11 x64，需要 WebView2 Runtime（安装器会自动处理）。
+系统要求：Windows 10/11，x64 或 ARM64。需要 WebView2 Runtime：安装器会自动处理，便携版要求系统里已有（Windows 11 自带）。
 
 到 [Releases](https://github.com/jiajia-jun/catcher/releases/latest) 页下载，两种包任选：
 
-- **安装器**：`Catcher-<版本>-amd64-installer.exe`，默认装到当前用户目录，**不需要管理员权限**，也可以在安装页改成任意当前用户可写的目录（包括 D:、E: 等非系统盘）
-- **便携版**：`Catcher-<版本>-portable.zip`，解压到任意可写目录，运行 `Catcher.exe`
+- **安装器**（仅 x64）：`Catcher-<版本>-amd64-installer.exe`，默认装到当前用户目录，**不需要管理员权限**，也可以在安装页改成任意当前用户可写的目录（包括 D:、E: 等非系统盘）
+- **便携版**：`Catcher-windows-amd64.zip`（x64）或 `Catcher-windows-arm64.zip`（ARM64），解压到任意可写目录，运行 `Catcher.exe`
 
 > 安装目录必须对当前用户可写。`Program Files` 这类目录普通用户无法写入，安装器会拦下来并提示换一个位置
 
@@ -87,6 +87,7 @@ data/
 
 - **设置项目前是只读的**：日志级别等在 `data/catcher.yaml` 中，修改后需要重启；界面暂不支持修改
 - **学在重邮为实验性功能**：只支持导入浏览器 session，失效后需重新导入；不支持 CAS 自动登录。导入与当前学期抓取已在真实环境跑通，session轮换等尚未验证
+- **学习通扫码登录的异常分支尚未验证**：正常扫码（取码、轮询、确认登录）已实机跑通，「已扫码 / 取消」的中间状态提示和二维码过期后的表现还没验证；遇到问题请改用手机号 + 密码登录
 - **雨课堂平台在部分用户使用情况下可能会抓取失败**：雨课堂平台作业类型较多，版本可能并没有覆盖到一些特殊作业
 - 安装包与程序**未做代码签名**，Windows SmartScreen 可能提示「未知发布者」，这一点是正常的
 

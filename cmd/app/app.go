@@ -2,7 +2,7 @@
 // → service → handle → wails.Run。
 //
 // 它不是 main 包：Wails v2 要求入口位于仓库根目录，以便 //go:embed 能
-// 引用 frontend/dist；根 main.go 只做 embed 并调用本包。
+// 引用 frontend/dist；根 main.go 只做 embed 并调用本包
 package app
 
 import (
@@ -34,7 +34,7 @@ import (
 )
 
 // Version 是构建版本，预发布期间写死，后续改为 ldflags 注入
-const Version = "1.1.0"
+const Version = "1.2.0"
 
 // Run 启动 Wails 应用，阻塞到窗口关闭。
 func Run(assets fs.FS) error {
@@ -145,7 +145,10 @@ func Run(assets fs.FS) error {
 		Authenticators: map[entity.Platform]domain.PasswordAuthenticator{
 			entity.PlatformChaoxing: cx,
 		},
-		QRLogin:  yk,
+		QRLogins: map[entity.Platform]domain.QRLogin{
+			entity.PlatformYuketang: yk,
+			entity.PlatformChaoxing: cx,
+		},
 		Importer: tron,
 		Releases: releases,
 		Config:   cfg,

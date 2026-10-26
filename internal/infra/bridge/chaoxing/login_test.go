@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"catcher/internal/domain/entity"
 	"catcher/internal/infra/sender"
@@ -17,10 +18,12 @@ import (
 func newTestClient(t *testing.T, serverURL string) *Client {
 	t.Helper()
 	return New(Options{
-		BaseURL:      serverURL,
-		LoginBaseURL: serverURL,
-		Sender:       sender.New(sender.Config{Logger: logger.Discard()}),
-		Logger:       logger.Discard(),
+		BaseURL:        serverURL,
+		LoginBaseURL:   serverURL,
+		QRBaseURL:      serverURL,
+		QRPollInterval: time.Millisecond,
+		Sender:         sender.New(sender.Config{Logger: logger.Discard()}),
+		Logger:         logger.Discard(),
 	})
 }
 
