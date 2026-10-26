@@ -295,6 +295,7 @@ type harness struct {
 	fetcher     *fakeFetcher
 	renewer     *fakeRenewer
 	qr          *fakeQR
+	cxQR        *fakeQR
 	importer    *fakeImporter
 	events      chan string
 	eventBody   chan any
@@ -310,6 +311,7 @@ func newHarness(t *testing.T) *harness {
 		fetcher:     &fakeFetcher{},
 		renewer:     &fakeRenewer{},
 		qr:          &fakeQR{},
+		cxQR:        &fakeQR{},
 		importer:    &fakeImporter{},
 		events:      make(chan string, 64),
 		eventBody:   make(chan any, 64),
@@ -321,10 +323,13 @@ func newHarness(t *testing.T) *harness {
 		Runs:        h.runs,
 		Fetchers:    map[entity.Platform]domainFetcher{entity.PlatformYuketang: h.fetcher},
 		Renewers:    map[entity.Platform]domainRenewer{entity.PlatformYuketang: h.renewer},
-		QRLogin:     h.qr,
-		Importer:    h.importer,
-		Logger:      logger.Discard(),
-		Now:         func() time.Time { return time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC) },
+		QRLogins: map[entity.Platform]domain.QRLogin{
+			entity.PlatformYuketang: h.qr,
+			entity.PlatformChaoxing: h.cxQR,
+		},
+		Importer: h.importer,
+		Logger:   logger.Discard(),
+		Now:      func() time.Time { return time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC) },
 	})
 	h.svc.SetEmitter(func(name string, payload any) {
 		select {
@@ -367,8 +372,8 @@ func (h *harness) waitFinished(t *testing.T) {
 	}
 }
 
-// waitQRState 等待指定扫码状态，返回该状态的消息
-func (h *harness) waitQRState(t *testing.T, want entity.QRState) string {
+// waitQRState 等待指定平台的扫码状态，返回该状态的消息
+func (h *harness) waitQRState(t *testing.T, platform entity.Platform, want entity.QRState) string {
 	t.Helper()
 	deadline := time.After(3 * time.Second)
 	for {
@@ -380,7 +385,7 @@ func (h *harness) waitQRState(t *testing.T, want entity.QRState) string {
 			case <-deadline:
 				t.Fatalf("等待扫码状态 %s 超时", want)
 			}
-			if name != "auth.yuketang.state" {
+			if name != "auth."+string(platform)+".state" {
 				continue
 			}
 			m, ok := payload.(map[string]any)
@@ -408,7 +413,7 @@ func TestYuketangLoginPersistsSession(t *testing.T) {
 	if _, err := h.svc.StartYuketangLogin(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	h.waitQRState(t, entity.QRSucceeded)
+	h.waitQRState(t, entity.PlatformYuketang, entity.QRSucceeded)
 
 	if h.qr.calls != 2 {
 		t.Fatalf("轮询次数 = %d, want 2", h.qr.calls)
@@ -435,7 +440,7 @@ func TestYuketangLoginAutoRefreshesExpiredQR(t *testing.T) {
 	if _, err := h.svc.StartYuketangLogin(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	h.waitQRState(t, entity.QRSucceeded)
+	h.waitQRState(t, entity.PlatformYuketang, entity.QRSucceeded)
 
 	if h.qr.calls != 2 {
 		t.Fatalf("轮询次数 = %d, want 2", h.qr.calls)
@@ -452,12 +457,44 @@ func TestYuketangLoginBeginQRFailure(t *testing.T) {
 	if _, err := h.svc.StartYuketangLogin(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	msg := h.waitQRState(t, entity.QRFailed)
+	msg := h.waitQRState(t, entity.PlatformYuketang, entity.QRFailed)
 	if msg != "网络不可用" {
 		t.Fatalf("失败消息 = %q", msg)
 	}
 	if h.sessions.saves != 0 {
 		t.Fatal("取码失败不应写入会话")
+	}
+}
+
+func TestChaoxingLoginPersistsSession(t *testing.T) {
+	h := newHarness(t)
+	secret := mustSecret(t, "cx-scan")
+	h.cxQR.steps = []qrStep{
+		{state: entity.QRWaiting},
+		{state: entity.QRScanned},
+		{state: entity.QRSucceeded, session: &entity.Session{Platform: entity.PlatformChaoxing, Secret: secret}},
+	}
+
+	if _, err := h.svc.StartChaoxingLogin(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	h.waitQRState(t, entity.PlatformChaoxing, entity.QRSucceeded)
+
+	if h.cxQR.calls != 3 {
+		t.Fatalf("轮询次数 = %d, want 3", h.cxQR.calls)
+	}
+	if h.qr.calls != 0 {
+		t.Fatalf("学习通扫码不应碰雨课堂适配器，实际调用 %d 次", h.qr.calls)
+	}
+	if string(h.sessions.secret) != string(secret) {
+		t.Fatal("扫码成功后的会话未持久化")
+	}
+	// 扫码拿不到手机号，只在显示名为空时写通用名字
+	if got := h.accounts.names[entity.PlatformChaoxing]; got != "学习通账号" {
+		t.Fatalf("显示名 = %q, want 学习通账号", got)
+	}
+	if h.accounts.state(entity.PlatformChaoxing) != entity.LoginConnected {
+		t.Fatalf("登录态 = %s", h.accounts.state(entity.PlatformChaoxing))
 	}
 }
 

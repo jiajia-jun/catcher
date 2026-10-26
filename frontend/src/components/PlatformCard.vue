@@ -30,7 +30,8 @@ const loginText = computed(() => {
     return connected ? '重新导入' : '导入会话'
   }
   if (connected) return '重新登录'
-  return props.data.platform === 'chaoxing' ? '账号登录' : '扫码登录'
+  // 学习通扫码与账号密码都支持，按钮上不绑定具体方式
+  return props.data.platform === 'chaoxing' ? '登录' : '扫码登录'
 })
 
 const platformNames: Record<string, string> = {

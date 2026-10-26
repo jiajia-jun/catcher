@@ -45,7 +45,7 @@ type Deps struct {
 	Fetchers       map[entity.Platform]domain.Fetcher
 	Renewers       map[entity.Platform]domain.SessionRenewer
 	Authenticators map[entity.Platform]domain.PasswordAuthenticator
-	QRLogin        domain.QRLogin
+	QRLogins       map[entity.Platform]domain.QRLogin
 	Importer       domain.SessionImporter
 	Releases       domain.ReleaseChecker
 
@@ -68,7 +68,7 @@ type Service struct {
 	fetchers       map[entity.Platform]domain.Fetcher
 	renewers       map[entity.Platform]domain.SessionRenewer
 	authenticators map[entity.Platform]domain.PasswordAuthenticator
-	qrLogin        domain.QRLogin
+	qrLogins       map[entity.Platform]domain.QRLogin
 	importer       domain.SessionImporter
 	releases       domain.ReleaseChecker
 
@@ -98,7 +98,7 @@ func New(d Deps) *Service {
 		fetchers:       d.Fetchers,
 		renewers:       d.Renewers,
 		authenticators: d.Authenticators,
-		qrLogin:        d.QRLogin,
+		qrLogins:       d.QRLogins,
 		importer:       d.Importer,
 		releases:       d.Releases,
 		cfg:            d.Config,
@@ -120,6 +120,9 @@ func New(d Deps) *Service {
 	}
 	if s.authenticators == nil {
 		s.authenticators = make(map[entity.Platform]domain.PasswordAuthenticator)
+	}
+	if s.qrLogins == nil {
+		s.qrLogins = make(map[entity.Platform]domain.QRLogin)
 	}
 	if s.now == nil {
 		s.now = time.Now

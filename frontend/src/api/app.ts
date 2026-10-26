@@ -1,4 +1,5 @@
 import {
+  CancelChaoxingLogin,
   CancelRefresh,
   CancelYuketangLogin,
   CheckForUpdate,
@@ -9,8 +10,10 @@ import {
   ListAssignments,
   LoginChaoxing,
   OpenDataDir,
+  RefreshChaoxingLogin,
   RefreshYuketangLogin,
   SetAssignmentStatus,
+  StartChaoxingLogin,
   StartRefresh,
   StartYuketangLogin,
 } from '../../wailsjs/go/handle/App'
@@ -111,9 +114,14 @@ export async function cancelRefresh(jobId: string): Promise<void> {
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
-export async function startYuketangLogin(): Promise<RefreshStartResult> {
+// 支持扫码的平台。雨课堂与学习通的二维码都走服务端下发的图片
+export type QRPlatform = 'yuketang' | 'chaoxing'
+
+export async function startQRLogin(platform: QRPlatform): Promise<RefreshStartResult> {
   ensureRuntime()
-  const res = (await StartYuketangLogin()) as RefreshStartResult
+  const res = (platform === 'chaoxing'
+    ? await StartChaoxingLogin()
+    : await StartYuketangLogin()) as RefreshStartResult
   if (!res?.ok) throw apiFailure(res?.error)
   return res
 }
@@ -138,15 +146,19 @@ export async function importTronclassSession(
   return (await ImportTronclassSession(input)) as SessionImportResult
 }
 
-export async function cancelYuketangLogin(jobId: string): Promise<void> {
+export async function cancelQRLogin(platform: QRPlatform, jobId: string): Promise<void> {
   ensureRuntime()
-  const res = (await CancelYuketangLogin(jobId)) as APIResult
+  const res = (platform === 'chaoxing'
+    ? await CancelChaoxingLogin(jobId)
+    : await CancelYuketangLogin(jobId)) as APIResult
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
-export async function refreshYuketangLogin(jobId: string): Promise<void> {
+export async function refreshQRLogin(platform: QRPlatform, jobId: string): Promise<void> {
   ensureRuntime()
-  const res = (await RefreshYuketangLogin(jobId)) as APIResult
+  const res = (platform === 'chaoxing'
+    ? await RefreshChaoxingLogin(jobId)
+    : await RefreshYuketangLogin(jobId)) as APIResult
   if (!res?.ok) throw apiFailure(res?.error)
 }
 

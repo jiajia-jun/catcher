@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"catcher/internal/domain/entity"
@@ -29,8 +30,10 @@ import (
 const (
 	// DefaultBaseURL 是课程与作业数据接口的域名
 	DefaultBaseURL = "https://mooc1-api.chaoxing.com"
-	// DefaultLoginBaseURL 是登录接口的域名
+	// DefaultLoginBaseURL 是密码登录接口的域名
 	DefaultLoginBaseURL = "https://passport2.xuexitong.com"
+	// DefaultQRBaseURL 是扫码登录接口的域名。它和密码登录不是同一个站点
+	DefaultQRBaseURL = "https://passport2.chaoxing.com"
 
 	// maxLoginRedirects 是手工跟随 302 的上限
 	maxLoginRedirects = 10
@@ -47,33 +50,52 @@ const (
 type Options struct {
 	BaseURL      string
 	LoginBaseURL string
+	QRBaseURL    string
 	Sender       *sender.Sender
 	Logger       logger.Logger
 	Now          func() time.Time
+	// QRPollInterval 是扫码轮询间隔，默认 3 秒；测试里调小以免拖慢用例
+	QRPollInterval time.Duration
 }
 
-// Client 同时实现 domain.PasswordAuthenticator 与 domain.Fetcher
+// Client 同时实现 domain.PasswordAuthenticator、domain.QRLogin 与 domain.Fetcher
 type Client struct {
-	baseURL      string
-	loginBaseURL string
-	http         *sender.Sender
-	logger       logger.Logger
-	now          func() time.Time
+	baseURL        string
+	loginBaseURL   string
+	qrBaseURL      string
+	qrPollInterval time.Duration
+	http           *sender.Sender
+	logger         logger.Logger
+	now            func() time.Time
+
+	// qrSessions 保存每张二维码的 uuid / enc 与同一个 cookie 袋。
+	// 轮询必须复用 BeginQR 时拿到的 JSESSIONID，丢了服务端会返回 type=2
+	qrMu       sync.Mutex
+	qrSessions map[string]*qrSession
 }
 
 func New(opts Options) *Client {
 	c := &Client{
-		baseURL:      strings.TrimRight(opts.BaseURL, "/"),
-		loginBaseURL: strings.TrimRight(opts.LoginBaseURL, "/"),
-		http:         opts.Sender,
-		logger:       opts.Logger,
-		now:          opts.Now,
+		baseURL:        strings.TrimRight(opts.BaseURL, "/"),
+		loginBaseURL:   strings.TrimRight(opts.LoginBaseURL, "/"),
+		qrBaseURL:      strings.TrimRight(opts.QRBaseURL, "/"),
+		qrPollInterval: opts.QRPollInterval,
+		http:           opts.Sender,
+		logger:         opts.Logger,
+		now:            opts.Now,
+		qrSessions:     make(map[string]*qrSession),
 	}
 	if c.baseURL == "" {
 		c.baseURL = DefaultBaseURL
 	}
 	if c.loginBaseURL == "" {
 		c.loginBaseURL = DefaultLoginBaseURL
+	}
+	if c.qrBaseURL == "" {
+		c.qrBaseURL = DefaultQRBaseURL
+	}
+	if c.qrPollInterval <= 0 {
+		c.qrPollInterval = qrPollInterval
 	}
 	if c.logger == nil {
 		c.logger = logger.Discard()
@@ -209,6 +231,17 @@ func (c *Client) get(ctx context.Context, rawURL string, jar *cookieJar) (*sende
 }
 
 func (c *Client) do(ctx context.Context, method, rawURL string, body []byte, jar *cookieJar) (*sender.Response, error) {
+	resp, err := c.doRaw(ctx, method, rawURL, body, jar)
+	if err != nil {
+		return resp, classifySendError(err)
+	}
+	return resp, nil
+}
+
+// doRaw 与 do 相同，但把 sender 的原始错误原样返回。
+// 需要区分 302 跳转与真正失败的地方用它：classifySendError 会把
+// sender.StatusError 折成领域错误，之后 errors.As 就找不到状态码了
+func (c *Client) doRaw(ctx context.Context, method, rawURL string, body []byte, jar *cookieJar) (*sender.Response, error) {
 	header := map[string]string{
 		"Accept":     "text/html,application/json;q=0.9,*/*;q=0.8",
 		"User-Agent": userAgent,
@@ -225,10 +258,7 @@ func (c *Client) do(ctx context.Context, method, rawURL string, body []byte, jar
 	if resp != nil {
 		jar.add(resp.SetCookies)
 	}
-	if err != nil {
-		return resp, classifySendError(err)
-	}
-	return resp, nil
+	return resp, err
 }
 
 // getFollowing 用 GET 跟随重定向，专供详情页。

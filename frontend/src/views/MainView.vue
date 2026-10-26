@@ -398,7 +398,7 @@ function onOpenRelease() {
 const emptyText = computed(() => {
   const items = platforms.value
   const connected = items.some((p) => p.loginState === 'connected')
-  if (!connected) return '还没有登录任何平台，先完成雨课堂扫码或学习通账号登录'
+  if (!connected) return '还没有登录任何平台，先完成雨课堂或学习通登录'
   if (store.refreshing) return '正在抓取作业，请稍候'
   if (store.keyword.trim()) return '没有匹配当前搜索的作业'
   return '当前筛选下没有作业，可以点「刷新全部」重新抓取'

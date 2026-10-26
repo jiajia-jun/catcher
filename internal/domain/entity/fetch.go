@@ -40,7 +40,7 @@ type PersistInput struct {
 	At        time.Time
 }
 
-// FetchIssue 记录一次部分失败或警告。
+// FetchIssue 记录一次部分失败或警告
 type FetchIssue struct {
 	Scope   IssueScope
 	Ref     string
@@ -49,7 +49,7 @@ type FetchIssue struct {
 	RawPath string
 }
 
-// FetchRun 是 fetch_runs 表对应的刷新记录。
+// FetchRun 是 fetch_runs 表对应的刷新记录
 type FetchRun struct {
 	ID            int64
 	AccountID     int64
@@ -65,7 +65,7 @@ type FetchRun struct {
 	ErrorSummary  string
 }
 
-// Progress 是刷新进度事件的数据。
+// Progress 是刷新进度事件的数据
 type Progress struct {
 	Platform Platform
 	Phase    string
@@ -74,7 +74,7 @@ type Progress struct {
 	Message  string
 }
 
-// ProgressFunc 由 service 注入，适配器在每个阶段调用。
+// ProgressFunc 由 service 注入，适配器在每个阶段调用
 type ProgressFunc func(Progress)
 
 // QRState 是雨课堂扫码登录的轮询状态。

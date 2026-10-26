@@ -30,10 +30,16 @@ const formError = ref('')
 
 const isChaoxing = computed(() => store.login.platform === 'chaoxing')
 const isTronclass = computed(() => store.login.platform === 'tronclass')
-const isYuketang = computed(() => store.login.platform === 'yuketang')
+// 学习通默认扫码，可以切到账号密码表单
+const isPasswordForm = computed(
+  () => isChaoxing.value && store.login.mode === 'password',
+)
+const showQR = computed(() => !isTronclass.value && !isPasswordForm.value)
+const platformName = computed(() => (isChaoxing.value ? '学习通' : '雨课堂'))
 const title = computed(() => {
   if (isTronclass.value) return '学在重邮导入会话'
-  return isChaoxing.value ? '学习通账号登录' : '雨课堂扫码登录'
+  if (!isChaoxing.value) return '雨课堂扫码登录'
+  return isPasswordForm.value ? '学习通账号登录' : '学习通扫码登录'
 })
 
 function tick() {
@@ -48,6 +54,11 @@ watch(
       qrImage.value = ''
       return
     }
+    // 学习通下发的是服务端生成的 PNG，已经带 data URL 前缀，直接显示
+    if (content.startsWith('data:image/')) {
+      qrImage.value = content
+      return
+    }
     try {
       qrImage.value = await QRCode.toDataURL(content, { width: 220, margin: 1 })
     } catch {
@@ -58,24 +69,21 @@ watch(
 )
 
 watch(
-  () => store.login.show,
-  (show) => {
+  () => [store.login.show, showQR.value] as const,
+  ([show, qr]) => {
+    if (show && qr) {
+      // 弹窗可能是启动很久后才打开的，先用当前时间刷新，避免倒计时凭空少一截
+      tick()
+      if (!timer) timer = window.setInterval(tick, 1000)
+    }
+    if (timer && !(show && qr)) {
+      window.clearInterval(timer)
+      timer = undefined
+    }
     if (!show) {
       password.value = ''
       sessionText.value = ''
       formError.value = ''
-    }
-    if (show) {
-      // 弹窗可能是启动很久后才打开的，先用当前时间刷新，避免倒计时凭空少一截
-      tick()
-      // 只有雨课堂二维码需要倒计时
-      if (!timer && store.login.platform === 'yuketang') {
-        timer = window.setInterval(tick, 1000)
-      }
-    }
-    if (!show && timer) {
-      window.clearInterval(timer)
-      timer = undefined
     }
   },
 )
@@ -92,6 +100,8 @@ const remaining = computed(() => {
 })
 
 const remainingText = computed(() => {
+  // 第一张二维码还没到时不要显示「已过期」
+  if (!store.login.expiresAt) return ''
   if (remaining.value <= 0) return '二维码已过期'
   const m = Math.floor(remaining.value / 60)
   const s = remaining.value % 60
@@ -113,6 +123,24 @@ const bannerText = computed(() => formError.value || store.login.message)
 async function onRenew() {
   try {
     await store.renewQR()
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : String(err))
+  }
+}
+
+async function onUsePassword() {
+  formError.value = ''
+  try {
+    await store.useChaoxingPassword()
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : String(err))
+  }
+}
+
+async function onUseQR() {
+  formError.value = ''
+  try {
+    await store.useChaoxingQR()
   } catch (err) {
     message.error(err instanceof Error ? err.message : String(err))
   }
@@ -222,17 +250,25 @@ async function onClose() {
       </n-alert>
     </div>
 
-    <div v-else-if="!isChaoxing" class="qr-wrap">
+    <div v-else-if="showQR" class="qr-wrap">
       <n-spin :show="!qrImage && !failed" size="large">
         <div class="qr-box">
-          <img v-if="qrImage" :src="qrImage" alt="雨课堂登录二维码" class="qr-image" />
+          <img
+            v-if="qrImage"
+            :src="qrImage"
+            :alt="`${platformName}登录二维码`"
+            class="qr-image"
+          />
           <div v-else class="qr-placeholder">二维码加载中</div>
         </div>
       </n-spin>
-      <n-text depth="3" class="expire">{{ remainingText }}</n-text>
+      <n-text v-if="remainingText" depth="3" class="expire">{{ remainingText }}</n-text>
       <div v-if="bannerText" class="state-banner" :class="stateTone">
         {{ bannerText }}
       </div>
+      <n-button v-if="isChaoxing" text type="primary" size="small" @click="onUsePassword">
+        改用账号密码登录
+      </n-button>
     </div>
 
     <div v-else class="form-wrap">
@@ -260,16 +296,17 @@ async function onClose() {
       <n-text depth="3" class="hint">
         学习通使用手机号 + 密码登录；勾选记住后，密码只在本机用 Windows DPAPI 加密保存
       </n-text>
+      <n-button text type="primary" size="small" @click="onUseQR">改用扫码登录</n-button>
     </div>
 
-    <n-alert v-if="isYuketang && failed" type="warning" :bordered="false" class="alert">
-      二维码过期或登录失败时可以换一张；仍未成功请确认手机端雨课堂可正常使用
+    <n-alert v-if="showQR && failed" type="warning" :bordered="false" class="alert">
+      二维码过期或登录失败时可以换一张；仍未成功请确认手机端{{ platformName }}可正常使用
     </n-alert>
 
     <n-space justify="space-between" class="actions">
       <n-button quaternary @click="onClose">取消</n-button>
       <n-button
-        v-if="isYuketang"
+        v-if="showQR"
         type="primary"
         secondary
         @click="onRenew"
