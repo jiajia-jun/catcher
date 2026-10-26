@@ -22,8 +22,9 @@ frontend/package.json.md5
 # 手工调接口的 Apipost 导出，可能含真实凭据
 catcher.json
 
-# 本地文档与设计草稿，仅保留在工作区
-/docs/
+# 本地文档与设计草稿，仅保留在工作区；只有架构说明随仓库发布
+/docs/*
+!/docs/架构.md
 /draft/
 /CLAUDE.md
 
