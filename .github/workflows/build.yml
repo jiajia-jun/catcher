@@ -1,0 +1,135 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows/amd64
+            arch: amd64
+            asset: windows-amd64
+          - os: windows-11-arm
+            target: windows/arm64
+            arch: arm64
+            asset: windows-arm64
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7.0.1
+
+      - name: 安装 Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          # 与 go.mod 保持一致；Wails v2.13.0 在 Go 1.27.3 下生成绑定时会报错
+          go-version: "1.27.1"
+          cache: true
+
+      - name: 安装 Node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装 Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+          "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$(go env GOPATH)\bin\wails.exe" version
+
+      - name: 运行测试
+        if: matrix.arch == 'amd64'
+        shell: pwsh
+        run: go test ./...
+
+      - name: 构建
+        shell: pwsh
+        run: wails build -platform ${{ matrix.target }} -clean -m -v 2
+
+      - name: 打包
+        shell: pwsh
+        run: |
+          $stage = Join-Path $PWD 'stage'
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage 'logo') | Out-Null
+          Copy-Item build/bin/Catcher.exe $stage
+          Copy-Item README.md, LICENSE $stage
+          Copy-Item logo/logo-wordmark-1024x256.png (Join-Path $stage 'logo')
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath "Catcher-${{ matrix.asset }}.zip" -Force
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Catcher-${{ matrix.asset }}
+          path: Catcher-${{ matrix.asset }}.zip
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    name: 发布 Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7.0.1
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 校验 tag 与代码版本
+        shell: bash
+        run: |
+          version=$(sed -n 's/^const Version = "\([^"]*\)".*/\1/p' cmd/app/app.go)
+          if [ -z "$version" ]; then
+            echo "::error::无法从 cmd/app/app.go 读取 Version"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "v${version}" ]; then
+            echo "::error::tag $GITHUB_REF_NAME 与代码版本 v${version} 不一致，请先更新 cmd/app/app.go 中的 Version"
+            exit 1
+          fi
+
+      - name: 创建或更新 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          prerelease=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.zip \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              "${prerelease[@]}"
+          fi
