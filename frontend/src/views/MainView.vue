@@ -18,11 +18,20 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns, DropdownOption } from 'naive-ui'
+import EmailModal from '../components/EmailModal.vue'
 import IssuesModal from '../components/IssuesModal.vue'
 import LoginModal from '../components/LoginModal.vue'
 import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime'
 import PlatformCard from '../components/PlatformCard.vue'
 import SettingsModal from '../components/SettingsModal.vue'
+import {
+  clearToastTimers,
+  enqueueToast,
+  pauseToast,
+  resumeToast,
+  runToastAction,
+  toasts,
+} from '../composables/toasts'
 import { useAppStore } from '../stores/app'
 import type { AssignmentView, PlatformView, RefreshFinishedEvent } from '../types'
 
@@ -31,98 +40,8 @@ type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 const store = useAppStore()
 const message = useMessage()
 
-// 成功提示可以同时存在多条：新提示从底部进入，旧的被顺势顶上去
-// 带「撤销」的提示停留更久，并且悬停时暂停倒计时
-interface ToastItem {
-  id: number
-  title: string
-  content: string
-  duration: number
-  assignmentId?: number
-  action?: {
-    label: string
-    run: () => void
-  }
-}
-
-interface ToastTimer {
-  remaining: number
-  startedAt: number
-  handle: number
-}
-
-const toasts = ref<ToastItem[]>([])
-const toastTimers = new Map<number, ToastTimer>()
-let toastSeq = 0
+// 提示栈由 composables/toasts 统一管理，邮箱弹窗等子组件也能投递
 let offRefreshFinished: (() => void) | undefined
-
-// 普通提示的停留时长
-const toastDuration = 2000
-
-function enqueueToast(item: {
-  title: string
-  content: string
-  duration?: number
-  assignmentId?: number
-  action?: ToastItem['action']
-}) {
-  const id = ++toastSeq
-  // 同一行只保留最近一次可撤销的操作
-  if (item.assignmentId !== undefined) {
-    dismissToastsFor(item.assignmentId)
-  }
-  const duration = item.duration ?? toastDuration
-  toasts.value.push({
-    id,
-    title: item.title,
-    content: item.content,
-    duration,
-    assignmentId: item.assignmentId,
-    action: item.action,
-  })
-  toastTimers.set(id, { remaining: duration, startedAt: 0, handle: 0 })
-  scheduleToast(id)
-}
-
-function scheduleToast(id: number) {
-  const state = toastTimers.get(id)
-  if (!state) return
-  state.startedAt = Date.now()
-  state.handle = window.setTimeout(() => dismissToast(id), state.remaining)
-}
-
-function pauseToast(id: number) {
-  const state = toastTimers.get(id)
-  if (!state) return
-  window.clearTimeout(state.handle)
-  state.remaining = Math.max(0, state.remaining - (Date.now() - state.startedAt))
-  if (state.remaining === 0) dismissToast(id)
-}
-
-function resumeToast(id: number) {
-  const state = toastTimers.get(id)
-  if (!state || state.remaining <= 0) return
-  scheduleToast(id)
-}
-
-function dismissToast(id: number) {
-  const state = toastTimers.get(id)
-  if (state) window.clearTimeout(state.handle)
-  toastTimers.delete(id)
-  toasts.value = toasts.value.filter((t) => t.id !== id)
-}
-
-function dismissToastsFor(assignmentId: number) {
-  for (const item of [...toasts.value]) {
-    if (item.assignmentId === assignmentId) dismissToast(item.id)
-  }
-}
-
-function runToastAction(item: ToastItem) {
-  const action = item.action
-  dismissToast(item.id)
-  action?.run()
-}
 
 function showSuccessToast(ev: RefreshFinishedEvent) {
   if (ev.status !== 'success') return
@@ -136,6 +55,7 @@ function showSuccessToast(ev: RefreshFinishedEvent) {
 }
 
 const showSettings = ref(false)
+const showEmail = ref(false)
 
 const platforms = computed(() => store.bootstrap?.platforms ?? [])
 const stats = computed(() => store.bootstrap?.stats ?? {
@@ -333,8 +253,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   offRefreshFinished?.()
-  for (const state of toastTimers.values()) window.clearTimeout(state.handle)
-  toastTimers.clear()
+  clearToastTimers()
 })
 
 function reportError(err: unknown) {
@@ -417,6 +336,7 @@ function rowKey(row: AssignmentView) {
         <span class="brand-sub">catch your work</span>
       </div>
       <div class="top-actions">
+        <n-button quaternary @click="showEmail = true">邮件通知</n-button>
         <n-button quaternary @click="showSettings = true">设置</n-button>
       </div>
     </n-layout-header>
@@ -556,6 +476,7 @@ function rowKey(row: AssignmentView) {
     </n-layout-content>
 
     <settings-modal v-model:show="showSettings" />
+    <email-modal v-model:show="showEmail" />
     <login-modal />
     <issues-modal
       v-model:show="issues.show"
@@ -568,7 +489,7 @@ function rowKey(row: AssignmentView) {
         v-for="item in toasts"
         :key="item.id"
         class="success-toast"
-        :class="{ 'has-action': item.action }"
+        :class="{ 'has-action': item.action, 'is-error': item.tone === 'error' }"
         role="status"
         @mouseenter="pauseToast(item.id)"
         @mouseleave="resumeToast(item.id)"
@@ -750,6 +671,12 @@ function rowKey(row: AssignmentView) {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
+.success-toast.is-error {
+  border-color: #d03050;
+  background: #ffece8;
+  color: #d03050;
+}
+
 .success-toast-title {
   font-size: 14px;
   font-weight: 600;
@@ -759,6 +686,7 @@ function rowKey(row: AssignmentView) {
   margin-top: 4px;
   font-size: 13px;
   opacity: 0.85;
+  overflow-wrap: anywhere;
 }
 
 /* 带动作的提示要能点，普通提示仍然不挡操作 */

@@ -336,6 +336,89 @@ export namespace dto {
 		}
 	}
 	
+	export class EmailSettingsRequest {
+	    address: string;
+	    smtp: string;
+	    password: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EmailSettingsRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.smtp = source["smtp"];
+	        this.password = source["password"];
+	    }
+	}
+	export class EmailSettingsView {
+	    configured: boolean;
+	    address?: string;
+	    smtp?: string;
+	    port: number;
+
+	    static createFrom(source: any = {}) {
+	        return new EmailSettingsView(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.configured = source["configured"];
+	        this.address = source["address"];
+	        this.smtp = source["smtp"];
+	        this.port = source["port"];
+	    }
+	}
+	export class EmailSettingsResult {
+	    ok: boolean;
+	    settings?: EmailSettingsView;
+	    error?: APIError;
+
+	    static createFrom(source: any = {}) {
+	        return new EmailSettingsResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.settings = this.convertValues(source["settings"], EmailSettingsView);
+	        this.error = this.convertValues(source["error"], APIError);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class EmailTestRequest {
+	    topic: string;
+	    desc: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EmailTestRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.topic = source["topic"];
+	        this.desc = source["desc"];
+	    }
+	}
+
 	export class FetchIssueView {
 	    scope: string;
 	    ref?: string;

@@ -12,6 +12,8 @@ export function CheckForUpdate(arg1:boolean):Promise<dto.UpdateCheckResult>;
 
 export function GetBootstrap(arg1:boolean):Promise<dto.BootstrapResult>;
 
+export function GetEmailSettings():Promise<dto.EmailSettingsResult>;
+
 export function GetFetchIssues(arg1:number):Promise<dto.FetchIssuesResult>;
 
 export function GetSettings():Promise<dto.SettingsResult>;
@@ -27,6 +29,10 @@ export function OpenDataDir():Promise<dto.APIResult>;
 export function RefreshChaoxingLogin(arg1:string):Promise<dto.APIResult>;
 
 export function RefreshYuketangLogin(arg1:string):Promise<dto.APIResult>;
+
+export function SaveEmailSettings(arg1:dto.EmailSettingsRequest):Promise<dto.EmailSettingsResult>;
+
+export function SendTestEmail(arg1:dto.EmailTestRequest):Promise<dto.APIResult>;
 
 export function SetAssignmentStatus(arg1:dto.AssignmentStatusRequest):Promise<dto.AssignmentStatusResult>;
 
