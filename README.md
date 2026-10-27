@@ -2,11 +2,15 @@
   <img src="logo/logo-wordmark-1024x256.png" width="440" alt="Catcher">
 </p>
 
+<p align="center"><a href="README.md">简体中文</a> | <a href="README.en.md">English</a></p>
+
 <p align="center">一个把雨课堂、学习通、学在重邮的作业抓取到一个本地窗口里的工具</p>
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.2.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
+  <img alt="本地化" src="https://img.shields.io/badge/本地化-数据不出本机-4c6ef5">
+  <img alt="无三方" src="https://img.shields.io/badge/无三方-无中转服务器-4c6ef5">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4c6ef5">
   <a href="https://github.com/jiajia-jun/catcher/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/下载-最新版-4c6ef5"></a>
 </p>
@@ -25,7 +29,6 @@
 - 支持按课程搜索对应作业
 - 按平台刷新，支持取消与进度显示；单个平台失败不影响另一个
 - 支持**手动标记**，平台状态拿不到的作业可以先手动标记，随时恢复平台值
-- 支持配置 SMTP 邮箱并发送测试邮件（顶栏「邮件通知」），为后续作业提醒做准备
 - 启动后检查新版本，发现更新时提示并打开 GitHub 发布页
 - 所有数据只保存在本机，**不上传任何服务器**
 
@@ -67,7 +70,6 @@ data/
 ├── catcher.db
 ├── catcher.db-wal
 ├── catcher.db-shm
-├── email.json
 └── logs/
     └── catcher.log
 ```
@@ -81,7 +83,6 @@ data/
 - 程序**不监听任何本地端口**，也不在后台起服务，只有主动发出的出站请求
 - 雨课堂与学习通走 HTTPS；学在重邮的校园站点只开放 HTTP，session在该站内为明文传输，**建议连接校园网或VPN使用**
 - 登录态与学习通密码使用 Windows DPAPI 加密后存入本地 sqlite，只对当前 Windows 用户可解密
-- 邮箱授权码同样使用 Windows DPAPI 加密后存入 `data/email.json`，文件内不含明文
 - 日志**不记录** Cookie、Set-Cookie、Authorization、密码、token 或二维码内容
 - 更新检查只向 GitHub 查询最新版本号，请求只含客户端版本号与常规 HTTP 头，不携带账号、作业或日志数据
 - 数据**不会上传到任何第三方服务器**
