@@ -114,6 +114,34 @@ type SettingsResult struct {
 	Settings *SettingsView `json:"settings,omitempty"`
 }
 
+// EmailSettingsView 是邮箱配置的只读视图，授权码永远不回传前端
+type EmailSettingsView struct {
+	Configured bool   `json:"configured"`
+	Address    string `json:"address,omitempty"`
+	SMTP       string `json:"smtp,omitempty"`
+	Port       int    `json:"port"`
+}
+
+type EmailSettingsResult struct {
+	OK       bool               `json:"ok"`
+	Settings *EmailSettingsView `json:"settings,omitempty"`
+	Error    *APIError          `json:"error,omitempty"`
+}
+
+// EmailSettingsRequest 保存邮箱配置。
+// Password 留空表示保持已保存的授权码，避免编辑其它字段时重复输入
+type EmailSettingsRequest struct {
+	Address  string `json:"address"`
+	SMTP     string `json:"smtp"`
+	Password string `json:"password"`
+}
+
+// EmailTestRequest 是测试邮件的内容，由前端预览后原样发送
+type EmailTestRequest struct {
+	Topic string `json:"topic"`
+	Desc  string `json:"desc"`
+}
+
 // UpdateCheckResult 是一次版本检查的结果。
 // Skipped 表示开发模式下跳过了自动检查，不代表已是最新
 type UpdateCheckResult struct {

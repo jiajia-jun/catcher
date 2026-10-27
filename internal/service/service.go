@@ -41,6 +41,7 @@ type Deps struct {
 	Credentials domain.CredentialRepository
 	Assignments domain.AssignmentRepository
 	Runs        domain.FetchRunRepository
+	Email       domain.Emails
 
 	Fetchers       map[entity.Platform]domain.Fetcher
 	Renewers       map[entity.Platform]domain.SessionRenewer
@@ -64,6 +65,7 @@ type Service struct {
 	credentials domain.CredentialRepository
 	assignments domain.AssignmentRepository
 	runs        domain.FetchRunRepository
+	email       domain.Emails
 
 	fetchers       map[entity.Platform]domain.Fetcher
 	renewers       map[entity.Platform]domain.SessionRenewer
@@ -95,6 +97,7 @@ func New(d Deps) *Service {
 		credentials:    d.Credentials,
 		assignments:    d.Assignments,
 		runs:           d.Runs,
+		email:          d.Email,
 		fetchers:       d.Fetchers,
 		renewers:       d.Renewers,
 		authenticators: d.Authenticators,
@@ -256,6 +259,48 @@ func (s *Service) Settings() config.App {
 
 func (s *Service) DataDir() string { return s.dataDir }
 func (s *Service) Version() string { return s.version }
+
+// EmailSettings 返回邮箱配置副本。configured 为 false 表示尚未填写完整
+func (s *Service) EmailSettings() (entity.EmailSender, bool) {
+	if s.email == nil {
+		return entity.EmailSender{}, false
+	}
+	info := s.email.GetInfo()
+	if info == nil {
+		return entity.EmailSender{}, false
+	}
+	// 三项齐全才算配置完成；缺授权码时仍回填地址与 SMTP，方便用户补齐
+	configured := info.Emailer.Addr != "" && info.Emailer.Smtp != "" && info.PassWord != ""
+	return *info, configured
+}
+
+// SaveEmailSettings 保存邮箱配置。password 为空时沿用已保存的授权码，
+// 这样编辑 SMTP 或发件地址时不需要重新输入授权码
+func (s *Service) SaveEmailSettings(info entity.EmailSender) error {
+	if s.email == nil {
+		return fmt.Errorf("邮箱服务不可用")
+	}
+	if info.Emailer.Addr == "" || info.Emailer.Smtp == "" {
+		return fmt.Errorf("发件邮箱与 SMTP 服务器不能为空")
+	}
+	if info.PassWord == "" {
+		if current := s.email.GetInfo(); current != nil {
+			info.PassWord = current.PassWord
+		}
+	}
+	if info.PassWord == "" {
+		return fmt.Errorf("首次配置需要填写授权码")
+	}
+	return s.email.SetInfo(&info)
+}
+
+// SendEmail 通过已保存的邮箱配置发送一封邮件
+func (s *Service) SendEmail(desc entity.EmailContent) error {
+	if s.email == nil {
+		return fmt.Errorf("邮箱服务不可用")
+	}
+	return s.email.SendEmail(&desc)
+}
 
 // OpenDataDir 在资源管理器中打开数据目录
 func (s *Service) OpenDataDir(_ context.Context) error {
