@@ -149,11 +149,11 @@ go vet ./...
 
 [.github/workflows/build.yml](.github/workflows/build.yml) runs on:
 
-- pushes to `main`
-- pushes of `v*` tags
-- manual `workflow_dispatch`
+- pushes to `main`: **unit tests only**, no build
+- pushes of `v*` tags: tests, then builds Windows amd64 / arm64 and creates a Release
+- manual `workflow_dispatch`: tests, then builds without releasing
 
-CI builds both Windows amd64 and arm64, but **unit tests only run on amd64**. **CI does not run on pull requests**, so run the checks above locally before opening a PR.
+**Pull requests do not trigger CI**, so run the checks above locally before opening a PR. Tests run once on `windows-latest` (amd64), and the build job waits for them to pass.
 
 ## Documentation
 
