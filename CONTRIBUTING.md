@@ -149,11 +149,11 @@ go vet ./...
 
 [.github/workflows/build.yml](.github/workflows/build.yml) 在以下情况触发：
 
-- push 到 `main`
-- 推送 `v*` tag
-- 手动 `workflow_dispatch`
+- push 到 `main`：**只跑单元测试**，不构建
+- 推送 `v*` tag：跑测试后构建 Windows amd64 / arm64 并创建 Release
+- 手动 `workflow_dispatch`：跑测试后构建，不发布
 
-CI 会构建 Windows amd64 / arm64 两个架构，但**单元测试只在 amd64 上跑**。**PR 上不会触发 CI**，所以上面的检查请在本地自己跑完再提 PR。
+**PR 上不会触发 CI**，所以上面的检查请在本地自己跑完再提 PR。测试只在 `windows-latest`（amd64）上跑一次，构建 job 要等测试通过才开始。
 
 ## 文档
 
