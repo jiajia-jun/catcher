@@ -14,8 +14,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: 单元测试
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7.0.1
+
+      - name: 安装 Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          # 与 go.mod 保持一致；Wails v2.13.0 在 Go 1.27.3 下生成绑定时会报错
+          go-version: "1.27.1"
+          cache: true
+
+      - name: 运行测试
+        shell: pwsh
+        run: go test ./...
+
   build:
     name: Windows ${{ matrix.arch }}
+    needs: test
+    # push 到 main 只跑测试；只有 tag 或手动触发才构建
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -56,11 +78,6 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
           "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & "$(go env GOPATH)\bin\wails.exe" version
-
-      - name: 运行测试
-        if: matrix.arch == 'amd64'
-        shell: pwsh
-        run: go test ./...
 
       - name: 构建
         shell: pwsh
