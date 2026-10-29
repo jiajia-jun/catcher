@@ -171,8 +171,8 @@ func (r *fetchRun) toAssignment(item *mergedItem, detail *detailData) entity.Ass
 	description := ""
 
 	var course *courseRef
-	switch {
-	case item.status == entity.StatusUnsubmitted:
+	switch item.status {
+	case entity.StatusUnsubmitted:
 		if detail != nil {
 			if t := strings.TrimSpace(detail.Request.EssayTitle); t != "" {
 				title = t
