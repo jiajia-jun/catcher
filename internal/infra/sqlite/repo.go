@@ -48,6 +48,7 @@ func (r *Repo) ListAccounts(ctx context.Context) ([]entity.Account, error) {
 			WHEN 'chaoxing' THEN 1
 			WHEN 'yuketang' THEN 2
 			WHEN 'tronclass' THEN 3
+			WHEN 'pigai' THEN 4
 			ELSE 9 END`)
 	if err != nil {
 		return nil, fmt.Errorf("查询账号失败: %w", err)

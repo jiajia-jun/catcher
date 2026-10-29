@@ -111,8 +111,8 @@ func TestMigrateAndSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(accounts) != 3 {
-		t.Fatalf("accounts = %d, want 3", len(accounts))
+	if want := len(entity.AllPlatforms()); len(accounts) != want {
+		t.Fatalf("accounts = %d, want %d", len(accounts), want)
 	}
 	for i, want := range entity.AllPlatforms() {
 		if accounts[i].Platform != want {

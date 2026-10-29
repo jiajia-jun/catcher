@@ -6,7 +6,9 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -27,6 +29,7 @@ var migrationsFS embed.FS
 // DB 包装 sqlx.DB，并持有一把写锁。
 type DB struct {
 	db      *sqlx.DB
+	path    string
 	writeMu sync.Mutex
 }
 
@@ -48,7 +51,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("连接数据库失败: %w", err)
 	}
-	return &DB{db: db}, nil
+	return &DB{db: db, path: path}, nil
 }
 
 // SQL 暴露底层连接，供仓储读取使用。
@@ -120,27 +123,124 @@ func (d *DB) Migrate(ctx context.Context) error {
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].version < list[j].version })
 
+	var pending []migration
 	for _, m := range list {
-		if m.version <= current {
-			continue
+		if m.version > current {
+			pending = append(pending, m)
 		}
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	// 只在已有结构上升级时留底；全新库第一次建表没有可回滚的数据
+	if current > 0 {
+		if err := d.backup(ctx); err != nil {
+			return err
+		}
+	}
+
+	for _, m := range pending {
 		body, err := migrationsFS.ReadFile("migrations/" + m.name)
 		if err != nil {
 			return fmt.Errorf("读取迁移 %s 失败: %w", m.name, err)
 		}
-		if err := d.WithTx(ctx, func(tx *sqlx.Tx) error {
-			if _, err := tx.ExecContext(ctx, string(body)); err != nil {
-				return fmt.Errorf("执行迁移 %s 失败: %w", m.name, err)
-			}
-			_, err := tx.ExecContext(ctx,
-				`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`,
-				m.version, time.Now().UTC().Format(time.RFC3339))
-			return err
-		}); err != nil {
+		if err := d.applyMigration(ctx, m.version, m.name, string(body)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// backup 把当前数据库复制为 catcher.db.bak。
+// 先把 WAL 落进主库，否则复制出来的文件可能缺少未提交的页。
+func (d *DB) backup(ctx context.Context) error {
+	if d.path == "" {
+		return nil
+	}
+	if _, err := d.db.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		return fmt.Errorf("迁移前检查点失败: %w", err)
+	}
+	data, err := os.ReadFile(d.path)
+	if err != nil {
+		return fmt.Errorf("迁移前读取数据库失败: %w", err)
+	}
+	dst := d.path + ".bak"
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
+		return fmt.Errorf("迁移前备份数据库失败: %w", err)
+	}
+	return nil
+}
+
+// applyMigration 执行单个迁移并记录版本。
+//
+// 迁移文件首行写成 `-- catcher:foreign_keys=off` 时，改用独立连接先关闭外键再执行，
+// 因为重建表需要对被引用表执行 DROP TABLE。WithTx 里改不了外键：
+// PRAGMA foreign_keys 在事务内是空操作，且连接池中的其他连接仍处于开启状态。
+func (d *DB) applyMigration(ctx context.Context, version int, name, body string) error {
+	if !needsForeignKeysOff(body) {
+		return d.WithTx(ctx, func(tx *sqlx.Tx) error {
+			if _, err := tx.ExecContext(ctx, body); err != nil {
+				return fmt.Errorf("执行迁移 %s 失败: %w", name, err)
+			}
+			_, err := tx.ExecContext(ctx,
+				`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`,
+				version, time.Now().UTC().Format(time.RFC3339))
+			return err
+		})
+	}
+
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
+
+	conn, err := d.db.Connx(ctx)
+	if err != nil {
+		return fmt.Errorf("迁移 %s 获取连接失败: %w", name, err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		return fmt.Errorf("迁移 %s 关闭外键失败: %w", name, err)
+	}
+	// 恢复外键必须无条件执行，且不能受 ctx 取消影响，
+	// 否则这条连接带着关闭状态回到连接池，后续写入全部失去外键保护
+	defer func() {
+		_, _ = conn.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`)
+	}()
+
+	tx, err := conn.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("迁移 %s 开启事务失败: %w", name, err)
+	}
+	if _, err := tx.ExecContext(ctx, body); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("执行迁移 %s 失败: %w", name, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`,
+		version, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("记录迁移 %s 失败: %w", name, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交迁移 %s 失败: %w", name, err)
+	}
+
+	// 外键关闭期间写坏的关系不会报错，提交后必须主动查一遍
+	var table string
+	err = conn.GetContext(ctx, &table, `SELECT "table" FROM pragma_foreign_key_check LIMIT 1`)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("迁移 %s 外键自检失败: %w", name, err)
+	}
+	if table != "" {
+		return fmt.Errorf("迁移 %s 后存在外键违规: 表 %s", name, table)
+	}
+	return nil
+}
+
+// needsForeignKeysOff 识别迁移文件首行的执行指令
+func needsForeignKeysOff(body string) bool {
+	line, _, _ := strings.Cut(body, "\n")
+	return strings.Contains(line, "catcher:foreign_keys=off")
 }
 
 func migrationVersion(name string) (int, error) {

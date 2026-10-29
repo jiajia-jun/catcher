@@ -49,6 +49,13 @@ type TronclassSecret struct {
 	UserID  string `json:"user_id"`
 }
 
+// PigaiSecret 只持久化 cookie 表。_JUKU_USER 整体保存、不解析，
+// 因为它的字段语义未证实，重建请求头比原样回放更容易出错。
+type PigaiSecret struct {
+	Cookies   []Cookie  `json:"cookies"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // MaskPhone 把 11 位手机号变成 138****1234，用于 accounts.display_name
 func MaskPhone(phone string) string {
 	if len(phone) != 11 {
