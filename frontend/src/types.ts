@@ -108,32 +108,6 @@ export interface APIResult {
   error?: APIError
 }
 
-// 邮箱配置视图；授权码不会回传到前端
-export interface EmailSettingsView {
-  configured: boolean
-  address?: string
-  smtp?: string
-  port: number
-}
-
-export interface EmailSettingsResult {
-  ok: boolean
-  settings?: EmailSettingsView
-  error?: APIError
-}
-
-// password 留空表示保持已保存的授权码
-export interface EmailSettingsRequest {
-  address: string
-  smtp: string
-  password: string
-}
-
-export interface EmailTestRequest {
-  topic: string
-  desc: string
-}
-
 // 一次版本检查的结果；skipped 表示开发模式跳过了自动检查
 export interface UpdateCheckResult {
   ok: boolean

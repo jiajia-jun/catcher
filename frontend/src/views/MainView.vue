@@ -18,7 +18,6 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns, DropdownOption } from 'naive-ui'
-import EmailModal from '../components/EmailModal.vue'
 import IssuesModal from '../components/IssuesModal.vue'
 import LoginModal from '../components/LoginModal.vue'
 import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime'
@@ -40,7 +39,7 @@ type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
 const store = useAppStore()
 const message = useMessage()
 
-// 提示栈由 composables/toasts 统一管理，邮箱弹窗等子组件也能投递
+// 提示栈由 composables/toasts 统一管理，子组件也能投递
 let offRefreshFinished: (() => void) | undefined
 
 function showSuccessToast(ev: RefreshFinishedEvent) {
@@ -55,7 +54,6 @@ function showSuccessToast(ev: RefreshFinishedEvent) {
 }
 
 const showSettings = ref(false)
-const showEmail = ref(false)
 
 const platforms = computed(() => store.bootstrap?.platforms ?? [])
 const stats = computed(() => store.bootstrap?.stats ?? {
@@ -336,7 +334,6 @@ function rowKey(row: AssignmentView) {
         <span class="brand-sub">catch your work</span>
       </div>
       <div class="top-actions">
-        <n-button quaternary @click="showEmail = true">邮件通知</n-button>
         <n-button quaternary @click="showSettings = true">设置</n-button>
       </div>
     </n-layout-header>
@@ -476,7 +473,6 @@ function rowKey(row: AssignmentView) {
     </n-layout-content>
 
     <settings-modal v-model:show="showSettings" />
-    <email-modal v-model:show="showEmail" />
     <login-modal />
     <issues-modal
       v-model:show="issues.show"
