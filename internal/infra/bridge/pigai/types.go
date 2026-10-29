@@ -1,5 +1,7 @@
 package pigai
 
+import "encoding/json"
+
 // 以下结构只包含白名单字段。
 //
 // 详情响应里的 data.re_user（老师的密码摘要、邮箱、QQ 凭据、IP）、
@@ -31,11 +33,12 @@ type stduntClass struct {
 }
 
 // completedData 是已完成作文列表的 data。
-// 分页字段的语义未证实，这里只用于判断是否只拿到一页
+// 分页字段的语义未证实，而且实测类型不稳定（文档样本里 cnt 是数字，
+// 2026-10-29 真机返回的是字符串），这里只保留原始值，不参与解析
 type completedData struct {
-	EssayList []essayItem `json:"essayList"`
-	AllNum    int         `json:"allNum"`
-	Cnt       int         `json:"cnt"`
+	EssayList []essayItem     `json:"essayList"`
+	AllNum    json.RawMessage `json:"allNum"`
+	Cnt       json.RawMessage `json:"cnt"`
 }
 
 // essayItem 是已完成列表的一条。title 是「第N号 作文」的通用标题，

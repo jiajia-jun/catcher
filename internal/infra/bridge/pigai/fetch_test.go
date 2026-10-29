@@ -362,6 +362,25 @@ func TestStripHTML(t *testing.T) {
 	}
 }
 
+// 分页字段的类型在不同账号下不一致：文档样本里 cnt 是数字，
+// 真机返回的是字符串，两种都不能让整份已完成列表解析失败
+func TestCompletedDataAcceptsMixedPagingTypes(t *testing.T) {
+	cases := []string{
+		`{"essayList":[{"request_id":"R1"}],"allNum":1,"cnt":5}`,
+		`{"essayList":[{"request_id":"R1"}],"allNum":"1","cnt":"5"}`,
+	}
+	for _, body := range cases {
+		var data completedData
+		env := &envelope{Data: json.RawMessage(body)}
+		if err := decodeEnvelopeData(env, &data); err != nil {
+			t.Fatalf("%s → %v", body, err)
+		}
+		if len(data.EssayList) != 1 || data.EssayList[0].RequestID != "R1" {
+			t.Fatalf("%s → %#v", body, data.EssayList)
+		}
+	}
+}
+
 func assertWarning(t *testing.T, result *entity.FetchResult, scope entity.IssueScope) {
 	t.Helper()
 	for _, w := range result.Warnings {
