@@ -35,12 +35,26 @@ const isPasswordForm = computed(
   () => isChaoxing.value && store.login.mode === 'password',
 )
 const showQR = computed(() => !isTronclass.value && !isPasswordForm.value)
-const platformName = computed(() => (isChaoxing.value ? '学习通' : '雨课堂'))
+
+const platformNames: Record<string, string> = {
+  yuketang: '雨课堂',
+  chaoxing: '学习通',
+  pigai: '批改网',
+}
+const platformName = computed(
+  () => platformNames[store.login.platform] ?? store.login.platform,
+)
 const title = computed(() => {
   if (isTronclass.value) return '学在重邮导入会话'
-  if (!isChaoxing.value) return '雨课堂扫码登录'
-  return isPasswordForm.value ? '学习通账号登录' : '学习通扫码登录'
+  if (isPasswordForm.value) return '学习通账号登录'
+  return `${platformName.value}扫码登录`
 })
+// 批改网走微信扫码，没有自己的手机端，失败提示单独写
+const failedHint = computed(() =>
+  store.login.platform === 'pigai'
+    ? '二维码过期或登录失败时可以换一张；仍未成功请确认微信可正常扫码'
+    : `二维码过期或登录失败时可以换一张；仍未成功请确认手机端${platformName.value}可正常使用`,
+)
 
 function tick() {
   now.value = Date.now()
@@ -300,7 +314,7 @@ async function onClose() {
     </div>
 
     <n-alert v-if="showQR && failed" type="warning" :bordered="false" class="alert">
-      二维码过期或登录失败时可以换一张；仍未成功请确认手机端{{ platformName }}可正常使用
+      {{ failedHint }}
     </n-alert>
 
     <n-space justify="space-between" class="actions">
