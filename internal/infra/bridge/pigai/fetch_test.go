@@ -185,6 +185,9 @@ func TestFetchMergesListsAndMapsFields(t *testing.T) {
 	if result.Complete || result.CourseListComplete {
 		t.Fatal("分页未验证，Complete 与 CourseListComplete 必须为 false")
 	}
+	if !result.PartialByDesign {
+		t.Fatal("只抓第一页是平台限制，应声明 PartialByDesign")
+	}
 	if len(result.Assignments) != 3 {
 		t.Fatalf("作业 = %d 条, want 3", len(result.Assignments))
 	}

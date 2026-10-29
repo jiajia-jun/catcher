@@ -659,6 +659,35 @@ func TestRefreshPartialKeepsOldDataAndRecordsIssues(t *testing.T) {
 	}
 }
 
+// 平台只给得了部分数据（PartialByDesign）不是本次失败，但仍不能软删除
+func TestRefreshPartialByDesignRecordsSuccess(t *testing.T) {
+	h := newHarness(t)
+	h.fetcher.steps = []fetchStep{{result: &entity.FetchResult{
+		Complete:        false,
+		PartialByDesign: true,
+		Courses:         []entity.Course{{ExternalID: "1", ClassroomID: "2", Name: "课程"}},
+		Assignments:     []entity.Assignment{{DedupKey: "yuketang:1:2:3", Title: "作业"}},
+	}}}
+
+	if _, err := h.svc.StartRefresh(context.Background(), []entity.Platform{entity.PlatformYuketang}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFinished(t)
+
+	run, ok := h.runs.last()
+	if !ok || run.Status != entity.RunSuccess {
+		t.Fatalf("刷新终态 = %#v", run)
+	}
+	if run.WarningCount != 0 {
+		t.Fatalf("warning count = %d", run.WarningCount)
+	}
+	// 落库仍按不完整处理，软删除交给仓储层按 Complete 判断
+	snaps := h.assignments.snapshots()
+	if len(snaps) != 1 || snaps[0].Result.Complete || !snaps[0].Result.PartialByDesign {
+		t.Fatalf("快照 = %#v", snaps)
+	}
+}
+
 func TestRefreshCanceled(t *testing.T) {
 	h := newHarness(t)
 	h.fetcher.blockOn = make(chan struct{})

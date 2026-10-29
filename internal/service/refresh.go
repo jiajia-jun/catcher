@@ -253,8 +253,10 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 		return s.finishWithError(ctx, run, jobID, p, err)
 	}
 
+	// 列表没抓全才算部分失败；平台本来就只给这么多（PartialByDesign）不算
+	incomplete := !result.Complete && !result.PartialByDesign
 	status := entity.RunSuccess
-	if !result.Complete || len(result.Warnings) > 0 {
+	if incomplete || len(result.Warnings) > 0 {
 		status = entity.RunPartial
 	}
 	run.Status = status
