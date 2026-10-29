@@ -6,6 +6,10 @@ export function CancelChaoxingLogin(arg1) {
   return window['go']['handle']['App']['CancelChaoxingLogin'](arg1);
 }
 
+export function CancelPigaiLogin(arg1) {
+  return window['go']['handle']['App']['CancelPigaiLogin'](arg1);
+}
+
 export function CancelRefresh(arg1) {
   return window['go']['handle']['App']['CancelRefresh'](arg1);
 }
@@ -50,6 +54,10 @@ export function RefreshChaoxingLogin(arg1) {
   return window['go']['handle']['App']['RefreshChaoxingLogin'](arg1);
 }
 
+export function RefreshPigaiLogin(arg1) {
+  return window['go']['handle']['App']['RefreshPigaiLogin'](arg1);
+}
+
 export function RefreshYuketangLogin(arg1) {
   return window['go']['handle']['App']['RefreshYuketangLogin'](arg1);
 }
@@ -60,6 +68,10 @@ export function SetAssignmentStatus(arg1) {
 
 export function StartChaoxingLogin() {
   return window['go']['handle']['App']['StartChaoxingLogin']();
+}
+
+export function StartPigaiLogin() {
+  return window['go']['handle']['App']['StartPigaiLogin']();
 }
 
 export function StartRefresh(arg1) {

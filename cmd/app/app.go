@@ -22,6 +22,7 @@ import (
 	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
 	"catcher/internal/infra/bridge/chaoxing"
+	"catcher/internal/infra/bridge/pigai"
 	"catcher/internal/infra/bridge/tronclass"
 	"catcher/internal/infra/bridge/yuketang"
 	"catcher/internal/infra/secretstore"
@@ -113,6 +114,16 @@ func Run(assets fs.FS) error {
 		MinInterval: 250 * time.Millisecond,
 		Logger:      lg,
 	})
+	pigSender := sender.New(sender.Config{
+		Transport:   transport,
+		MinInterval: 250 * time.Millisecond,
+		Logger:      lg,
+	})
+	pig := pigai.New(pigai.Options{
+		Sender: pigSender,
+		Logger: lg,
+		Now:    time.Now,
+	})
 	tron := tronclass.New(tronclass.Options{
 		Sender: tronSender,
 		Logger: lg,
@@ -137,6 +148,7 @@ func Run(assets fs.FS) error {
 			entity.PlatformChaoxing:  cx,
 			entity.PlatformYuketang:  yk,
 			entity.PlatformTronclass: tron,
+			entity.PlatformPigai:     pig,
 		},
 		Renewers: map[entity.Platform]domain.SessionRenewer{
 			entity.PlatformYuketang: yk,
@@ -147,6 +159,7 @@ func Run(assets fs.FS) error {
 		QRLogins: map[entity.Platform]domain.QRLogin{
 			entity.PlatformYuketang: yk,
 			entity.PlatformChaoxing: cx,
+			entity.PlatformPigai:     pig,
 		},
 		Importer: tron,
 		Releases: releases,

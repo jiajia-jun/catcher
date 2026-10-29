@@ -1,5 +1,6 @@
 import {
   CancelChaoxingLogin,
+  CancelPigaiLogin,
   CancelRefresh,
   CancelYuketangLogin,
   CheckForUpdate,
@@ -11,9 +12,11 @@ import {
   LoginChaoxing,
   OpenDataDir,
   RefreshChaoxingLogin,
+  RefreshPigaiLogin,
   RefreshYuketangLogin,
   SetAssignmentStatus,
   StartChaoxingLogin,
+  StartPigaiLogin,
   StartRefresh,
   StartYuketangLogin,
 } from '../../wailsjs/go/handle/App'
@@ -114,14 +117,22 @@ export async function cancelRefresh(jobId: string): Promise<void> {
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
-// 支持扫码的平台。雨课堂与学习通的二维码都走服务端下发的图片
-export type QRPlatform = 'yuketang' | 'chaoxing'
+// 支持扫码的平台。三个平台的二维码都由服务端下发图片，前端只负责显示
+export type QRPlatform = 'yuketang' | 'chaoxing' | 'pigai'
 
 export async function startQRLogin(platform: QRPlatform): Promise<RefreshStartResult> {
   ensureRuntime()
-  const res = (platform === 'chaoxing'
-    ? await StartChaoxingLogin()
-    : await StartYuketangLogin()) as RefreshStartResult
+  let res: RefreshStartResult
+  switch (platform) {
+    case 'chaoxing':
+      res = (await StartChaoxingLogin()) as RefreshStartResult
+      break
+    case 'pigai':
+      res = (await StartPigaiLogin()) as RefreshStartResult
+      break
+    default:
+      res = (await StartYuketangLogin()) as RefreshStartResult
+  }
   if (!res?.ok) throw apiFailure(res?.error)
   return res
 }
@@ -148,17 +159,33 @@ export async function importTronclassSession(
 
 export async function cancelQRLogin(platform: QRPlatform, jobId: string): Promise<void> {
   ensureRuntime()
-  const res = (platform === 'chaoxing'
-    ? await CancelChaoxingLogin(jobId)
-    : await CancelYuketangLogin(jobId)) as APIResult
+  let res: APIResult
+  switch (platform) {
+    case 'chaoxing':
+      res = (await CancelChaoxingLogin(jobId)) as APIResult
+      break
+    case 'pigai':
+      res = (await CancelPigaiLogin(jobId)) as APIResult
+      break
+    default:
+      res = (await CancelYuketangLogin(jobId)) as APIResult
+  }
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
 export async function refreshQRLogin(platform: QRPlatform, jobId: string): Promise<void> {
   ensureRuntime()
-  const res = (platform === 'chaoxing'
-    ? await RefreshChaoxingLogin(jobId)
-    : await RefreshYuketangLogin(jobId)) as APIResult
+  let res: APIResult
+  switch (platform) {
+    case 'chaoxing':
+      res = (await RefreshChaoxingLogin(jobId)) as APIResult
+      break
+    case 'pigai':
+      res = (await RefreshPigaiLogin(jobId)) as APIResult
+      break
+    default:
+      res = (await RefreshYuketangLogin(jobId)) as APIResult
+  }
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
