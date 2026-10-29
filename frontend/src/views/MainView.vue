@@ -650,8 +650,11 @@ function rowKey(row: AssignmentView) {
   background: rgba(128, 128, 128, 0.6);
 }
 
+/* min-width: 0 必须给：卡片里进度文字是 nowrap，
+   flex 项默认最小宽度等于内容宽度，长作业标题会把卡片撑宽、带动滚动条跳位 */
 .platform-scroller > * {
   flex: 0 0 300px;
+  min-width: 0;
 }
 
 .toolbar {
