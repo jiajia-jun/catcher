@@ -80,8 +80,7 @@ func (a *App) GetBootstrap(termOnly bool) (res dto.BootstrapResult) {
 			DisplayName:  "未登录",
 			LoginState:   string(entity.LoginDisconnected),
 			Counts:       countsView(b.Counts[p]),
-			// 批改网只抓得到列表第一页，分页参数未验证前保持实验性标注
-			Experimental: p == entity.PlatformPigai,
+			Experimental: p.Experimental(),
 		}
 		if ok {
 			view.LoginState = string(account.LoginState)

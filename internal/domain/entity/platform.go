@@ -42,6 +42,16 @@ func (p Platform) DisplayName() string {
 	}
 }
 
+// Experimental 表示该平台还有未验证的关键路径，界面标注「实验性」
+func (p Platform) Experimental() bool {
+	switch p {
+	case PlatformYuketang, PlatformPigai:
+		return true
+	default:
+		return false
+	}
+}
+
 // ParsePlatform 把外部字符串转成 Platform，并拒绝未知值
 func ParsePlatform(s string) (Platform, error) {
 	p := Platform(s)

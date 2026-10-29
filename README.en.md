@@ -19,7 +19,7 @@
 
 | Platform | Login | Status |
 | --- | --- | --- |
-| Yuketang | QR code | Verified on real devices |
+| Yuketang | QR code | Experimental (not all assignment types covered) |
 | Chaoxing | QR code / phone number + password | Verified on real devices |
 | TronClass | Import browser session | Verified on real devices |
 | Pigai | WeChat QR code | Experimental (pagination untested) |
@@ -95,7 +95,7 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 - **TronClass only supports browser session import**: re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar details are not verified
 - **Pigai is experimental**: only the first page of each list is fetched — the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
 - **Some Chaoxing QR login branches are not verified**: normal scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are not verified; use phone number + password if you run into problems
-- **Yuketang may fail to fetch for some users**: it has many assignment types, and this version may not cover some special ones
+- **Yuketang is experimental**: it has many assignment types, and this version may not cover some special ones, so fetching may fail for some accounts; session renewal and the 504 path during QR polling are not verified
 - **Pigai does not clean up old assignments while pagination is unverified**: each refresh only upserts, so historical data is kept and assignments from left classes may still appear
 - The installer and executable are **not code-signed**; Windows SmartScreen may show "Unknown publisher", which is expected
 
