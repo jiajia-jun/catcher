@@ -28,7 +28,10 @@
 
 - One assignment table showing platform, course, status, deadline, and deadline source
 - Search assignments by course
+- Click a platform card to show only that platform's assignments; click again to clear
+- Each platform card has a fetch checkbox; the selection is saved to the config file
 - Refresh per platform, with cancel and progress; one platform failing does not affect the other
+- Show the changelog on the first launch after an upgrade; reopen it from settings
 - The platform overview sits on a single row; hover it and scroll the wheel to move between platform cards
 - **Manual marking** for platforms that do not expose submission status; restore the platform value at any time
 - Check for updates on startup, prompt when a new version is available, and open the GitHub release page
