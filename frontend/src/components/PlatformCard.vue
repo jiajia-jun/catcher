@@ -56,6 +56,11 @@ const loginMeta = computed<{ text: string; type: TagType }>(() => {
 })
 
 const counts = computed(() => props.data.counts)
+
+// 进度与错误共用同一行：这行的高度是固定的，卡片高度不随刷新的开始/结束而变化，
+// 否则下方平台概览的滚动条会跟着上下跳
+const hint = computed(() => (props.refreshing ? props.progress ?? '' : props.data.error?.message ?? ''))
+const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error))
 </script>
 
 <template>
@@ -91,10 +96,12 @@ const counts = computed(() => props.data.counts)
       </div>
     </div>
 
-    <div v-if="refreshing && progress" class="progress-text">{{ progress }}</div>
-
-    <div v-if="data.error" class="card-error" :title="data.error.detail">
-      {{ data.error.message }}
+    <div
+      class="card-hint"
+      :class="{ 'is-error': hintIsError }"
+      :title="hintIsError ? data.error?.detail : hint"
+    >
+      {{ hint }}
     </div>
 
     <n-space class="card-actions" :size="8">
@@ -181,22 +188,21 @@ const counts = computed(() => props.data.counts)
   opacity: 0.55;
 }
 
-.progress-text {
+/* 固定一行高度：刷新进度与错误提示共用，卡片高度因此不随状态跳变 */
+.card-hint {
   margin-top: 10px;
+  min-height: 18px;
   font-size: 12px;
+  line-height: 18px;
   opacity: 0.65;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.card-error {
-  margin-top: 10px;
-  font-size: 12px;
+.card-hint.is-error {
   color: #d03050;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  opacity: 1;
 }
 
 .card-actions {
