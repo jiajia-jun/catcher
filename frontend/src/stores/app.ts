@@ -364,6 +364,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // 勾选状态先写盘再更新界面，失败时保持原样
+  async function persistEnabledPlatforms(next: string[]) {
+    await saveEnabledPlatforms(next)
+    enabledPlatforms.value = next
+    if (settings.value) settings.value.enabledPlatforms = next
+  }
+
   async function setPlatformEnabled(platform: string, enabled: boolean) {
     const raw = enabled
       ? [...new Set([...enabledPlatforms.value, platform])]
@@ -371,10 +377,13 @@ export const useAppStore = defineStore('app', () => {
     if (raw.length === 0) {
       throw new Error('至少保留一个参与刷新的平台')
     }
-    const next = PLATFORM_ORDER.filter((p) => raw.includes(p))
-    await saveEnabledPlatforms(next)
-    enabledPlatforms.value = next
-    if (settings.value) settings.value.enabledPlatforms = next
+    await persistEnabledPlatforms(PLATFORM_ORDER.filter((p) => raw.includes(p)))
+  }
+
+  // 一键勾选全部平台；已经全选时不重复写盘
+  async function selectAllPlatforms() {
+    if (enabledPlatforms.value.length >= PLATFORM_ORDER.length) return
+    await persistEnabledPlatforms([...PLATFORM_ORDER])
   }
 
   async function beginRefresh(platforms?: string[]) {
@@ -563,6 +572,7 @@ export const useAppStore = defineStore('app', () => {
     togglePlatformFilter,
     clearPlatformFilter,
     setPlatformEnabled,
+    selectAllPlatforms,
     openChangelog,
     acknowledgeChangelog,
     checkUpdateManually,

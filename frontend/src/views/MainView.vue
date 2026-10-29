@@ -340,6 +340,14 @@ async function onTogglePlatform(item: PlatformView, enabled: boolean) {
   }
 }
 
+async function onSelectAllPlatforms() {
+  try {
+    await store.selectAllPlatforms()
+  } catch (err) {
+    reportError(err)
+  }
+}
+
 function onToggleSubmitted(value: boolean) {
   void store.setShowSubmitted(value)
 }
@@ -390,9 +398,19 @@ function rowKey(row: AssignmentView) {
               状态未知 {{ stats.unknown }}
             </p>
           </div>
-          <n-text v-if="store.bootstrap" depth="3">
-            版本 {{ store.bootstrap.version }}
-          </n-text>
+          <div class="section-actions">
+            <n-button
+              size="small"
+              secondary
+              :disabled="platforms.length > 0 && store.enabledPlatforms.length >= platforms.length"
+              @click="onSelectAllPlatforms"
+            >
+              全选平台
+            </n-button>
+            <n-text v-if="store.bootstrap" depth="3">
+              版本 {{ store.bootstrap.version }}
+            </n-text>
+          </div>
         </section>
 
         <div class="platform-scroller" @wheel="onWheel">
@@ -640,6 +658,12 @@ function rowKey(row: AssignmentView) {
 .section-head h2 {
   margin: 0 0 4px;
   font-size: 18px;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .muted {
