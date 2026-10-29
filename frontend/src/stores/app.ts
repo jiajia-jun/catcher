@@ -30,9 +30,30 @@ import type {
   UpdateCheckResult,
 } from '../types'
 
+// 扫码登录的平台集合。三个平台的事件结构一致，处理逻辑共用一份
+const QR_PLATFORMS = ['yuketang', 'chaoxing', 'pigai'] as const
+
+type LoginPlatform = '' | 'yuketang' | 'chaoxing' | 'tronclass' | 'pigai'
+
+function isQRPlatform(platform: LoginPlatform): platform is QRPlatform {
+  return (QR_PLATFORMS as readonly string[]).includes(platform)
+}
+
+// 取码成功后展示的扫码提示，按平台给出对应的 App 名字
+function qrHint(platform: QRPlatform): string {
+  switch (platform) {
+    case 'chaoxing':
+      return '请使用学习通 App 扫码登录'
+    case 'pigai':
+      return '请使用微信扫一扫登录批改网'
+    default:
+      return '请使用雨课堂扫码登录'
+  }
+}
+
 interface LoginState {
   show: boolean
-  platform: '' | 'yuketang' | 'chaoxing' | 'tronclass'
+  platform: LoginPlatform
   // 学习通支持扫码与账号密码两种方式，其余平台忽略
   mode: 'qr' | 'password'
   jobId: string
@@ -90,10 +111,9 @@ export const useAppStore = defineStore('app', () => {
 
   let eventsBound = false
 
-  // 雨课堂与学习通的扫码事件结构一致，处理逻辑共用一份
+  // 雨课堂、学习通与批改网的扫码事件结构一致，处理逻辑共用一份
   function bindQREvents(platform: QRPlatform) {
-    const hint =
-      platform === 'chaoxing' ? '请使用学习通 App 扫码登录' : '请使用雨课堂扫码登录'
+    const hint = qrHint(platform)
 
     EventsOn(`auth.${platform}.qr`, (ev: QRCodeEvent) => {
       if (login.platform !== platform || login.mode !== 'qr') return
@@ -150,6 +170,7 @@ export const useAppStore = defineStore('app', () => {
 
     bindQREvents('yuketang')
     bindQREvents('chaoxing')
+    bindQREvents('pigai')
 
     EventsOn('account.state', (ev: AccountStateEvent) => {
       const data = bootstrap.value
@@ -289,7 +310,7 @@ export const useAppStore = defineStore('app', () => {
     await cancelRefresh(refreshJobId.value)
   }
 
-  async function beginLogin(platform: 'yuketang' | 'chaoxing' | 'tronclass') {
+  async function beginLogin(platform: Exclude<LoginPlatform, ''>) {
     Object.assign(login, {
       show: true,
       platform,
@@ -302,7 +323,7 @@ export const useAppStore = defineStore('app', () => {
       message: '',
       submitting: false,
     })
-    if (platform === 'yuketang' || platform === 'chaoxing') {
+    if (isQRPlatform(platform)) {
       login.message = '正在获取二维码…'
       const res = await startQRLogin(platform)
       login.jobId = res.jobId ?? ''
@@ -413,7 +434,7 @@ export const useAppStore = defineStore('app', () => {
     login.message = ''
     login.jobId = ''
     login.submitting = false
-    if (jobId && (platform === 'yuketang' || platform === 'chaoxing')) {
+    if (jobId && isQRPlatform(platform)) {
       try {
         await cancelQRLogin(platform, jobId)
       } catch {
@@ -424,7 +445,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function renewQR() {
     const platform = login.platform
-    if (!login.jobId || (platform !== 'yuketang' && platform !== 'chaoxing')) return
+    if (!login.jobId || !isQRPlatform(platform)) return
     // 先提示再请求：新码事件可能比 RPC 返回还早，晚写会把「等待扫码」覆盖掉
     login.message = '正在获取新的二维码…'
     await refreshQRLogin(platform, login.jobId)

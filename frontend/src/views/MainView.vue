@@ -67,13 +67,15 @@ const platformNames: Record<string, string> = {
   chaoxing: '学习通',
   yuketang: '雨课堂',
   tronclass: '学在重邮',
+  pigai: '批改网',
 }
 
-// 平台标签配色：学习通红、雨课堂蓝、学在重邮青，白字压在实色底上
+// 平台标签配色：学习通红、雨课堂蓝、学在重邮青、批改网橙，白字压在实色底上
 const platformTones: Record<string, { bg: string; fg: string }> = {
   chaoxing: { bg: '#d03050', fg: '#fff' },
   yuketang: { bg: '#1668dc', fg: '#fff' },
   tronclass: { bg: '#0a756b', fg: '#fff' },
+  pigai: { bg: '#d46b08', fg: '#fff' },
 }
 
 const deadlineSourceNames: Record<string, string> = {
@@ -285,7 +287,8 @@ async function onCancelRefresh() {
 }
 
 async function onLogin(platform: string) {
-  if (platform !== 'yuketang' && platform !== 'chaoxing' && platform !== 'tronclass') return
+  if (platform !== 'yuketang' && platform !== 'chaoxing' && platform !== 'tronclass'
+    && platform !== 'pigai') return
   try {
     await store.beginLogin(platform)
   } catch (err) {
@@ -315,7 +318,7 @@ function onOpenRelease() {
 const emptyText = computed(() => {
   const items = platforms.value
   const connected = items.some((p) => p.loginState === 'connected')
-  if (!connected) return '还没有登录任何平台，先完成雨课堂或学习通登录'
+  if (!connected) return '还没有登录任何平台，先完成任一平台登录'
   if (store.refreshing) return '正在抓取作业，请稍候'
   if (store.keyword.trim()) return '没有匹配当前搜索的作业'
   return '当前筛选下没有作业，可以点「刷新全部」重新抓取'
