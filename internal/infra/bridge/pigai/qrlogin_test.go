@@ -25,8 +25,10 @@ type fakePigai struct {
 	wxCodes  []string
 	// lasts 记录每次长轮询收到的 last 参数
 	lasts []string
-	// loginRedirect 覆盖换号首跳，空则走正常链路
+	// loginRedirect 覆盖换号首跳的 302，空则走正常链路
 	loginRedirect string
+	// loginScript 覆盖首跳 200 页面里的 JS 跳转目标，空则跳回自身（去掉 state）
+	loginScript string
 	// writeBody 是 c=write 返回的 JSON
 	writeBody string
 	image     []byte
@@ -85,6 +87,18 @@ func (f *fakePigai) handler() http.Handler {
 			if override != "" {
 				w.Header().Set("Location", override)
 				w.WriteHeader(http.StatusFound)
+				return
+			}
+			// 真实站点：带 state 时返回 200 + JS 跳到去掉 state 的自身
+			if code := r.URL.Query().Get("code"); code != "" && r.URL.Query().Get("state") != "" {
+				target := "/d3/weixin/login.php?code=" + code
+				f.mu.Lock()
+				if f.loginScript != "" {
+					target = f.loginScript
+				}
+				f.mu.Unlock()
+				w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+				_, _ = w.Write([]byte("<script> top.location.href='" + target + "'</script>"))
 				return
 			}
 			http.SetCookie(w, &http.Cookie{Name: "wx_entry", Value: "1"})
@@ -325,6 +339,74 @@ func TestFinishRejectsForeignRedirect(t *testing.T) {
 	}
 	if !errors.Is(err, entity.ErrPlatformChanged) {
 		t.Fatalf("= %v, want ErrPlatformChanged", err)
+	}
+}
+
+// 首跳的 200 页面把跳转写在 JS 里，跨站时同样不能跟过去
+func TestFinishRejectsForeignScriptRedirect(t *testing.T) {
+	f := newFake()
+	f.errcodes = []int{wxErrcodeConfirmed}
+	f.wxCodes = []string{"WXCODE"}
+	f.loginScript = "https://evil.example.com/steal"
+	c := newTestClient(t, f)
+
+	challenge, err := c.BeginQR(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _, err := c.PollQR(context.Background(), challenge)
+	if state != entity.QRFailed {
+		t.Fatalf("state = %s", state)
+	}
+	if !errors.Is(err, entity.ErrPlatformChanged) {
+		t.Fatalf("= %v, want ErrPlatformChanged", err)
+	}
+}
+
+// 首跳必须跟着 JS 跳转再走一遍，否则会在 200 处停下拿不到 _JUKU_USER
+func TestFinishFollowsScriptRedirect(t *testing.T) {
+	f := newFake()
+	f.errcodes = []int{wxErrcodeConfirmed}
+	f.wxCodes = []string{"WXCODE"}
+	c := newTestClient(t, f)
+
+	challenge, err := c.BeginQR(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, session, err := c.PollQR(context.Background(), challenge)
+	if err != nil || session == nil {
+		t.Fatalf("session = %v, err = %v", session, err)
+	}
+
+	var secret entity.PigaiSecret
+	if err := json.Unmarshal(session.Secret, &secret); err != nil {
+		t.Fatal(err)
+	}
+	for _, cookie := range secret.Cookies {
+		if cookie.Name == "_JUKU_USER" {
+			return
+		}
+	}
+	t.Fatal("跟完 JS 跳转后应拿到 _JUKU_USER")
+}
+
+func TestExtractScriptRedirect(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string
+		ok   bool
+	}{
+		{raw: `<script> top.location.href='//www.pigai.org/d3/weixin/login.php?code=A'</script>`, want: "//www.pigai.org/d3/weixin/login.php?code=A", ok: true},
+		{raw: `<script>window.location.href="/?a=oauth"</script>`, want: "/?a=oauth", ok: true},
+		{raw: `<script>location.replace('/?f2=login')</script>`, want: "/?f2=login", ok: true},
+		{raw: `<html><h1>错误请重新扫描登录！</h1></html>`},
+	}
+	for _, tc := range cases {
+		got, ok := extractScriptRedirect([]byte(tc.raw))
+		if ok != tc.ok || got != tc.want {
+			t.Fatalf("%q → (%q,%v), want (%q,%v)", tc.raw, got, ok, tc.want, tc.ok)
+		}
 	}
 }
 
