@@ -21,8 +21,8 @@
 | --- | --- | --- |
 | Yuketang | QR code | Verified on real devices |
 | Chaoxing | QR code / phone number + password | Verified on real devices |
-| TronClass | Import browser session | Experimental |
-| Pigai | WeChat QR code | Verified on real devices (pagination untested) |
+| TronClass | Import browser session | Verified on real devices |
+| Pigai | WeChat QR code | Experimental (pagination untested) |
 
 ## Features
 
@@ -92,10 +92,10 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 ## Known limitations
 
 - **Settings are read-only for now**: log level and similar options live in `data/catcher.yaml` and require a restart; the UI does not support editing them yet
-- **TronClass is experimental**: only browser session import is supported; re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar behavior are not verified
+- **TronClass only supports browser session import**: re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar details are not verified
+- **Pigai is experimental**: only the first page of each list is fetched — the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
 - **Some Chaoxing QR login branches are not verified**: normal scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are not verified; use phone number + password if you run into problems
 - **Yuketang may fail to fetch for some users**: it has many assignment types, and this version may not cover some special ones
-- **Pigai only fetches the first page of each list**: the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
 - **Pigai does not clean up old assignments while pagination is unverified**: each refresh only upserts, so historical data is kept and assignments from left classes may still appear
 - The installer and executable are **not code-signed**; Windows SmartScreen may show "Unknown publisher", which is expected
 
