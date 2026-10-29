@@ -10,11 +10,13 @@ import {
   ImportTronclassSession,
   ListAssignments,
   LoginChaoxing,
+  MarkChangelogSeen,
   OpenDataDir,
   RefreshChaoxingLogin,
   RefreshPigaiLogin,
   RefreshYuketangLogin,
   SetAssignmentStatus,
+  SetEnabledPlatforms,
   StartChaoxingLogin,
   StartPigaiLogin,
   StartRefresh,
@@ -95,6 +97,20 @@ export async function loadSettings(): Promise<SettingsView> {
 export async function openDataDir(): Promise<void> {
   ensureRuntime()
   const res = (await OpenDataDir()) as APIResult
+  if (!res?.ok) throw apiFailure(res?.error)
+}
+
+// 保存「刷新全部」勾选的平台，至少一个；失败抛错给界面提示
+export async function saveEnabledPlatforms(platforms: string[]): Promise<void> {
+  ensureRuntime()
+  const res = (await SetEnabledPlatforms(platforms)) as APIResult
+  if (!res?.ok) throw apiFailure(res?.error)
+}
+
+// 把当前版本记为已读更新日志
+export async function markChangelogSeen(): Promise<void> {
+  ensureRuntime()
+  const res = (await MarkChangelogSeen()) as APIResult
   if (!res?.ok) throw apiFailure(res?.error)
 }
 

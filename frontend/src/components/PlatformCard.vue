@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NButton, NCard, NSpace, NTag } from 'naive-ui'
+import { NButton, NCard, NCheckbox, NSpace, NTag } from 'naive-ui'
 import type { PlatformView } from '../types'
 
 type TagType = 'default' | 'success' | 'warning' | 'error' | 'info'
@@ -9,6 +9,10 @@ const props = defineProps<{
   data: PlatformView
   refreshing?: boolean
   progress?: string
+  // 参与「刷新全部」的勾选状态
+  enabled?: boolean
+  // 列表当前是否只显示这个平台
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -16,6 +20,8 @@ const emit = defineEmits<{
   (e: 'refresh'): void
   (e: 'cancel'): void
   (e: 'issues'): void
+  (e: 'select'): void
+  (e: 'toggle-enabled', value: boolean): void
 }>()
 
 const canLogin = computed(
@@ -64,9 +70,24 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
 </script>
 
 <template>
-  <n-card size="small" class="platform-card" :bordered="true">
+  <n-card
+    size="small"
+    class="platform-card"
+    :class="{ 'is-selected': selected }"
+    :bordered="true"
+    @click="emit('select')"
+  >
     <template #header>
       <div class="platform-head">
+        <n-checkbox
+          :checked="enabled"
+          size="small"
+          class="fetch-check"
+          title="勾选后参与「刷新全部」"
+          aria-label="参与刷新"
+          @click.stop
+          @update:checked="emit('toggle-enabled', $event)"
+        />
         <span class="platform-name">{{ platformNames[data.platform] ?? data.platform }}</span>
         <n-tag size="small" :type="loginMeta.type" :bordered="false">
           {{ loginMeta.text }}
@@ -104,7 +125,7 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
       {{ hint }}
     </div>
 
-    <n-space class="card-actions" :size="8">
+    <n-space class="card-actions" :size="8" @click.stop>
       <n-button v-if="canLogin" size="small" secondary @click="emit('login')">
         {{ loginText }}
       </n-button>
@@ -135,7 +156,18 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
 <style scoped>
 .platform-card {
   height: 100%;
+  cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+/* 筛选中的平台用描边标出来，不改边框颜色，避免和 hover 规则互相覆盖 */
+.platform-card.is-selected {
+  outline: 2px solid rgba(24, 160, 88, 0.55);
+  outline-offset: 1px;
+}
+
+.fetch-check {
+  flex: 0 0 auto;
 }
 
 /* 边框色由 Naive UI 的 .n-card 规则控制，同权重下按注入顺序可能被盖掉，这里提高优先级 */

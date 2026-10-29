@@ -10,7 +10,9 @@ import {
   loadSettings,
   loginChaoxing,
   importTronclassSession,
+  markChangelogSeen,
   refreshQRLogin,
+  saveEnabledPlatforms,
   setAssignmentStatus,
   startQRLogin,
   startRefresh,
@@ -32,6 +34,9 @@ import type {
 
 // 扫码登录的平台集合。三个平台的事件结构一致，处理逻辑共用一份
 const QR_PLATFORMS = ['yuketang', 'chaoxing', 'pigai'] as const
+
+// 平台展示顺序与后端 entity.AllPlatforms 保持一致
+const PLATFORM_ORDER = ['chaoxing', 'yuketang', 'tronclass', 'pigai']
 
 type LoginPlatform = '' | 'yuketang' | 'chaoxing' | 'tronclass' | 'pigai'
 
@@ -76,6 +81,11 @@ export const useAppStore = defineStore('app', () => {
   const showSubmitted = ref(false)
   const termOnly = ref(true)
   const keyword = ref('')
+  // 点击平台卡后只显示该平台的作业，空串表示不筛选
+  const selectedPlatform = ref('')
+  // 「刷新全部」勾选的平台，至少一个；由后端归一后落盘
+  const enabledPlatforms = ref<string[]>([...PLATFORM_ORDER])
+  const changelogShow = ref(false)
 
   const refreshing = ref(false)
   const refreshJobId = ref('')
@@ -180,6 +190,46 @@ export const useAppStore = defineStore('app', () => {
     })
   }
 
+  // 按平台固定顺序归一，未知值丢弃；空列表回退为全部
+  function normalizePlatforms(list: string[]): string[] {
+    const valid = new Set(list.filter((p) => PLATFORM_ORDER.includes(p)))
+    if (valid.size === 0) return [...PLATFORM_ORDER]
+    return PLATFORM_ORDER.filter((p) => valid.has(p))
+  }
+
+  // 首次安装只记下当前版本，不弹窗；从旧版本升级时弹一次
+  function syncChangelog(current: string, seen: string, firstRun: boolean) {
+    if (!firstRun && seen !== current) {
+      changelogShow.value = true
+      return
+    }
+    if (!seen) {
+      void markChangelogSeen()
+        .then(() => {
+          if (settings.value) settings.value.changelogSeenVersion = current
+        })
+        .catch(() => {
+          // 记录失败不影响首次使用，下次启动再记
+        })
+    }
+  }
+
+  function openChangelog() {
+    changelogShow.value = true
+  }
+
+  // 弹窗关闭后记录已读；失败时下次启动会再提示一次
+  async function acknowledgeChangelog() {
+    try {
+      await markChangelogSeen()
+      if (settings.value && bootstrap.value) {
+        settings.value.changelogSeenVersion = bootstrap.value.version
+      }
+    } catch {
+      // 记录失败不打断当前会话
+    }
+  }
+
   async function init() {
     bindEvents()
     loading.value = true
@@ -191,6 +241,12 @@ export const useAppStore = defineStore('app', () => {
       ])
       bootstrap.value = bootstrapData
       settings.value = settingsData
+      enabledPlatforms.value = normalizePlatforms(settingsData.enabledPlatforms ?? [])
+      syncChangelog(
+        bootstrapData.version,
+        settingsData.changelogSeenVersion,
+        settingsData.firstRun,
+      )
       await refreshList()
     } catch (err) {
       error.value = toErrorText(err)
@@ -250,6 +306,7 @@ export const useAppStore = defineStore('app', () => {
     error.value = ''
     try {
       const res = await loadAssignments({
+        platforms: selectedPlatform.value ? [selectedPlatform.value] : undefined,
         showSubmitted: showSubmitted.value,
         keyword: keyword.value.trim(),
         termOnly: termOnly.value,
@@ -292,6 +349,32 @@ export const useAppStore = defineStore('app', () => {
   async function setTermOnly(value: boolean) {
     termOnly.value = value
     await reloadAll()
+  }
+
+  // 点同一个平台取消筛选；其余开关（学期、已提交、搜索）继续生效
+  function togglePlatformFilter(platform: string) {
+    selectedPlatform.value = selectedPlatform.value === platform ? '' : platform
+    void refreshList()
+  }
+
+  function clearPlatformFilter() {
+    if (!selectedPlatform.value) return
+    selectedPlatform.value = ''
+    void refreshList()
+  }
+
+  // 勾选状态先写盘再更新界面，失败时保持原样
+  async function setPlatformEnabled(platform: string, enabled: boolean) {
+    const raw = enabled
+      ? [...new Set([...enabledPlatforms.value, platform])]
+      : enabledPlatforms.value.filter((p) => p !== platform)
+    if (raw.length === 0) {
+      throw new Error('至少保留一个参与刷新的平台')
+    }
+    const next = PLATFORM_ORDER.filter((p) => raw.includes(p))
+    await saveEnabledPlatforms(next)
+    enabledPlatforms.value = next
+    if (settings.value) settings.value.enabledPlatforms = next
   }
 
   async function beginRefresh(platforms?: string[]) {
@@ -461,6 +544,9 @@ export const useAppStore = defineStore('app', () => {
     showSubmitted,
     termOnly,
     keyword,
+    selectedPlatform,
+    enabledPlatforms,
+    changelogShow,
     refreshing,
     refreshJobId,
     runningPlatforms,
@@ -474,6 +560,11 @@ export const useAppStore = defineStore('app', () => {
     setStatus,
     setShowSubmitted,
     setTermOnly,
+    togglePlatformFilter,
+    clearPlatformFilter,
+    setPlatformEnabled,
+    openChangelog,
+    acknowledgeChangelog,
     checkUpdateManually,
     dismissUpdate,
     beginRefresh,
