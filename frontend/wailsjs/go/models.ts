@@ -537,6 +537,9 @@ export namespace dto {
 	    theme: string;
 	    dataDir: string;
 	    version: string;
+	    enabledPlatforms: string[];
+	    changelogSeenVersion: string;
+	    firstRun: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsView(source);
@@ -551,6 +554,9 @@ export namespace dto {
 	        this.theme = source["theme"];
 	        this.dataDir = source["dataDir"];
 	        this.version = source["version"];
+	        this.enabledPlatforms = source["enabledPlatforms"];
+	        this.changelogSeenVersion = source["changelogSeenVersion"];
+	        this.firstRun = source["firstRun"];
 	    }
 	}
 	export class SettingsResult {

@@ -24,6 +24,8 @@ export function ListAssignments(arg1:dto.AssignmentFilter):Promise<dto.Assignmen
 
 export function LoginChaoxing(arg1:dto.PasswordLoginRequest):Promise<dto.PasswordLoginResult>;
 
+export function MarkChangelogSeen():Promise<dto.APIResult>;
+
 export function OpenDataDir():Promise<dto.APIResult>;
 
 export function RefreshChaoxingLogin(arg1:string):Promise<dto.APIResult>;
@@ -33,6 +35,8 @@ export function RefreshPigaiLogin(arg1:string):Promise<dto.APIResult>;
 export function RefreshYuketangLogin(arg1:string):Promise<dto.APIResult>;
 
 export function SetAssignmentStatus(arg1:dto.AssignmentStatusRequest):Promise<dto.AssignmentStatusResult>;
+
+export function SetEnabledPlatforms(arg1:Array<string>):Promise<dto.APIResult>;
 
 export function StartChaoxingLogin():Promise<dto.RefreshStartResult>;
 

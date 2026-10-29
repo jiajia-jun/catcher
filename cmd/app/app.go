@@ -7,9 +7,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -45,6 +47,13 @@ func Run(assets fs.FS) error {
 	dataDir, err := config.ResolveDataDir(dataDirOpts)
 	if err != nil {
 		return err
+	}
+
+	// 配置文件是否存在决定「首次安装」：老版本升级时字段为空，但配置已存在
+	cfgPath := filepath.Join(dataDir, config.FileName+"."+config.FileExt)
+	firstRun := false
+	if _, statErr := os.Stat(cfgPath); errors.Is(statErr, fs.ErrNotExist) {
+		firstRun = true
 	}
 
 	cfg, err := config.LoadOrCreate(dataDir)
@@ -159,13 +168,14 @@ func Run(assets fs.FS) error {
 		QRLogins: map[entity.Platform]domain.QRLogin{
 			entity.PlatformYuketang: yk,
 			entity.PlatformChaoxing: cx,
-			entity.PlatformPigai:     pig,
+			entity.PlatformPigai:    pig,
 		},
 		Importer: tron,
 		Releases: releases,
 		Config:   cfg,
 		DataDir:  dataDir,
 		Version:  Version,
+		FirstRun: firstRun,
 		DevMode:  dataDirOpts.DevMode,
 		Logger:   lg,
 		Now:      time.Now,

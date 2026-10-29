@@ -85,6 +85,8 @@ func (a *App) Save(path string) error {
 	v.Set("raw.max_total_mb", a.Raw.MaxTotalMB)
 	v.Set("fetch.include_history", a.Fetch.IncludeHistory)
 	v.Set("ui.theme", a.UI.Theme)
+	v.Set("ui.enabled_platforms", a.UI.EnabledPlatforms)
+	v.Set("ui.changelog_seen_version", a.UI.ChangelogSeenVersion)
 
 	if err := v.WriteConfigAs(path); err != nil {
 		return fmt.Errorf("写入配置文件失败: %w", err)

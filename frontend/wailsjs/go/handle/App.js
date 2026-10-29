@@ -46,6 +46,10 @@ export function LoginChaoxing(arg1) {
   return window['go']['handle']['App']['LoginChaoxing'](arg1);
 }
 
+export function MarkChangelogSeen() {
+  return window['go']['handle']['App']['MarkChangelogSeen']();
+}
+
 export function OpenDataDir() {
   return window['go']['handle']['App']['OpenDataDir']();
 }
@@ -64,6 +68,10 @@ export function RefreshYuketangLogin(arg1) {
 
 export function SetAssignmentStatus(arg1) {
   return window['go']['handle']['App']['SetAssignmentStatus'](arg1);
+}
+
+export function SetEnabledPlatforms(arg1) {
+  return window['go']['handle']['App']['SetEnabledPlatforms'](arg1);
 }
 
 export function StartChaoxingLogin() {

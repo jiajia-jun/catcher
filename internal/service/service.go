@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -49,9 +50,10 @@ type Deps struct {
 	Importer       domain.SessionImporter
 	Releases       domain.ReleaseChecker
 
-	Config  *config.App
-	DataDir string
-	Version string
+	Config   *config.App
+	DataDir  string
+	Version  string
+	FirstRun bool
 	// DevMode 为 true 时启动后的自动更新检查直接跳过，手动检查不受影响
 	DevMode bool
 	Logger  logger.Logger
@@ -72,12 +74,14 @@ type Service struct {
 	importer       domain.SessionImporter
 	releases       domain.ReleaseChecker
 
-	cfg     *config.App
-	dataDir string
-	version string
-	devMode bool
-	now     func() time.Time
-	logger  logger.Logger
+	cfgMu    sync.RWMutex
+	cfg      *config.App
+	dataDir  string
+	version  string
+	firstRun bool
+	devMode  bool
+	now      func() time.Time
+	logger   logger.Logger
 
 	emitMu sync.RWMutex
 	emit   func(name string, payload any)
@@ -104,6 +108,7 @@ func New(d Deps) *Service {
 		cfg:            d.Config,
 		dataDir:        d.DataDir,
 		version:        d.Version,
+		firstRun:       d.FirstRun,
 		devMode:        d.DevMode,
 		now:            d.Now,
 		logger:         d.Logger,
@@ -248,14 +253,115 @@ func (s *Service) FetchIssues(ctx context.Context, runID int64) ([]entity.FetchI
 
 // Settings 返回配置副本
 func (s *Service) Settings() config.App {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	if s.cfg == nil {
 		return config.Default()
 	}
 	return *s.cfg
 }
 
+// EnabledPlatforms 返回「刷新全部」勾选的平台；未配置时等于全部平台
+func (s *Service) EnabledPlatforms() []entity.Platform {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
+	return s.enabledPlatformsLocked()
+}
+
+func (s *Service) enabledPlatformsLocked() []entity.Platform {
+	if s.cfg == nil {
+		return entity.AllPlatforms()
+	}
+	seen := make(map[entity.Platform]struct{}, len(s.cfg.UI.EnabledPlatforms))
+	out := make([]entity.Platform, 0, len(s.cfg.UI.EnabledPlatforms))
+	for _, raw := range s.cfg.UI.EnabledPlatforms {
+		p := entity.Platform(raw)
+		if !p.Valid() {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	if len(out) == 0 {
+		return entity.AllPlatforms()
+	}
+	return out
+}
+
+// SetEnabledPlatforms 保存「刷新全部」勾选的平台，至少保留一个
+func (s *Service) SetEnabledPlatforms(platforms []entity.Platform) error {
+	if len(platforms) == 0 {
+		return fmt.Errorf("至少保留一个参与刷新的平台")
+	}
+	seen := make(map[entity.Platform]struct{}, len(platforms))
+	values := make([]string, 0, len(platforms))
+	for _, p := range platforms {
+		if !p.Valid() {
+			return fmt.Errorf("未知平台 %q", p)
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		values = append(values, string(p))
+	}
+
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	if s.cfg == nil {
+		return fmt.Errorf("配置不可用")
+	}
+	// 写盘失败时回滚内存值，保证界面与文件一致
+	prev := s.cfg.UI.EnabledPlatforms
+	s.cfg.UI.EnabledPlatforms = values
+	if err := s.saveConfigLocked(); err != nil {
+		s.cfg.UI.EnabledPlatforms = prev
+		return err
+	}
+	return nil
+}
+
+// ChangelogSeenVersion 返回用户已读更新日志的版本号
+func (s *Service) ChangelogSeenVersion() string {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
+	if s.cfg == nil {
+		return ""
+	}
+	return s.cfg.UI.ChangelogSeenVersion
+}
+
+// MarkChangelogSeen 把当前版本记为已读更新日志
+func (s *Service) MarkChangelogSeen() error {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	if s.cfg == nil {
+		return fmt.Errorf("配置不可用")
+	}
+	prev := s.cfg.UI.ChangelogSeenVersion
+	s.cfg.UI.ChangelogSeenVersion = s.version
+	if err := s.saveConfigLocked(); err != nil {
+		s.cfg.UI.ChangelogSeenVersion = prev
+		return err
+	}
+	return nil
+}
+
+// saveConfigLocked 把当前配置写回数据目录，调用方必须持有 cfgMu 写锁
+func (s *Service) saveConfigLocked() error {
+	if s.dataDir == "" {
+		return fmt.Errorf("数据目录未配置")
+	}
+	path := filepath.Join(s.dataDir, config.FileName+"."+config.FileExt)
+	return s.cfg.Save(path)
+}
+
 func (s *Service) DataDir() string { return s.dataDir }
 func (s *Service) Version() string { return s.version }
+func (s *Service) FirstRun() bool  { return s.firstRun }
 
 // OpenDataDir 在资源管理器中打开数据目录
 func (s *Service) OpenDataDir(_ context.Context) error {

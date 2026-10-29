@@ -106,6 +106,12 @@ type SettingsView struct {
 	Theme          string `json:"theme"`
 	DataDir        string `json:"dataDir"`
 	Version        string `json:"version"`
+	// EnabledPlatforms 是「刷新全部」勾选的平台，已经过服务端归一
+	EnabledPlatforms []string `json:"enabledPlatforms"`
+	// ChangelogSeenVersion 是用户已读更新日志的版本号，空表示还没记录
+	ChangelogSeenVersion string `json:"changelogSeenVersion"`
+	// FirstRun 表示本次是首次安装，更新日志只记录不弹出
+	FirstRun bool `json:"firstRun"`
 }
 
 type SettingsResult struct {
