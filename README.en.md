@@ -4,7 +4,7 @@
 
 <p align="center"><a href="README.md">简体中文</a> | <a href="README.en.md">English</a></p>
 
-<p align="center">A local desktop app that collects assignments from Yuketang, Chaoxing, and TronClass into one window</p>
+<p align="center">A local desktop app that collects assignments from Yuketang, Chaoxing, TronClass, and Pigai into one window</p>
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.2.0-4c6ef5">
@@ -22,12 +22,14 @@
 | Yuketang | QR code | Verified on real devices |
 | Chaoxing | QR code / phone number + password | Verified on real devices |
 | TronClass | Import browser session | Experimental |
+| Pigai | WeChat QR code | Verified on real devices (pagination untested) |
 
 ## Features
 
 - One assignment table showing platform, course, status, deadline, and deadline source
 - Search assignments by course
 - Refresh per platform, with cancel and progress; one platform failing does not affect the other
+- The platform overview sits on a single row; hover it and scroll the wheel to move between platform cards
 - **Manual marking** for platforms that do not expose submission status; restore the platform value at any time
 - Check for updates on startup, prompt when a new version is available, and open the GitHub release page
 - All data stays on this machine and is **never uploaded to any server**
@@ -81,8 +83,8 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 ## Security and privacy
 
 - The app **does not listen on any local port** and runs no background service; it only makes outbound requests it initiates
-- Yuketang and Chaoxing use HTTPS; the TronClass campus site only offers HTTP, so the session is transmitted in plaintext within that site — **using the campus network or a VPN is recommended**
-- Login sessions and the Chaoxing password are encrypted with Windows DPAPI and stored in local SQLite; only the current Windows user can decrypt them
+- Yuketang, Chaoxing, and Pigai use HTTPS; the TronClass campus site only offers HTTP, so the session is transmitted in plaintext within that site — **using the campus network or a VPN is recommended**
+- Login sessions (including Pigai cookies) and the Chaoxing password are encrypted with Windows DPAPI and stored in local SQLite; only the current Windows user can decrypt them
 - Logs **do not record** Cookie, Set-Cookie, Authorization, passwords, tokens, or QR code contents
 - The update check only asks GitHub for the latest version number; the request contains only the client version and standard HTTP headers, no account, assignment, or log data
 - Data is **never uploaded to any third-party server**
@@ -93,6 +95,8 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 - **TronClass is experimental**: only browser session import is supported; re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar behavior are not verified
 - **Some Chaoxing QR login branches are not verified**: normal scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are not verified; use phone number + password if you run into problems
 - **Yuketang may fail to fetch for some users**: it has many assignment types, and this version may not cover some special ones
+- **Pigai only fetches the first page of each list**: the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
+- **Pigai does not clean up old assignments while pagination is unverified**: each refresh only upserts, so historical data is kept and assignments from left classes may still appear
 - The installer and executable are **not code-signed**; Windows SmartScreen may show "Unknown publisher", which is expected
 
 <details>
@@ -115,7 +119,7 @@ wails dev              # frontend hot reload; data goes to data/ at the repo roo
 
 ## Disclaimer
 
-- This is an unofficial personal project, not affiliated with or endorsed by Yuketang, Chaoxing, TronClass, or their operators
+- This is an unofficial personal project, not affiliated with or endorsed by Yuketang, Chaoxing, TronClass, Pigai, or their operators
 - The interface docs in this repository were compiled from public pages and packet captures, for learning and technical research only; the interfaces and related content belong to their respective platforms — contact us for removal if anything infringes
 - Users must comply with each platform's user agreement, terms of service, and applicable laws; do not use this project for commercial purposes, bulk scraping, disrupting platform services, or other improper uses
 - You use this project at your own risk; the author is not liable for data accuracy, service availability, or any damages arising from its use
