@@ -18,6 +18,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns, DropdownOption } from 'naive-ui'
+import ChangelogModal from '../components/ChangelogModal.vue'
 import IssuesModal from '../components/IssuesModal.vue'
 import LoginModal from '../components/LoginModal.vue'
 import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime'
@@ -290,8 +291,9 @@ function reportError(err: unknown) {
 
 async function onRefreshAll() {
   try {
-    const running = await store.beginRefresh()
-    if (running) message.info('所有可刷新平台都已在刷新中')
+    // 只刷新勾选的平台；全部勾选时等同于刷新全部
+    const running = await store.beginRefresh(store.enabledPlatforms)
+    if (running) message.info('勾选的平台都已在刷新中')
   } catch (err) {
     reportError(err)
   }
@@ -330,6 +332,14 @@ function onOpenIssues(item: PlatformView) {
   issues.value = { show: true, runId: item.lastRunId ?? 0, platform: item.platform }
 }
 
+async function onTogglePlatform(item: PlatformView, enabled: boolean) {
+  try {
+    await store.setPlatformEnabled(item.platform, enabled)
+  } catch (err) {
+    reportError(err)
+  }
+}
+
 function onToggleSubmitted(value: boolean) {
   void store.setShowSubmitted(value)
 }
@@ -349,7 +359,8 @@ const emptyText = computed(() => {
   if (!connected) return '还没有登录任何平台，先完成任一平台登录'
   if (store.refreshing) return '正在抓取作业，请稍候'
   if (store.keyword.trim()) return '没有匹配当前搜索的作业'
-  return '当前筛选下没有作业，可以点「刷新全部」重新抓取'
+  if (store.selectedPlatform) return '该平台在当前筛选下没有作业'
+  return '当前筛选下没有作业，可以点「刷新已勾选」重新抓取'
 })
 
 function rowKey(row: AssignmentView) {
@@ -391,10 +402,14 @@ function rowKey(row: AssignmentView) {
             :data="item"
             :refreshing="store.runningPlatforms.includes(item.platform)"
             :progress="store.progressByPlatform[item.platform]"
+            :enabled="store.enabledPlatforms.includes(item.platform)"
+            :selected="store.selectedPlatform === item.platform"
             @login="onLogin(item.platform)"
             @refresh="onRefreshPlatform(item.platform)"
             @cancel="onCancelRefresh"
             @issues="onOpenIssues(item)"
+            @select="store.togglePlatformFilter(item.platform)"
+            @toggle-enabled="onTogglePlatform(item, $event)"
           />
         </div>
 
@@ -426,6 +441,15 @@ function rowKey(row: AssignmentView) {
               @clear="store.refreshList"
             />
             <n-button @click="store.refreshList">筛选</n-button>
+            <n-tag
+              v-if="store.selectedPlatform"
+              type="success"
+              :bordered="false"
+              closable
+              @close="store.clearPlatformFilter()"
+            >
+              平台：{{ platformNames[store.selectedPlatform] ?? store.selectedPlatform }}
+            </n-tag>
             <span class="toggle-label" title="学期按 9 月 1 日划线；截止时间未知的作业仍会显示">
               只看本学期
             </span>
@@ -440,9 +464,10 @@ function rowKey(row: AssignmentView) {
             <n-button
               v-if="!store.refreshing"
               type="primary"
+              title="只刷新平台卡上勾选的平台"
               @click="onRefreshAll"
             >
-              刷新全部
+              刷新已勾选
             </n-button>
             <n-button v-else type="error" secondary @click="onCancelRefresh">
               取消刷新
@@ -505,6 +530,11 @@ function rowKey(row: AssignmentView) {
 
     <settings-modal v-model:show="showSettings" />
     <login-modal />
+    <changelog-modal
+      v-model:show="store.changelogShow"
+      :current="store.bootstrap?.version ?? ''"
+      @close="store.acknowledgeChangelog()"
+    />
     <issues-modal
       v-model:show="issues.show"
       :run-id="issues.runId"

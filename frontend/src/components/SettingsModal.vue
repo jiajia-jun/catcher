@@ -94,6 +94,9 @@ function onOpenRelease() {
             检查更新
           </n-button>
         </n-descriptions-item>
+        <n-descriptions-item label="更新日志">
+          <n-button size="tiny" @click="store.openChangelog()">查看更新日志</n-button>
+        </n-descriptions-item>
         <n-descriptions-item label="数据目录">
           <span class="path">{{ settings.dataDir }}</span>
         </n-descriptions-item>
