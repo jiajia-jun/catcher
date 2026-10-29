@@ -27,6 +27,10 @@ type FetchConfig struct {
 
 type UIConfig struct {
 	Theme string `mapstructure:"theme"` // auto | light | dark
+	// EnabledPlatforms 是「刷新全部」勾选的平台；空表示全部
+	EnabledPlatforms []string `mapstructure:"enabled_platforms"`
+	// ChangelogSeenVersion 是用户已读更新日志的版本号
+	ChangelogSeenVersion string `mapstructure:"changelog_seen_version"`
 }
 
 // Default 返回设计文档约定的默认配置。
