@@ -4,7 +4,6 @@ import {
   CancelYuketangLogin,
   CheckForUpdate,
   GetBootstrap,
-  GetEmailSettings,
   GetFetchIssues,
   GetSettings,
   ImportTronclassSession,
@@ -13,8 +12,6 @@ import {
   OpenDataDir,
   RefreshChaoxingLogin,
   RefreshYuketangLogin,
-  SaveEmailSettings,
-  SendTestEmail,
   SetAssignmentStatus,
   StartChaoxingLogin,
   StartRefresh,
@@ -30,10 +27,6 @@ import type {
   AssignmentView,
   BootstrapData,
   BootstrapResult,
-  EmailSettingsRequest,
-  EmailSettingsResult,
-  EmailSettingsView,
-  EmailTestRequest,
   FetchIssuesResult,
   PasswordLoginResult,
   RefreshStartResult,
@@ -94,30 +87,6 @@ export async function loadSettings(): Promise<SettingsView> {
   const res = (await GetSettings()) as SettingsResult
   if (!res?.ok || !res.settings) throw apiFailure(res?.error)
   return res.settings
-}
-
-export async function loadEmailSettings(): Promise<EmailSettingsView> {
-  ensureRuntime()
-  const res = (await GetEmailSettings()) as EmailSettingsResult
-  if (!res?.ok || !res.settings) throw apiFailure(res?.error)
-  return res.settings
-}
-
-// 保存后返回最新视图，password 留空时后端沿用已保存的授权码
-export async function saveEmailSettings(
-  input: EmailSettingsRequest,
-): Promise<EmailSettingsView> {
-  ensureRuntime()
-  const res = (await SaveEmailSettings(input)) as EmailSettingsResult
-  if (!res?.ok || !res.settings) throw apiFailure(res?.error)
-  return res.settings
-}
-
-// 测试邮件发送到发件人自己；失败必须让调用方看到
-export async function sendTestEmail(input: EmailTestRequest): Promise<void> {
-  ensureRuntime()
-  const res = (await SendTestEmail(input)) as APIResult
-  if (!res?.ok) throw apiFailure(res?.error)
 }
 
 export async function openDataDir(): Promise<void> {

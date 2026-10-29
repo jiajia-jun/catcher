@@ -22,10 +22,6 @@ export function GetBootstrap(arg1) {
   return window['go']['handle']['App']['GetBootstrap'](arg1);
 }
 
-export function GetEmailSettings() {
-  return window['go']['handle']['App']['GetEmailSettings']();
-}
-
 export function GetFetchIssues(arg1) {
   return window['go']['handle']['App']['GetFetchIssues'](arg1);
 }
@@ -56,14 +52,6 @@ export function RefreshChaoxingLogin(arg1) {
 
 export function RefreshYuketangLogin(arg1) {
   return window['go']['handle']['App']['RefreshYuketangLogin'](arg1);
-}
-
-export function SaveEmailSettings(arg1) {
-  return window['go']['handle']['App']['SaveEmailSettings'](arg1);
-}
-
-export function SendTestEmail(arg1) {
-  return window['go']['handle']['App']['SendTestEmail'](arg1);
 }
 
 export function SetAssignmentStatus(arg1) {

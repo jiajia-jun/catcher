@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/mail"
 	"strings"
 	"time"
 
@@ -212,94 +210,6 @@ func (a *App) GetSettings() (res dto.SettingsResult) {
 			Version:        a.svc.Version(),
 		},
 	}
-}
-
-// GetEmailSettings 返回邮箱配置视图；授权码不会离开本机
-func (a *App) GetEmailSettings() (res dto.EmailSettingsResult) {
-	defer func() {
-		if r := recover(); r != nil {
-			res = dto.EmailSettingsResult{
-				OK:    false,
-				Error: &dto.APIError{Code: "INTERNAL", Message: "读取邮箱配置时发生内部错误", Detail: fmt.Sprint(r)},
-			}
-		}
-	}()
-
-	info, configured := a.svc.EmailSettings()
-	return dto.EmailSettingsResult{OK: true, Settings: emailSettingsView(info, configured)}
-}
-
-// SaveEmailSettings 保存邮箱配置；password 留空时沿用已保存的授权码
-func (a *App) SaveEmailSettings(req dto.EmailSettingsRequest) (res dto.EmailSettingsResult) {
-	defer func() {
-		if r := recover(); r != nil {
-			res = dto.EmailSettingsResult{
-				OK:    false,
-				Error: &dto.APIError{Code: "INTERNAL", Message: "保存邮箱配置时发生内部错误", Detail: fmt.Sprint(r)},
-			}
-		}
-	}()
-
-	info, apiErr := validateEmailSettings(req)
-	if apiErr != nil {
-		return dto.EmailSettingsResult{OK: false, Error: apiErr}
-	}
-	if err := a.svc.SaveEmailSettings(info); err != nil {
-		return dto.EmailSettingsResult{
-			OK:    false,
-			Error: &dto.APIError{Code: "EMAIL_SETTINGS", Message: "保存邮箱配置失败", Detail: err.Error()},
-		}
-	}
-	saved, configured := a.svc.EmailSettings()
-	return dto.EmailSettingsResult{OK: true, Settings: emailSettingsView(saved, configured)}
-}
-
-// SendTestEmail 用已保存的配置给发件人自己发一封测试邮件
-func (a *App) SendTestEmail(req dto.EmailTestRequest) (res dto.APIResult) {
-	defer func() {
-		if r := recover(); r != nil {
-			res = dto.APIResult{
-				OK:    false,
-				Error: &dto.APIError{Code: "INTERNAL", Message: "发送测试邮件时发生内部错误", Detail: fmt.Sprint(r)},
-			}
-		}
-	}()
-
-	if _, configured := a.svc.EmailSettings(); !configured {
-		return dto.APIResult{
-			OK:    false,
-			Error: &dto.APIError{Code: "EMAIL_NOT_CONFIGURED", Message: "请先保存邮箱配置"},
-		}
-	}
-
-	topic := strings.TrimSpace(req.Topic)
-	if topic == "" {
-		topic = "Catcher 邮件配置测试"
-	}
-	desc := strings.TrimSpace(req.Desc)
-	if desc == "" {
-		desc = "这是一封来自 Catcher 的测试邮件。"
-	}
-	if len([]rune(topic)) > 200 {
-		return dto.APIResult{
-			OK:    false,
-			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "邮件主题过长"},
-		}
-	}
-	if len([]rune(desc)) > 5000 {
-		return dto.APIResult{
-			OK:    false,
-			Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "邮件正文过长"},
-		}
-	}
-
-	if err := a.svc.SendEmail(entity.EmailContent{Topic: topic, Desc: desc}); err != nil {
-		return dto.APIResult{
-			OK:    false,
-			Error: &dto.APIError{Code: "EMAIL_SEND_FAILED", Message: "测试邮件发送失败", Detail: err.Error()},
-		}
-	}
-	return dto.APIResult{OK: true}
 }
 
 // CheckForUpdate 查询最新正式发布并与当前版本比较。
@@ -709,70 +619,6 @@ func (a *App) GetFetchIssues(runID int64) (res dto.FetchIssuesResult) {
 		})
 	}
 	return dto.FetchIssuesResult{OK: true, Items: items}
-}
-
-func emailSettingsView(info entity.EmailSender, configured bool) *dto.EmailSettingsView {
-	return &dto.EmailSettingsView{
-		Configured: configured,
-		Address:    info.Emailer.Addr,
-		SMTP:       info.Emailer.Smtp,
-		Port:       entity.EmailSMTPPort,
-	}
-}
-
-func validateEmailSettings(req dto.EmailSettingsRequest) (entity.EmailSender, *dto.APIError) {
-	var out entity.EmailSender
-
-	addr := strings.TrimSpace(req.Address)
-	if addr == "" {
-		return out, &dto.APIError{Code: "INVALID_ARGUMENT", Message: "请填写发件邮箱"}
-	}
-	if len(addr) > 254 {
-		return out, &dto.APIError{Code: "INVALID_ARGUMENT", Message: "发件邮箱长度异常"}
-	}
-	parsed, err := mail.ParseAddress(addr)
-	if err != nil || !strings.EqualFold(parsed.Address, addr) || !strings.Contains(addr, "@") {
-		return out, &dto.APIError{Code: "INVALID_ARGUMENT", Message: "发件邮箱格式不正确"}
-	}
-
-	smtpHost := normalizeSMTPHost(req.SMTP)
-	if smtpHost == "" {
-		return out, &dto.APIError{Code: "INVALID_ARGUMENT", Message: "请填写 SMTP 服务器"}
-	}
-	if len(smtpHost) > 253 || strings.ContainsAny(smtpHost, " \t\r\n/") {
-		return out, &dto.APIError{Code: "INVALID_ARGUMENT", Message: "SMTP 服务器格式不正确"}
-	}
-
-	password := strings.TrimSpace(req.Password)
-	if len(password) > 512 {
-		return out, &dto.APIError{Code: "INVALID_ARGUMENT", Message: "授权码长度异常"}
-	}
-
-	out = entity.EmailSender{
-		Emailer:  entity.Email{Addr: addr, Smtp: smtpHost},
-		PassWord: password,
-	}
-	return out, nil
-}
-
-// normalizeSMTPHost 接受从服务商文档里直接粘贴的写法：
-// smtps://smtp.qq.com:465/ 会收敛成 smtp.qq.com
-func normalizeSMTPHost(raw string) string {
-	s := strings.TrimSpace(raw)
-	lower := strings.ToLower(s)
-	switch {
-	case strings.HasPrefix(lower, "smtps://"):
-		s = s[len("smtps://"):]
-	case strings.HasPrefix(lower, "smtp://"):
-		s = s[len("smtp://"):]
-	}
-	if i := strings.IndexAny(s, "/?#"); i >= 0 {
-		s = s[:i]
-	}
-	if host, _, err := net.SplitHostPort(s); err == nil {
-		s = host
-	}
-	return strings.TrimSpace(s)
 }
 
 func platformStrings(platforms []entity.Platform) []string {

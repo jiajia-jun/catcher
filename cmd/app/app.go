@@ -24,7 +24,6 @@ import (
 	"catcher/internal/infra/bridge/chaoxing"
 	"catcher/internal/infra/bridge/tronclass"
 	"catcher/internal/infra/bridge/yuketang"
-	"catcher/internal/infra/emails"
 	"catcher/internal/infra/secretstore"
 	"catcher/internal/infra/sender"
 	"catcher/internal/infra/sqlite"
@@ -128,18 +127,12 @@ func Run(assets fs.FS) error {
 		Current: Version,
 		Logger:  lg,
 	})
-	// 邮箱配置放在数据目录里，授权码与登录态一样用 DPAPI 加密
-	emailService, err := emails.Init(filepath.Join(dataDir, "email.json"), cipher)
-	if err != nil {
-		lg.Warn("邮箱配置读取失败，可在界面中重新保存", "error", err)
-	}
 	svc := service.New(service.Deps{
 		Accounts:    repo,
 		Sessions:    sqlite.NewSessionRepo(db, cipher),
 		Credentials: sqlite.NewCredentialRepo(db, cipher),
 		Assignments: repo,
 		Runs:        sqlite.NewFetchRunRepo(db),
-		Email:       emailService,
 		Fetchers: map[entity.Platform]domain.Fetcher{
 			entity.PlatformChaoxing:  cx,
 			entity.PlatformYuketang:  yk,
