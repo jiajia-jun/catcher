@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -242,10 +241,8 @@ func (c *Client) verifyLogin(ctx context.Context, jar *cookieJar) error {
 			UserID string `json:"user_id"`
 		} `json:"_u"`
 	}
-	if raw := bytes.TrimSpace(env.Data); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
-		if err := json.Unmarshal(raw, &data); err != nil {
-			return fmt.Errorf("%w: 登录校验响应无法解析: %v", entity.ErrPlatformChanged, err)
-		}
+	if err := decodeEnvelopeData(env, &data); err != nil {
+		return err
 	}
 	if data.User != nil && strings.TrimSpace(data.User.UserID) == "" {
 		return fmt.Errorf("%w: 登录校验没有返回用户 id", entity.ErrAuthFailed)

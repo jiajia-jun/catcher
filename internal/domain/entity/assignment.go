@@ -108,3 +108,8 @@ func YuketangDedupKey(courseID, classroomID, activityID string) string {
 func TronclassDedupKey(courseID, activityID string) string {
 	return "tronclass:" + courseID + ":" + activityID
 }
+
+// PigaiDedupKey 只用作业 id：换班后同一条作业不应重复入库。
+func PigaiDedupKey(requestID string) string {
+	return "pigai:" + requestID
+}
