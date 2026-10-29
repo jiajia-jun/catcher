@@ -488,6 +488,77 @@ func (a *App) RefreshChaoxingLogin(jobID string) (res dto.APIResult) {
 	return dto.APIResult{OK: true}
 }
 
+// StartPigaiLogin 启动批改网微信扫码登录，二维码与状态通过事件推送
+func (a *App) StartPigaiLogin() (res dto.RefreshStartResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.RefreshStartResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "启动扫码登录时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	start, err := a.svc.StartPigaiLogin(a.context())
+	if err != nil {
+		return dto.RefreshStartResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "LOGIN_FAILED", Message: "启动批改网扫码登录失败", Detail: err.Error()},
+		}
+	}
+	return dto.RefreshStartResult{
+		OK:        true,
+		JobID:     start.JobID,
+		Platforms: platformStrings(start.Platforms),
+	}
+}
+
+// CancelPigaiLogin 停止批改网扫码轮询
+func (a *App) CancelPigaiLogin(jobID string) (res dto.APIResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.APIResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "取消扫码登录时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if jobID == "" {
+		return dto.APIResult{OK: false, Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少任务 id"}}
+	}
+	if err := a.svc.CancelPigaiLogin(jobID); err != nil {
+		return dto.APIResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "LOGIN_NOT_FOUND", Message: "扫码任务不存在或已结束", Detail: err.Error()},
+		}
+	}
+	return dto.APIResult{OK: true}
+}
+
+// RefreshPigaiLogin 重新获取一张批改网二维码
+func (a *App) RefreshPigaiLogin(jobID string) (res dto.APIResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			res = dto.APIResult{
+				OK:    false,
+				Error: &dto.APIError{Code: "INTERNAL", Message: "刷新二维码时发生内部错误", Detail: fmt.Sprint(r)},
+			}
+		}
+	}()
+
+	if jobID == "" {
+		return dto.APIResult{OK: false, Error: &dto.APIError{Code: "INVALID_ARGUMENT", Message: "缺少任务 id"}}
+	}
+	if err := a.svc.RefreshPigaiLogin(jobID); err != nil {
+		return dto.APIResult{
+			OK:    false,
+			Error: &dto.APIError{Code: "LOGIN_NOT_FOUND", Message: "扫码任务不存在或已结束", Detail: err.Error()},
+		}
+	}
+	return dto.APIResult{OK: true}
+}
+
 // LoginChaoxing 用手机号+密码登录学习通。密码只在本次调用内使用，不回传
 func (a *App) LoginChaoxing(req dto.PasswordLoginRequest) (res dto.PasswordLoginResult) {
 	defer func() {

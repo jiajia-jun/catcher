@@ -36,6 +36,12 @@ func (s *Service) StartChaoxingLogin(ctx context.Context) (*RefreshStart, error)
 	return s.startQRLogin(entity.PlatformChaoxing)
 }
 
+// StartPigaiLogin 启动批改网微信扫码登录任务
+func (s *Service) StartPigaiLogin(ctx context.Context) (*RefreshStart, error) {
+	_ = ctx
+	return s.startQRLogin(entity.PlatformPigai)
+}
+
 // startQRLogin 同时只保留一个扫码任务，重复打开弹窗时以新任务为准
 func (s *Service) startQRLogin(platform entity.Platform) (*RefreshStart, error) {
 	qr := s.qrLogins[platform]
@@ -71,6 +77,11 @@ func (s *Service) CancelChaoxingLogin(jobID string) error {
 	return s.CancelQRLogin(jobID)
 }
 
+// CancelPigaiLogin 停止批改网扫码轮询
+func (s *Service) CancelPigaiLogin(jobID string) error {
+	return s.CancelQRLogin(jobID)
+}
+
 // CancelQRLogin 停止扫码轮询
 func (s *Service) CancelQRLogin(jobID string) error {
 	s.jobsMu.Lock()
@@ -90,6 +101,11 @@ func (s *Service) RefreshYuketangLogin(jobID string) error {
 
 // RefreshChaoxingLogin 在自动换码次数用尽后，由用户手动换一张学习通二维码
 func (s *Service) RefreshChaoxingLogin(jobID string) error {
+	return s.RefreshQRLogin(jobID)
+}
+
+// RefreshPigaiLogin 在自动换码次数用尽后，由用户手动换一张批改网二维码
+func (s *Service) RefreshPigaiLogin(jobID string) error {
 	return s.RefreshQRLogin(jobID)
 }
 
@@ -256,11 +272,15 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 	}
 }
 
+// qrScannedMessage 只在需要手机二次确认的平台给出确认提示。
+// 微信扫码必须点确认，学习通同理；雨课堂扫完即完成
 func qrScannedMessage(platform entity.Platform) string {
-	if platform == entity.PlatformChaoxing {
+	switch platform {
+	case entity.PlatformChaoxing, entity.PlatformPigai:
 		return "已扫码，请在手机上确认"
+	default:
+		return "已扫码，正在确认"
 	}
-	return "已扫码，正在确认"
 }
 
 // finishQRLogin 保存会话并更新登录态。
@@ -285,6 +305,13 @@ func (s *Service) finishQRLogin(ctx context.Context, platform entity.Platform, s
 	if platform == entity.PlatformChaoxing && strings.TrimSpace(account.DisplayName) == "" {
 		if err := s.accounts.SetDisplayName(ctx, account.Platform, "学习通账号", s.now()); err != nil {
 			s.logger.Warn("更新学习通显示名失败", "error", err)
+		}
+	}
+	// 批改网的 _JUKU_USER 带学号与班级，但字段语义未证实，不解析，
+	// 只写一个固定名字
+	if platform == entity.PlatformPigai && strings.TrimSpace(account.DisplayName) == "" {
+		if err := s.accounts.SetDisplayName(ctx, account.Platform, "批改网账号", s.now()); err != nil {
+			s.logger.Warn("更新批改网显示名失败", "error", err)
 		}
 	}
 
