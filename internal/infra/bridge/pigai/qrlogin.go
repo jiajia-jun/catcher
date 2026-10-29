@@ -193,11 +193,27 @@ func (c *Client) finish(ctx context.Context, qs *qrSession, wxCode string) (enti
 
 // followLoginChain 逐跳跟随换号重定向，每跳都累积 Set-Cookie。
 // sender 不跟随重定向，这里必须手工走完；跨出 pigai.org 一律视为异常
+//
+// 首跳是特例：login.php 带 state 时返回 200 + 一段 JS 跳到去掉 state 的自身，
+// 真正的 302 链路从第二跳才开始。只认 3xx 会在这里停下，拿不到 _JUKU_USER
 func (c *Client) followLoginChain(ctx context.Context, rawURL string, jar *cookieJar) error {
+	current := rawURL
 	for hop := 0; hop <= maxLoginHops; hop++ {
-		resp, err := c.doRaw(ctx, rawURL, jar, 0)
+		resp, err := c.doRaw(ctx, current, jar, 0)
 		if err == nil {
-			return nil
+			if resp == nil {
+				return nil
+			}
+			next, ok := extractScriptRedirect(resp.Raw)
+			if !ok {
+				return nil
+			}
+			resolved, resolveErr := c.resolveLoginURL(current, next)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			current = resolved
+			continue
 		}
 
 		// 用原始错误判断 3xx：classifySendError 会把状态码折成领域错误
@@ -212,16 +228,33 @@ func (c *Client) followLoginChain(ctx context.Context, rawURL string, jar *cooki
 		if next == "" {
 			return fmt.Errorf("%w: 登录跳转缺少 Location", entity.ErrPlatformChanged)
 		}
-		parsed, err := url.Parse(next)
-		if err != nil {
-			return fmt.Errorf("%w: 登录跳转地址无效: %v", entity.ErrPlatformChanged, err)
+		resolved, resolveErr := c.resolveLoginURL(current, next)
+		if resolveErr != nil {
+			return resolveErr
 		}
-		if !c.isLoginHost(parsed.Hostname()) {
-			return fmt.Errorf("%w: 登录被跳转到 %s", entity.ErrPlatformChanged, parsed.Hostname())
-		}
-		rawURL = parsed.String()
+		current = resolved
 	}
 	return fmt.Errorf("%w: 换号跳转超过 %d 跳", entity.ErrPlatformChanged, maxLoginHops)
+}
+
+// resolveLoginURL 把 Location / JS 跳转按当前地址补全成绝对地址，并确认仍在批改网主机上
+func (c *Client) resolveLoginURL(current, next string) (string, error) {
+	base, err := url.Parse(current)
+	if err != nil {
+		return "", fmt.Errorf("%w: 登录跳转地址无效: %v", entity.ErrPlatformChanged, err)
+	}
+	ref, err := url.Parse(strings.TrimSpace(next))
+	if err != nil {
+		return "", fmt.Errorf("%w: 登录跳转地址无效: %v", entity.ErrPlatformChanged, err)
+	}
+	resolved := base.ResolveReference(ref)
+	if resolved.Scheme != "https" && resolved.Scheme != "http" {
+		return "", fmt.Errorf("%w: 登录跳转协议异常: %s", entity.ErrPlatformChanged, resolved.Scheme)
+	}
+	if !c.isLoginHost(resolved.Hostname()) {
+		return "", fmt.Errorf("%w: 登录被跳转到 %s", entity.ErrPlatformChanged, resolved.Hostname())
+	}
+	return resolved.String(), nil
 }
 
 // verifyLogin 用作业页确认登录态。信封的 error 才是判据，HTTP 状态码没有意义
@@ -305,7 +338,22 @@ var (
 	uuidFromQueryRe  = regexp.MustCompile(`[?&]uuid=([A-Za-z0-9_-]+)`)
 	errcodeRe        = regexp.MustCompile(`wx_errcode\s*=\s*(\d+)`)
 	wxcodeRe         = regexp.MustCompile(`wx_code\s*=\s*'([^']*)'`)
+	scriptRedirectRe = regexp.MustCompile(`(?:top\.|window\.)?location\.(?:href\s*=\s*|replace\(\s*)['"]([^'"]+)['"]`)
 )
+
+// extractScriptRedirect 从 200 页面里取 JS 跳转目标。
+// login.php 首跳就是这么跳的，响应头里没有 Location
+func extractScriptRedirect(raw []byte) (string, bool) {
+	m := scriptRedirectRe.FindSubmatch(raw)
+	if len(m) != 2 {
+		return "", false
+	}
+	target := strings.TrimSpace(string(m[1]))
+	if target == "" {
+		return "", false
+	}
+	return target, true
+}
 
 // extractUUID 从扫码页 HTML 里取 uuid，两种出现形式都吃
 func extractUUID(html string) string {
