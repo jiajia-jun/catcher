@@ -86,7 +86,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 		return nil, fmt.Errorf("保存批改网 cookie 失败: %w", err)
 	}
 	run.registerClasses(pending.StduntClass)
-	run.observeServerNow(pending.NowTime)
+	run.observeServerNow(int64(pending.NowTime))
 
 	progress(entity.Progress{Platform: entity.PlatformPigai, Phase: "completed", Message: "读取已完成作文"})
 	completed, err := c.fetchCompleted(ctx, jar)
@@ -207,7 +207,7 @@ func (r *fetchRun) toAssignment(item *mergedItem, detail *detailData) entity.Ass
 		course = r.courseByName(className)
 	}
 	if detail != nil {
-		r.observeServerNow(detail.NowTime)
+		r.observeServerNow(int64(detail.NowTime))
 	}
 	if title == "" {
 		title = "第" + item.requestID + "号 作文"
@@ -374,7 +374,12 @@ func (c *Client) fetchCompleted(ctx context.Context, jar *cookieJar) (*completed
 }
 
 func (c *Client) fetchDetail(ctx context.Context, detailURL string, jar *cookieJar) (*detailData, error) {
-	env, err := c.fetchEnvelope(ctx, detailURL, jar)
+	// 详情链接存的是人看的页面，抓数据要换成 _display=json 的同一个地址
+	jsonURL, err := withJSONDisplay(detailURL)
+	if err != nil {
+		return nil, fmt.Errorf("%w: 详情链接无法解析: %v", entity.ErrPlatformChanged, err)
+	}
+	env, err := c.fetchEnvelope(ctx, jsonURL, jar)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +491,7 @@ func numericOrZero(raw string) int64 {
 }
 
 func (c *Client) writeDetailURL(requestID string) string {
-	return c.apiURL(url.Values{
+	return c.pageURL(url.Values{
 		"c":   {"v2"},
 		"a":   {"write"},
 		"rid": {requestID},
@@ -494,7 +499,7 @@ func (c *Client) writeDetailURL(requestID string) string {
 }
 
 func (c *Client) viewDetailURL(essayID, requestID string) string {
-	return c.apiURL(url.Values{
+	return c.pageURL(url.Values{
 		"c":   {"v2"},
 		"a":   {"view"},
 		"eid": {essayID},

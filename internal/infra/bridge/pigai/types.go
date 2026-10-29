@@ -1,6 +1,33 @@
 package pigai
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"strconv"
+	"strings"
+)
+
+// flexInt 同时接受数字与数字字符串。
+//
+// 平台字段类型不稳定（2026-10-29 真机上 cnt 就是字符串），
+// now_time 只用于阶段换算的展示，类型漂移不该让整次刷新失败：
+// 认不出的值一律按 0 处理，与平台没有给时间等价
+type flexInt int64
+
+func (f *flexInt) UnmarshalJSON(raw []byte) error {
+	s := strings.Trim(string(bytes.TrimSpace(raw)), `"`)
+	if s == "" || s == "null" {
+		*f = 0
+		return nil
+	}
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		*f = 0
+		return nil
+	}
+	*f = flexInt(v)
+	return nil
+}
 
 // 以下结构只包含白名单字段。
 //
@@ -13,7 +40,7 @@ import "encoding/json"
 type pendingData struct {
 	RequestInfo []requestInfo `json:"requestInfo"`
 	StduntClass []stduntClass `json:"stduntClass"`
-	NowTime     int64         `json:"now_time"`
+	NowTime     flexInt       `json:"now_time"`
 }
 
 // requestInfo 是未完成作业列表的一条
@@ -60,7 +87,7 @@ type detailData struct {
 	Request detailRequest `json:"request"`
 	TClass  []stduntClass `json:"tClass"`
 	Essay   essayDetail   `json:"essay"`
-	NowTime int64         `json:"now_time"`
+	NowTime flexInt       `json:"now_time"`
 }
 
 type detailRequest struct {

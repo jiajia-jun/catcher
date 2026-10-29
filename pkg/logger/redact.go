@@ -31,6 +31,13 @@ var sensitiveSuffixes = []string{
 	"_password", "_passwd", "_secret", "_token", "_session", "_cookie",
 }
 
+// 只在 URL 查询串里算凭据的键。
+// code 当 header 或字段名会误伤课程编号一类的普通值，
+// 但出现在查询串里的 code 基本都是 OAuth 授权码
+var sensitiveQueryKeys = map[string]struct{}{
+	"code": {},
+}
+
 // IsSensitiveKey 判断字段名是否属于凭据。大小写不敏感。
 func IsSensitiveKey(key string) bool {
 	k := strings.ToLower(strings.TrimSpace(key))
@@ -43,6 +50,16 @@ func IsSensitiveKey(key string) bool {
 		}
 	}
 	return false
+}
+
+// IsSensitiveQueryKey 判断查询串参数名是否属于凭据，比 IsSensitiveKey 多认 code
+func IsSensitiveQueryKey(key string) bool {
+	if IsSensitiveKey(key) {
+		return true
+	}
+	k := strings.ToLower(strings.TrimSpace(key))
+	_, ok := sensitiveQueryKeys[k]
+	return ok
 }
 
 // Redact 在字段名敏感时返回 ***，否则原样返回。
@@ -87,7 +104,7 @@ func RedactURL(raw string) string {
 	q := u.Query()
 	changed := false
 	for k := range q {
-		if IsSensitiveKey(k) {
+		if IsSensitiveQueryKey(k) {
 			q.Set(k, "***")
 			changed = true
 		}
