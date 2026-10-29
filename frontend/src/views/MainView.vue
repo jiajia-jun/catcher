@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   NAlert,
   NButton,
@@ -245,14 +245,69 @@ const columns: DataTableColumns<AssignmentView> = [
   },
 ]
 
+// 平台概览单行横向滚动：卡片固定宽度，悬停时滚轮横移
+const scroller = ref<HTMLElement | null>(null)
+const canLeft = ref(false)
+const canRight = ref(false)
+
+function updateFades() {
+  const el = scroller.value
+  if (!el) return
+  const overflow = el.scrollWidth - el.clientWidth
+  // 放得下四张时不显示遮罩，也不劫持滚轮
+  canLeft.value = overflow > 1 && el.scrollLeft > 0
+  canRight.value = overflow > 1 && el.scrollLeft < overflow - 1
+}
+
+// Firefox 等按行、按页滚动时 deltaY 不是像素，先归一到像素
+function normalizeDelta(e: WheelEvent): number {
+  const el = scroller.value
+  if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) return e.deltaY * 16
+  if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) return e.deltaY * (el?.clientWidth ?? 0)
+  return e.deltaY
+}
+
+function onWheel(e: WheelEvent) {
+  const el = scroller.value
+  if (!el) return
+  // 触控板的横向手势交给原生滚动
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+  if (el.scrollWidth <= el.clientWidth) return
+
+  const delta = normalizeDelta(e)
+  if (delta === 0) return
+
+  const atStart = el.scrollLeft <= 0
+  const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1
+  // 到头了就把滚轮交还给页面纵向滚动
+  if ((delta < 0 && atStart) || (delta > 0 && atEnd)) return
+
+  e.preventDefault()
+  el.scrollLeft += delta
+}
+
+// 平台数量变化后卡片宽度会变，重新判断两侧遮罩
+watch(
+  () => platforms.value.length,
+  () => {
+    void nextTick(updateFades)
+  },
+)
+
 onMounted(() => {
   void store.init()
   // 直接用 Wails 事件驱动右下角提示，不依赖通知组件
   offRefreshFinished = EventsOn('refresh.finished', showSuccessToast)
+  // 必须非 passive，否则 preventDefault 无效
+  scroller.value?.addEventListener('wheel', onWheel, { passive: false })
+  window.addEventListener('resize', updateFades)
+  void nextTick(updateFades)
 })
 
 onBeforeUnmount(() => {
   offRefreshFinished?.()
+  scroller.value?.removeEventListener('wheel', onWheel)
+  window.removeEventListener('resize', updateFades)
   clearToastTimers()
 })
 
@@ -356,18 +411,22 @@ function rowKey(row: AssignmentView) {
           </n-text>
         </section>
 
-        <div class="platform-grid">
-          <platform-card
-            v-for="item in platforms"
-            :key="item.platform"
-            :data="item"
-            :refreshing="store.runningPlatforms.includes(item.platform)"
-            :progress="store.progressByPlatform[item.platform]"
-            @login="onLogin(item.platform)"
-            @refresh="onRefreshPlatform(item.platform)"
-            @cancel="onCancelRefresh"
-            @issues="onOpenIssues(item)"
-          />
+        <div class="platform-scroller-wrap">
+          <div ref="scroller" class="platform-scroller" @scroll="updateFades">
+            <platform-card
+              v-for="item in platforms"
+              :key="item.platform"
+              :data="item"
+              :refreshing="store.runningPlatforms.includes(item.platform)"
+              :progress="store.progressByPlatform[item.platform]"
+              @login="onLogin(item.platform)"
+              @refresh="onRefreshPlatform(item.platform)"
+              @cancel="onCancelRefresh"
+              @issues="onOpenIssues(item)"
+            />
+          </div>
+          <div class="fade fade-left" :class="{ visible: canLeft }"></div>
+          <div class="fade fade-right" :class="{ visible: canRight }"></div>
         </div>
 
         <n-alert
@@ -590,11 +649,55 @@ function rowKey(row: AssignmentView) {
   opacity: 0.62;
 }
 
-.platform-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
+.platform-scroller-wrap {
+  position: relative;
   margin-bottom: 22px;
+}
+
+.platform-scroller {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 上下留白：卡片 hover 上浮 4px、阴影不外溢，避免被裁掉 */
+  padding: 6px 2px 16px;
+  scroll-snap-type: x proximity;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.platform-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.platform-scroller > * {
+  flex: 0 0 300px;
+  scroll-snap-align: start;
+}
+
+/* 两侧渐隐用布局自身的颜色，深浅主题都能贴合 */
+.fade {
+  position: absolute;
+  top: 0;
+  bottom: 16px;
+  width: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.fade.visible {
+  opacity: 1;
+}
+
+.fade-left {
+  left: 0;
+  background: linear-gradient(to right, var(--n-color, #fff), transparent);
+}
+
+.fade-right {
+  right: 0;
+  background: linear-gradient(to left, var(--n-color, #fff), transparent);
 }
 
 .toolbar {
