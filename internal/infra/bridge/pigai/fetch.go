@@ -52,7 +52,8 @@ type courseRef struct {
 // Fetch 抓取批改网的班级、未完成作业与已完成作文。
 //
 // 分页参数未证实，只抓第一页，所以 Complete 与 CourseListComplete 恒为 false：
-// 宁可每次刷新都是 partial，也不能让不完整的列表触发软删除
+// 不能让不完整的列表触发软删除。这种不完整是平台限制，
+// 用 PartialByDesign 告诉上层「本次不算失败」，真实的告警照旧折成 partial
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
 	_ = account
@@ -152,6 +153,8 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	run.result.ServerNow = run.now
 	run.result.Complete = false
 	run.result.CourseListComplete = false
+	// 只抓得到第一页是平台限制而不是本次出错，刷新记录按成功记
+	run.result.PartialByDesign = true
 
 	progress(entity.Progress{
 		Platform: entity.PlatformPigai,

@@ -22,6 +22,10 @@ type FetchResult struct {
 	Complete bool
 	// CourseListComplete 表示课程列表本身被完整枚举
 	CourseListComplete bool
+	// PartialByDesign 表示本次没抓全，但原因是平台只暴露这么多数据
+	// （例如批改网只给得到列表第一页），不是本次刷新出错。
+	// 它只影响刷新记录的成功判定，软删除仍按 Complete / CourseListComplete 走
+	PartialByDesign bool
 	// FailedCourses 是本次作业列表抓取失败的课程 external_id
 	// nil 表示课程列表不完整，不能据此清理旧数据
 	FailedCourses []string
