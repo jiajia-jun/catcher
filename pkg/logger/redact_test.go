@@ -54,14 +54,21 @@ func TestRedactHeaders(t *testing.T) {
 }
 
 func TestRedactURL(t *testing.T) {
-	in := "https://example.com/api?sessionid=abc&course=1&auth=xyz"
+	in := "https://example.com/api?sessionid=abc&course=1&auth=xyz&code=oauth-secret"
 	got := RedactURL(in)
-	for _, leaked := range []string{"abc", "xyz"} {
+	for _, leaked := range []string{"abc", "xyz", "oauth-secret"} {
 		if strings.Contains(got, leaked) {
 			t.Fatalf("URL 未打码: %s", got)
 		}
 	}
 	if !strings.Contains(got, "course=1") {
 		t.Fatalf("普通参数被误伤: %s", got)
+	}
+	// code 只在查询串里算凭据，当作字段名或 header 时照常输出
+	if IsSensitiveKey("code") {
+		t.Fatal("字段名 code 不应视为凭据")
+	}
+	if !IsSensitiveQueryKey("code") {
+		t.Fatal("查询串里的 code 应打码")
 	}
 }

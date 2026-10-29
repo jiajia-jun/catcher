@@ -32,6 +32,8 @@ type fetchFake struct {
 	details map[string]string
 	// requests 记录收到的接口调用，用于断言没有多调详情
 	requests []string
+	// missingDisplay 记录没带 _display=json 的详情请求
+	missingDisplay []string
 }
 
 func (f *fetchFake) handler() http.Handler {
@@ -43,6 +45,9 @@ func (f *fetchFake) handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case q.Get("a") == "waitComplete":
+			if q.Get("_display") != "json" {
+				f.missingDisplay = append(f.missingDisplay, "pending")
+			}
 			f.requests = append(f.requests, "pending")
 			if f.pendingErr != 0 {
 				writeJSON(w, envelopeJSON(f.pendingErr))
@@ -59,10 +64,16 @@ func (f *fetchFake) handler() http.Handler {
 		case q.Get("c") == "v2" && q.Get("a") == "write":
 			key := "write:" + q.Get("rid")
 			f.requests = append(f.requests, key)
+			if q.Get("_display") != "json" {
+				f.missingDisplay = append(f.missingDisplay, key)
+			}
 			_, _ = w.Write([]byte(f.details[key]))
 		case q.Get("c") == "v2" && q.Get("a") == "view":
 			key := "view:" + q.Get("eid")
 			f.requests = append(f.requests, key)
+			if q.Get("_display") != "json" {
+				f.missingDisplay = append(f.missingDisplay, key)
+			}
 			_, _ = w.Write([]byte(f.details[key]))
 		default:
 			http.NotFound(w, r)
@@ -194,6 +205,13 @@ func TestFetchMergesListsAndMapsFields(t *testing.T) {
 	}
 	if r1.Deadline == nil || r1.DeadlineSource != entity.DeadlinePlatformExact {
 		t.Fatalf("R1 截止 = %v / %s", r1.Deadline, r1.DeadlineSource)
+	}
+	// 详情链接是给人点开的页面，_display=json 只在请求时补
+	if strings.Contains(r1.DetailURL, "_display") {
+		t.Fatalf("详情链接不应带 _display: %q", r1.DetailURL)
+	}
+	if len(f.missingDisplay) > 0 {
+		t.Fatalf("详情请求漏了 _display=json: %v", f.missingDisplay)
 	}
 
 	// 已完成作业的标题来自详情，不是列表里的「第N号 作文」
@@ -378,6 +396,46 @@ func TestCompletedDataAcceptsMixedPagingTypes(t *testing.T) {
 		if len(data.EssayList) != 1 || data.EssayList[0].RequestID != "R1" {
 			t.Fatalf("%s → %#v", body, data.EssayList)
 		}
+	}
+}
+
+// now_time 也可能给成字符串，类型漂移不能让整次刷新失败
+func TestNowTimeAcceptsMixedTypes(t *testing.T) {
+	for _, body := range []string{
+		`{"now_time":1793199195}`,
+		`{"now_time":"1793199195"}`,
+		`{"now_time":""}`,
+		`{"now_time":null}`,
+		`{}`,
+		`{"now_time":"oops"}`,
+	} {
+		var data pendingData
+		if err := json.Unmarshal([]byte(body), &data); err != nil {
+			t.Fatalf("%s → %v", body, err)
+		}
+	}
+	var data pendingData
+	if err := json.Unmarshal([]byte(`{"now_time":"oops"}`), &data); err != nil {
+		t.Fatal(err)
+	}
+	if data.NowTime != 0 {
+		t.Fatalf("无法识别的 now_time = %d, want 0", data.NowTime)
+	}
+}
+
+// 页面地址与接口地址是同一份 query 的两种视图
+func TestWithJSONDisplay(t *testing.T) {
+	page := "https://www.pigai.org/index.php?c=v2&a=write&rid=R1"
+	got, err := withJSONDisplay(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "_display=json") || !strings.Contains(got, "rid=R1") {
+		t.Fatalf("= %q", got)
+	}
+	same, err := withJSONDisplay(got)
+	if err != nil || same != got {
+		t.Fatalf("已有 _display 时不应重复改写: %q / %v", same, err)
 	}
 }
 

@@ -351,6 +351,27 @@ func (c *Client) apiURL(query url.Values) string {
 	return c.baseURL + "/index.php?" + q.Encode()
 }
 
+// pageURL 拼接用户点开能看的页面地址，不带 _display。
+// 存进作业的详情链接必须是这样的人看的地址，抓取时再用 withJSONDisplay 换回接口
+func (c *Client) pageURL(query url.Values) string {
+	return c.baseURL + "/index.php?" + query.Encode()
+}
+
+// withJSONDisplay 给页面地址补上 _display=json，同一套 query 换个视图取数据
+func withJSONDisplay(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	if q.Get("_display") == "json" {
+		return rawURL, nil
+	}
+	q.Set("_display", "json")
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
 // shanghai 是平台时间字段的时区
 var shanghai = time.FixedZone("CST", 8*60*60)
 
