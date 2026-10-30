@@ -2,7 +2,7 @@
 
 [简体中文](CONTRIBUTING.md) | [English](CONTRIBUTING.en.md)
 
-Issues and pull requests are welcome. Catcher is a Windows desktop app (Wails v2 + Go + Vue 3) that aggregates assignments from Yuketang, Chaoxing, and TronClass into one local window.
+Issues and pull requests are welcome. Catcher is a Windows desktop app (Wails v2 + Go + Vue 3) that aggregates assignments from Yuketang, Chaoxing, TronClass, and Pigai into one local window.
 
 Before contributing, make sure your change fits the project's positioning: **all data stays on this machine, is never uploaded to any server, and does not bypass platform login or anti-abuse mechanisms**.
 
@@ -31,7 +31,7 @@ Catcher has **two ground rules**; changes are reviewed against them.
 
 - Search issues and existing PRs first to avoid duplicate work
 - For new features or larger changes (new platform, data model, `sender` behavior), **open an issue first** and agree on the approach
-- Small fixes, **interface docs**, and tests can go straight to a PR
+- **Small fixes** and **interface docs** can go straight to a PR
 - Be friendly and stay on topic
 
 ## Prerequisites
@@ -76,9 +76,9 @@ cd frontend && npm run build   # vue-tsc type check + bundle
 2. Commit on the branch, splitting work into small commits by feature
 3. Push and open a PR targeting `main`
 4. Rebase the branch onto the latest `main` before merging
-5. Always merge with **Rebase and merge**, then delete the remote branch and the local one immediately
+5. Always merge with **Rebase and merge**, then delete the remote branch; the local branch is optional
 
-**Do not commit directly to `main`**, and do not use merge commits (they break linear history).
+> **Note: do not commit directly to `main`**, and do not use merge commits (they break linear history).
 
 ## Commit messages
 
@@ -126,8 +126,8 @@ Explain the reason before adding a dependency; prefer the standard library.
 - Passwords and sessions are encrypted with DPAPI before storage; they **must not appear in logs, events, or DTO return values**
 - Do not log the values of `Cookie`, `Set-Cookie`, or `Authorization`; `pkg/logger` provides redaction helpers
 - Packet-capture exports and raw response archives are redacted by default; **never paste unredacted exports into issues, PRs, or commits**
-- Interface docs are published in `docs/接口文档/`. When adding or editing them, replace real phone numbers, accounts, cookies, tokens, course IDs, course names, activity IDs, and assignment titles with placeholders; follow the existing docs
-- Mark unverified platform behavior as "unverified"; do not present guesses as facts or remove existing warnings
+- Interface docs are published in `docs/接口文档/`. When adding or editing them, **replace real phone numbers, accounts, cookies, tokens, course IDs, course names, activity IDs, and assignment titles with placeholders**; follow the existing docs
+- Mark unverified platform behavior as "unverified"; **do not present guesses as facts**, and do not remove existing warnings
 - **Do not submit changes that bypass login or anti-abuse mechanisms, mass-register accounts, or share accounts**
 
 ## Tests
@@ -181,7 +181,7 @@ Use `docs(接口): ...` as the commit prefix.
 
 ## Release process
 
-Maintainers only. A stable release follows these steps:
+**Maintainers only.** A stable release follows these steps:
 
 1. Cut a `chore/release-X.Y.Z` branch from the latest `main`
 2. Update all four version locations:
@@ -198,7 +198,7 @@ Maintainers only. A stable release follows these steps:
    ```
 
 5. CI verifies that the tag matches `Version` in `app.go`, then builds and creates a Release with `Catcher-windows-amd64.zip` and `Catcher-windows-arm64.zip`
-6. CI **does not build the NSIS installer**. Build it locally when needed and upload it manually:
+6. CI **currently does not build the NSIS installer**. Build it locally when needed and upload it manually:
 
    ```bash
    wails build -nsis -installscope user
