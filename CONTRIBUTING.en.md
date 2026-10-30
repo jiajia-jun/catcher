@@ -96,6 +96,16 @@ chore(发布): 版本号改为 1.3.0
 - Keep it concise: **title only**; add one or two lines of rationale if needed
 - **One commit, one change**; do not mix in unrelated formatting or drive-by refactors
 
+## Contributor credit
+
+**Good ideas count as contributions too!** If a proposal from your issue or discussion is adopted and implemented by a maintainer, **we will credit you in the corresponding release commit**:
+
+```text
+Co-authored-by: Your Name <you@example.com>
+```
+
+To be credited, include the name and email you want to use in the issue; a GitHub noreply address is fine if you prefer not to share your real one.
+
 ## Code conventions
 
 Layer dependency direction:
