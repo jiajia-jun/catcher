@@ -149,11 +149,12 @@ go vet ./...
 
 [.github/workflows/build.yml](.github/workflows/build.yml) runs on:
 
-- pushes to `main`: **unit tests only**, no build
+- pull requests targeting `main`: **only `go test` and `go vet`**, no build
+- pushes to `main`: tests and static checks only, as a post-merge safety net
 - pushes of `v*` tags: tests, then builds Windows amd64 / arm64 and creates a Release
 - manual `workflow_dispatch`: tests, then builds without releasing
 
-**Pull requests do not trigger CI**, so run the checks above locally before opening a PR. Tests run once on `windows-latest` (amd64), and the build job waits for them to pass.
+Tests and static checks run once on `windows-latest` (amd64), and the build job waits for them to pass. PR checks are a safety net; still run the commands above locally before opening a PR.
 
 ## Documentation
 
