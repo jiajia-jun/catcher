@@ -149,11 +149,12 @@ go vet ./...
 
 [.github/workflows/build.yml](.github/workflows/build.yml) 在以下情况触发：
 
-- push 到 `main`：**只跑单元测试**，不构建
+- 提交 PR 到 `main`：**只跑 `go test` 与 `go vet`**，不构建
+- push 到 `main`：同样只跑测试与静态检查，作为合并后的兜底
 - 推送 `v*` tag：跑测试后构建 Windows amd64 / arm64 并创建 Release
 - 手动 `workflow_dispatch`：跑测试后构建，不发布
 
-**PR 上不会触发 CI**，所以上面的检查请在本地自己跑完再提 PR。测试只在 `windows-latest`（amd64）上跑一次，构建 job 要等测试通过才开始。
+测试与静态检查只在 `windows-latest`（amd64）上跑一次，构建 job 要等它们通过才开始。PR 上的检查只是兜底，提交前仍请在本地把上面的命令跑一遍。
 
 ## 文档
 
