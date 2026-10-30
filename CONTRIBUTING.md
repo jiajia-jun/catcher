@@ -90,7 +90,7 @@ fix(学习通): 详情页 302 不再误判为登录失效
 docs(接口): 补充扫码状态表
 refactor(service): 拆分刷新任务
 test(config): 补数据目录解析用例
-chore(发布): 版本号改为 1.2.0
+chore(发布): 版本号改为 1.3.0
 ```
 
 - 以精简为主：**只写标题**，必要时补一两行关键原因
@@ -208,7 +208,7 @@ go vet ./...
 
 注意事项：
 
-- 正式版本的 tag **不能带 `-`**（写 `v1.2.0`，不要写 `v1.2.0-final`），否则 CI 会自动标成 pre-release，`releases/latest` 查不到，客户端不会提示更新
+- 正式版本的 tag **不能带 `-`**（写 `v1.3.0`，不要写 `v1.3.0-final`），否则 CI 会自动标成 pre-release，`releases/latest` 查不到，客户端不会提示更新
 - tag 与 `cmd/app/app.go` 的 `Version` 不一致时 **CI 直接失败**
 - 发版前用 `git grep` 搜一遍旧版本号，确认四处都改到了
 - hotfix 同样从 `main` 拉 `fix/<描述>`，按正常流程合入后打补丁版本 tag，不要跳过 PR

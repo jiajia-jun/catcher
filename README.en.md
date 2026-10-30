@@ -7,7 +7,7 @@
 <p align="center">A local desktop app that collects assignments from Yuketang, Chaoxing, TronClass, and Pigai into one window</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-4c6ef5">
+  <img alt="version" src="https://img.shields.io/badge/version-1.3.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="local-first" src="https://img.shields.io/badge/local--first-data%20stays%20local-4c6ef5">
   <img alt="no third-party" src="https://img.shields.io/badge/no%20third--party-no%20relay%20server-4c6ef5">
@@ -29,7 +29,7 @@
 - One assignment table showing platform, course, status, deadline, and deadline source
 - Search assignments by course
 - Click a platform card to show only that platform's assignments; click again to clear
-- Each platform card has a fetch checkbox; the selection is saved to the config file
+- Each platform card has a fetch checkbox; the selection is saved to the config file, and the overview supports selecting all at once
 - Refresh per platform, with cancel and progress; one platform failing does not affect the other
 - Show the changelog on the first launch after an upgrade; reopen it from settings
 - The platform overview sits on a single row; hover it and scroll the wheel to move between platform cards
@@ -94,7 +94,7 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 
 ## Known limitations
 
-- **Settings are read-only for now**: log level and similar options live in `data/catcher.yaml` and require a restart; the UI does not support editing them yet
+- **Log level and similar settings are still read-only**: they live in `data/catcher.yaml` and require a restart; the UI only supports editing the platform refresh selection
 - **TronClass only supports browser session import**: re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar details are not verified
 - **Pigai is experimental**: only the first page of each list is fetched — the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
 - **Some Chaoxing QR login branches are not verified**: normal scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are not verified; use phone number + password if you run into problems
