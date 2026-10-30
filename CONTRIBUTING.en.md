@@ -90,7 +90,7 @@ fix(学习通): 详情页 302 不再误判为登录失效
 docs(接口): 补充扫码状态表
 refactor(service): 拆分刷新任务
 test(config): 补数据目录解析用例
-chore(发布): 版本号改为 1.2.0
+chore(发布): 版本号改为 1.3.0
 ```
 
 - Keep it concise: **title only**; add one or two lines of rationale if needed
@@ -208,7 +208,7 @@ Maintainers only. A stable release follows these steps:
 
 Notes:
 
-- Stable tags **must not contain `-`** (use `v1.2.0`, not `v1.2.0-final`). Otherwise CI marks the release as a pre-release, `releases/latest` cannot find it, and clients will not be prompted to update
+- Stable tags **must not contain `-`** (use `v1.3.0`, not `v1.3.0-final`). Otherwise CI marks the release as a pre-release, `releases/latest` cannot find it, and clients will not be prompted to update
 - Tag and `Version` in `cmd/app/app.go` mismatch makes **CI fail outright**
 - Before releasing, use `git grep` to search for the old version number and confirm all four locations were updated
 - Hotfixes also start from `main` as `fix/<description>`, merge through the normal flow, and then get a patch version tag; do not skip the PR
