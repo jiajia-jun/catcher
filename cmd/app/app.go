@@ -23,6 +23,7 @@ import (
 	"catcher/internal/domain"
 	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
+	"catcher/internal/infra/ai"
 	"catcher/internal/infra/bridge/chaoxing"
 	"catcher/internal/infra/bridge/pigai"
 	"catcher/internal/infra/bridge/tronclass"
@@ -180,7 +181,9 @@ func Run(assets fs.FS) error {
 		Logger:   lg,
 		Now:      time.Now,
 	})
-	h := handle.New(svc)
+	// 可选 AI 默认关闭；模型发送器不复用任何平台登录态。
+	aiService := service.NewAI(sqlite.NewAIRepo(db, cipher), &ai.Client{}, time.Now)
+	h := handle.NewWithAI(svc, aiService)
 
 	lg.Info("应用启动",
 		"version", Version,
@@ -192,6 +195,7 @@ func Run(assets fs.FS) error {
 	shutdown := func() {
 		once.Do(func() {
 			lg.Info("应用退出")
+			aiService.Shutdown()
 			svc.CancelAll()
 			closeAll()
 		})

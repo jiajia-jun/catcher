@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.3.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
-  <img alt="本地化" src="https://img.shields.io/badge/本地化-数据不出本机-4c6ef5">
+  <img alt="本地优先" src="https://img.shields.io/badge/本地优先-AI可选开启-4c6ef5">
   <img alt="无三方" src="https://img.shields.io/badge/无三方-无中转服务器-4c6ef5">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4c6ef5">
   <a href="https://github.com/jiajia-jun/catcher/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/下载-最新版-4c6ef5"></a>
@@ -35,7 +35,8 @@
 - 平台概览单行横向排列，鼠标悬停时滚动滚轮即可左右切换平台卡
 - 支持**手动标记**，平台状态拿不到的作业可以先手动标记，随时恢复平台值
 - 启动后检查新版本，发现更新时提示并打开 GitHub 发布页
-- 所有数据只保存在本机，**不上传任何服务器**
+- 作业记录与学习计划保存在本机；云端 AI 默认关闭，明确开启并逐次确认后才发送选定内容
+- 可选 AI 学习助手：自然语言查询所选作业、生成可编辑的学习计划、跳过固定安排、确认保存及本地子任务进度；使用前见 [AI 使用说明](AI_STUDY_PLANNER.md)
 
 ## 安装
 
@@ -90,7 +91,8 @@ data/
 - 登录态（含批改网 cookie）与学习通密码使用 Windows DPAPI 加密后存入本地 sqlite，只对当前 Windows 用户可解密
 - 日志**不记录** Cookie、Set-Cookie、Authorization、密码、token 或二维码内容
 - 更新检查只向 GitHub 查询最新版本号，请求只含客户端版本号与常规 HTTP 头，不携带账号、作业或日志数据
-- 数据**不会上传到任何第三方服务器**
+- AI 默认关闭，不发送任何 AI 请求。用户开启后，每次请求均预览目标、模型和所选数据并确认；问题、作业元数据、时间安排将发送给用户配置的模型服务商。AI Key 使用 DPAPI 加密保存在本机，不发送平台密码、Cookie、登录态、原始日志或数据库
+- 学习子任务完成与平台作业提交状态独立。模型建议需自行核对；接口与交互使用模拟模型验证，尚未完成真实付费模型和真实用户验收
 
 ## 已知限制
 

@@ -21,6 +21,7 @@ import (
 type App struct {
 	svc *service.Service
 	ctx context.Context
+	ai  *service.AIService
 }
 
 func New(svc *service.Service) *App {
