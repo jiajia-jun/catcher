@@ -32,7 +32,7 @@ Catcher has **two ground rules**; changes are reviewed against them.
 - Search issues and existing PRs first to avoid duplicate work
 - For new features or larger changes (new platform, data model, `sender` behavior), **open an issue first** and agree on the approach
 - **Small fixes** and **interface docs** can go straight to a PR
-- Be friendly and stay on topic
+- Follow the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.en.md), be friendly and stay on topic
 
 ## Prerequisites
 
