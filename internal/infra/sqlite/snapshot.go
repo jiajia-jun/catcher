@@ -65,6 +65,13 @@ func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, e
 			}
 			upserted++
 		}
+		// 新增 AI 快照覆盖元数据，不改变原有作业写入与清理策略。
+		if _, err := tx.ExecContext(ctx, `INSERT INTO ai_fetch_coverage(account_id,platform,seen_at,complete,warnings)
+			VALUES(?,?,?,?,?) ON CONFLICT(account_id,platform) DO UPDATE SET
+			seen_at=excluded.seen_at,complete=excluded.complete,warnings=excluded.warnings`,
+			in.AccountID, string(in.Platform), formatTime(in.At), in.Result.Complete, len(in.Result.Warnings)); err != nil {
+			return fmt.Errorf("记录 AI 数据覆盖范围失败: %w", err)
+		}
 		return nil
 	})
 	if err != nil {

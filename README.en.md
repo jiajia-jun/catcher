@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-1.3.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
-  <img alt="local-first" src="https://img.shields.io/badge/local--first-data%20stays%20local-4c6ef5">
+  <img alt="local-first" src="https://img.shields.io/badge/local--first-AI%20opt--in-4c6ef5">
   <img alt="no third-party" src="https://img.shields.io/badge/no%20third--party-no%20relay%20server-4c6ef5">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4c6ef5">
   <a href="https://github.com/jiajia-jun/catcher/releases/latest"><img alt="download latest" src="https://img.shields.io/badge/download-latest-4c6ef5"></a>
@@ -35,7 +35,8 @@
 - The platform overview sits on a single row; hover it and scroll the wheel to move between platform cards
 - **Manual marking** for platforms that do not expose submission status; restore the platform value at any time
 - Check for updates on startup, prompt when a new version is available, and open the GitHub release page
-- All data stays on this machine and is **never uploaded to any server**
+- Assignment records and study plans stay local; cloud AI is disabled by default and sends selected content only after explicit opt-in and request confirmation
+- Optional AI study assistant: query selected assignments, draft and edit study plans, respect blocked time, save confirmed plans, and track local subtasks. See [AI usage and limits](AI_STUDY_PLANNER.md)
 
 ## Installation
 
@@ -90,7 +91,8 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 - Login sessions (including Pigai cookies) and the Chaoxing password are encrypted with Windows DPAPI and stored in local SQLite; only the current Windows user can decrypt them
 - Logs **do not record** Cookie, Set-Cookie, Authorization, passwords, tokens, or QR code contents
 - The update check only asks GitHub for the latest version number; the request contains only the client version and standard HTTP headers, no account, assignment, or log data
-- Data is **never uploaded to any third-party server**
+- AI is disabled by default. Each AI request previews its destination, model and selected content for confirmation. Questions, assignment metadata and availability are sent to the configured model provider. The AI key is encrypted locally with DPAPI; platform passwords, cookies, login sessions, raw logs and databases are never included in AI requests
+- Study subtask completion is separate from platform submission. Verify model suggestions. Mock-model tests do not establish acceptance with a real paid provider or real users
 
 ## Known limitations
 

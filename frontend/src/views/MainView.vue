@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   NAlert,
   NButton,
@@ -55,6 +55,10 @@ function showSuccessToast(ev: RefreshFinishedEvent) {
 }
 
 const showSettings = ref(false)
+const showAI = ref(false)
+const aiLoaded = ref(false)
+const AIStudyModal = defineAsyncComponent(() => import('../components/AIStudyModal.vue'))
+function openAI() { aiLoaded.value = true; showAI.value = true }
 
 const platforms = computed(() => store.bootstrap?.platforms ?? [])
 const stats = computed(() => store.bootstrap?.stats ?? {
@@ -384,6 +388,7 @@ function rowKey(row: AssignmentView) {
         <span class="brand-sub">catch your work</span>
       </div>
       <div class="top-actions">
+        <n-button quaternary @click="openAI">AI 学习助手</n-button>
         <n-button quaternary @click="showSettings = true">设置</n-button>
       </div>
     </n-layout-header>
@@ -540,13 +545,14 @@ function rowKey(row: AssignmentView) {
         </div>
 
         <p class="footer-note">
-          所有数据只保存在本机数据目录；凭据使用 Windows DPAPI 加密。
+          作业与计划保存在本机；云端 AI 可选开启并逐次确认发送范围，凭据使用 Windows DPAPI 加密。
         </p>
         <p class="disclaimer">作业详细情况请以实际情况为准，本页面仅供参考</p>
       </n-spin>
     </n-layout-content>
 
     <settings-modal v-model:show="showSettings" />
+    <AIStudyModal v-if="aiLoaded" v-model:show="showAI" />
     <login-modal />
     <changelog-modal
       v-model:show="store.changelogShow"

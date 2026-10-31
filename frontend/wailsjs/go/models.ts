@@ -1,5 +1,135 @@
 export namespace dto {
 	
+	export class AICompleteRequest {
+	    planId: string;
+	    taskId: string;
+	    done: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AICompleteRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.planId = source["planId"];
+	        this.taskId = source["taskId"];
+	        this.done = source["done"];
+	    }
+	}
+	export class AIStudyTask {
+	    id: string;
+	    assignmentId: number;
+	    title: string;
+	    startAt: string;
+	    minutes: number;
+	    steps: string[];
+	    reason: string;
+	    done: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIStudyTask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.assignmentId = source["assignmentId"];
+	        this.title = source["title"];
+	        this.startAt = source["startAt"];
+	        this.minutes = source["minutes"];
+	        this.steps = source["steps"];
+	        this.reason = source["reason"];
+	        this.done = source["done"];
+	    }
+	}
+	export class AIConfirmRequest {
+	    jobId: string;
+	    tasks: AIStudyTask[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AIConfirmRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.jobId = source["jobId"];
+	        this.tasks = this.convertValues(source["tasks"], AIStudyTask);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AITimeRange {
+	    startAt: string;
+	    endAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AITimeRange(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.startAt = source["startAt"];
+	        this.endAt = source["endAt"];
+	    }
+	}
+	export class AIInput {
+	    kind: string;
+	    question: string;
+	    assignmentIds: number[];
+	    startAt: string;
+	    endAt: string;
+	    snapshot: string;
+	    blocked: AITimeRange[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AIInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.question = source["question"];
+	        this.assignmentIds = source["assignmentIds"];
+	        this.startAt = source["startAt"];
+	        this.endAt = source["endAt"];
+	        this.snapshot = source["snapshot"];
+	        this.blocked = this.convertValues(source["blocked"], AITimeRange);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class APIError {
 	    code: string;
 	    message: string;
@@ -18,6 +148,71 @@ export namespace dto {
 	        this.rawPath = source["rawPath"];
 	    }
 	}
+	export class AIResult {
+	    ok: boolean;
+	    data?: Record<string, any>;
+	    error?: APIError;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.data = source["data"];
+	        this.error = this.convertValues(source["error"], APIError);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AISettingsRequest {
+	    enabled: boolean;
+	    baseUrl: string;
+	    model: string;
+	    maxInputChars: number;
+	    maxOutputTokens: number;
+	    monthlyTokenLimit: number;
+	    timeoutSeconds: number;
+	    apiKey: string;
+	    clearKey: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AISettingsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.baseUrl = source["baseUrl"];
+	        this.model = source["model"];
+	        this.maxInputChars = source["maxInputChars"];
+	        this.maxOutputTokens = source["maxOutputTokens"];
+	        this.monthlyTokenLimit = source["monthlyTokenLimit"];
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.apiKey = source["apiKey"];
+	        this.clearKey = source["clearKey"];
+	    }
+	}
+	
+	
+	
 	export class APIResult {
 	    ok: boolean;
 	    error?: APIError;

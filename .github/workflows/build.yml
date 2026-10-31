@@ -39,6 +39,24 @@ jobs:
         shell: pwsh
         run: go test ./...
 
+      - name: 安装 Node（AI 前端回归）
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: AI 前端回归与类型检查
+        shell: pwsh
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-fund --no-audit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   build:
     name: Windows ${{ matrix.arch }}
     needs: test

@@ -4,7 +4,7 @@
 
 Issues and pull requests are welcome. Catcher is a Windows desktop app (Wails v2 + Go + Vue 3) that aggregates assignments from Yuketang, Chaoxing, TronClass, and Pigai into one local window.
 
-Before contributing, make sure your change fits the project's positioning: **all data stays on this machine, is never uploaded to any server, and does not bypass platform login or anti-abuse mechanisms**.
+Before contributing, make sure your change fits the project's positioning: **local-first, cloud AI requires explicit opt-in and confirmation of each request's scope, and platform login or anti-abuse mechanisms are never bypassed**.
 
 ## Design principles
 
@@ -12,8 +12,8 @@ Catcher has **two ground rules**; changes are reviewed against them.
 
 ### Local-first
 
-- Data lives only in the local data directory (`data/`); no cloud, no account system, no telemetry
-- No upload of assignments, logs, login sessions, or any usage data
+- Assignment records and plans persist in the local data directory (`data/`); no cloud account system or telemetry. Optional AI request scope requires separate confirmation
+- Platform passwords, login sessions, logs and databases are not sent out; optional cloud AI sends only previewed and confirmed questions, selected assignment metadata and availability
 - Except for fetching platform data and checking for updates, the app opens and works offline
 - Local-first also means **failures must be explicit**: better to error than to silently return an empty list
 - Backup, migration, and uninstall revolve around this directory only; no remote service is involved
@@ -23,7 +23,7 @@ Catcher has **two ground rules**; changes are reviewed against them.
 - No third-party backend, BaaS, serverless functions, analytics SDK, crash reporting, or CDN dependency
 - The project has Go backend logic, but it runs locally only; **no server is deployed**, and no relay, storage, or account service is provided
 - No local port listening, no background service, no browser extension required; requests are only made when the user acts
-- Outbound requests only target the assignment platforms themselves and GitHub Releases
+- Outbound requests target assignment platforms and GitHub Releases; explicitly enabled AI connects directly to the user's configured provider without a project relay
 - Sessions and credentials stay local; passwords and authorization codes are encrypted with DPAPI and never pass through a relay
 - The update check only queries GitHub Releases for the version number; nothing is downloaded or executed, and download pages open in the system browser
 
