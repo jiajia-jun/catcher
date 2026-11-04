@@ -152,6 +152,14 @@ func TestFetchFlattensAndFiltersSemester(t *testing.T) {
 	if first.DedupKey != entity.YuketangDedupKey("1000001", "20000001", "900000000003") {
 		t.Fatalf("dedup = %s", first.DedupKey)
 	}
+	// 第一段是 classroom_id，第二段是 content.leaf_id
+	if first.DetailURL != client.baseURL+"/ai-workspace/lms-graph/20000001/quiz/43318187?is_chapter=1" {
+		t.Fatalf("详情地址 = %q", first.DetailURL)
+	}
+	second := result.Assignments[1]
+	if second.DetailURL != client.baseURL+"/ai-workspace/lms-graph/20000001/quiz/43318188?is_chapter=1" {
+		t.Fatalf("详情地址 = %q", second.DetailURL)
+	}
 	if !result.Complete {
 		t.Fatal("全部课程抓取成功时 Complete 应为 true")
 	}
@@ -167,6 +175,61 @@ func TestFetchFlattensAndFiltersSemester(t *testing.T) {
 	}
 	if !sawAssignments {
 		t.Fatalf("缺少作业阶段进度: %#v", progresses)
+	}
+}
+
+func TestQuizDetailURL(t *testing.T) {
+	cases := []struct {
+		name        string
+		baseURL     string
+		classroomID string
+		leafID      string
+		want        string
+	}{
+		{
+			name:        "正常参数",
+			baseURL:     "https://changjiang.yuketang.cn",
+			classroomID: "24211265",
+			leafID:      "46077767",
+			want:        "https://changjiang.yuketang.cn/ai-workspace/lms-graph/24211265/quiz/46077767?is_chapter=1",
+		},
+		{
+			name:        "baseURL 末尾带斜杠",
+			baseURL:     "https://changjiang.yuketang.cn/",
+			classroomID: "24211265",
+			leafID:      "46077767",
+			want:        "https://changjiang.yuketang.cn/ai-workspace/lms-graph/24211265/quiz/46077767?is_chapter=1",
+		},
+		{name: "缺少 baseURL", classroomID: "24211265", leafID: "46077767"},
+		{name: "缺少 classroom_id", baseURL: "https://changjiang.yuketang.cn", leafID: "46077767"},
+		{name: "缺少 leaf_id", baseURL: "https://changjiang.yuketang.cn", classroomID: "24211265"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := quizDetailURL(c.baseURL, c.classroomID, c.leafID); got != c.want {
+				t.Fatalf("quizDetailURL = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// type 19 没有真实网页路由，不能凭 type 20 的模板猜
+func TestParseClassroomLogsSkipsQuizURLForType19(t *testing.T) {
+	raw := `{"success":true,"data":{"now_time":1792563600,"activities":[[
+		{"id":1,"type":19,"title":"线下课程9课前预习习题","create_time":1790000000,
+		 "content":{"score_d":1793001599000,"leaf_id":48013198}}]]}}`
+	var logs classroomLogsResp
+	if err := json.Unmarshal([]byte(raw), &logs); err != nil {
+		t.Fatal(err)
+	}
+	item := courseItem{CourseID: json.Number("1000001"), ClassroomID: json.Number("20000001")}
+
+	_, assignments, _, _ := parseClassroomLogs("https://changjiang.yuketang.cn", item, &logs)
+	if len(assignments) != 1 {
+		t.Fatalf("type 19 仍应落库，实际 %d 条", len(assignments))
+	}
+	if assignments[0].DetailURL != "" {
+		t.Fatalf("type 19 不应生成链接: %q", assignments[0].DetailURL)
 	}
 }
 
