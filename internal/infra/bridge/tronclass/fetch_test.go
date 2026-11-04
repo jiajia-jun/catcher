@@ -96,7 +96,7 @@ func TestFetchEndToEnd(t *testing.T) {
 	mux.HandleFunc("/api/courses/102/homework-activities", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, `{"page":0,"page_size":0,"pages":0,"total":0,"homework_activities":[]}`)
 	})
-	client, _ := newFetchClient(t, mux)
+	client, server := newFetchClient(t, mux)
 
 	result, err := client.Fetch(context.Background(), entity.Account{}, fetchSession(t),
 		entity.FetchOptions{}, nil)
@@ -144,6 +144,13 @@ func TestFetchEndToEnd(t *testing.T) {
 	}
 	if first.CourseExternalID != "101" || first.CourseName != "离散数学B" {
 		t.Fatalf("课程归属 = %q %q", first.CourseExternalID, first.CourseName)
+	}
+	// 作业网页地址用课程 id + 活动 id 拼，不带 ?view=scores
+	if first.DetailURL != server.URL+"/course/101/learning-activity#/549652" {
+		t.Fatalf("详情地址 = %q", first.DetailURL)
+	}
+	if second.DetailURL != server.URL+"/course/101/learning-activity#/549653" {
+		t.Fatalf("详情地址 = %q", second.DetailURL)
 	}
 
 	// 非 homework 类型照常入库；空截止按未知
@@ -412,6 +419,41 @@ func TestFetchHomeworkPageLimitMarksCourseFailed(t *testing.T) {
 	}
 	if got := calls.Load(); got != maxHomeworkPages {
 		t.Fatalf("作业请求次数 = %d, want %d", got, maxHomeworkPages)
+	}
+}
+
+func TestDetailURL(t *testing.T) {
+	cases := []struct {
+		name       string
+		baseURL    string
+		courseID   string
+		activityID string
+		want       string
+	}{
+		{
+			name:       "正常参数",
+			baseURL:    "http://lms.tc.cqupt.edu.cn",
+			courseID:   "119890",
+			activityID: "565663",
+			want:       "http://lms.tc.cqupt.edu.cn/course/119890/learning-activity#/565663",
+		},
+		{
+			name:       "baseURL 末尾带斜杠",
+			baseURL:    "http://lms.tc.cqupt.edu.cn/",
+			courseID:   "119890",
+			activityID: "565663",
+			want:       "http://lms.tc.cqupt.edu.cn/course/119890/learning-activity#/565663",
+		},
+		{name: "缺少 baseURL", courseID: "119890", activityID: "565663"},
+		{name: "缺少课程 id", baseURL: "http://lms.tc.cqupt.edu.cn", activityID: "565663"},
+		{name: "缺少活动 id", baseURL: "http://lms.tc.cqupt.edu.cn", courseID: "119890"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := detailURL(c.baseURL, c.courseID, c.activityID); got != c.want {
+				t.Fatalf("detailURL = %q, want %q", got, c.want)
+			}
+		})
 	}
 }
 
