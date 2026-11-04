@@ -275,6 +275,7 @@ func (s *fetchState) listAssignments(ctx context.Context, course entity.Course) 
 			item, warns, ok := parseActivity(course, activity)
 			warnings = append(warnings, warns...)
 			if ok {
+				item.DetailURL = detailURL(s.client.baseURL, course.ExternalID, item.ExternalID)
 				assignments = append(assignments, item)
 			}
 		}
@@ -284,6 +285,15 @@ func (s *fetchState) listAssignments(ctx context.Context, course entity.Course) 
 		}
 	}
 	return assignments, warnings, nil
+}
+
+// detailURL 拼作业网页地址；平台课程 id 和活动 id 都按原始字面量拼
+func detailURL(baseURL, courseID, activityID string) string {
+	if baseURL == "" || courseID == "" || activityID == "" {
+		return ""
+	}
+	return strings.TrimRight(baseURL, "/") + "/course/" + courseID +
+		"/learning-activity#/" + activityID
 }
 
 // parseActivity 把一条作业映射成领域对象；无法落库的条目跳过并写 warning
