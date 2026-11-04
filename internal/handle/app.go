@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -805,7 +806,7 @@ func toAssignmentView(a entity.Assignment, now time.Time) dto.AssignmentView {
 		Phase:            string(entity.PhaseOf(a.Deadline, now)),
 		DeadlineSource:   string(a.DeadlineSource),
 		DeadlineRaw:      a.DeadlineRaw,
-		DetailURL:        a.DetailURL,
+		DetailURL:        safeDetailURL(a.DetailURL),
 		FirstSeenAt:      a.FirstSeenAt.UTC().Format(time.RFC3339),
 		LastSeenAt:       a.LastSeenAt.UTC().Format(time.RFC3339),
 	}
@@ -820,6 +821,24 @@ func toAssignmentView(a entity.Assignment, now time.Time) dto.AssignmentView {
 		view.DeadlineLocal = a.Deadline.In(shanghai).Format("2006-01-02 15:04")
 	}
 	return view
+}
+
+// safeDetailURL 只放行绝对 http/https 地址；平台 HTML 里的链接不能直接信
+func safeDetailURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	if !strings.EqualFold(u.Scheme, "http") && !strings.EqualFold(u.Scheme, "https") {
+		return ""
+	}
+	if u.Host == "" {
+		return ""
+	}
+	return raw
 }
 
 var shanghai = func() *time.Location {
