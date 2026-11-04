@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"catcher/internal/domain/entity"
@@ -15,6 +16,9 @@ import (
 const (
 	learningListPath  = "/v/course_meta/learning_list/"
 	classroomLogsPath = "/v/course_meta/classroom_logs"
+
+	// activityTypeQuiz 是已确认网页路由的习题类型；19 与视频 15/17 暂不拼链接
+	activityTypeQuiz = 20
 )
 
 // Fetch 抓取当前学期的课程与作业
@@ -76,7 +80,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			continue
 		}
 
-		course, assignments, parseWarnings, ok := parseClassroomLogs(item, logs)
+		course, assignments, parseWarnings, ok := parseClassroomLogs(c.baseURL, item, logs)
 		result.Courses = append(result.Courses, course)
 		result.Assignments = append(result.Assignments, assignments...)
 		result.Warnings = append(result.Warnings, parseWarnings...)
@@ -196,7 +200,7 @@ func filterBySemester(items []courseItem, target semester) []courseItem {
 
 // parseClassroomLogs 摊平嵌套 activities 并转成领域对象
 // 返回的 ok 表示本次是否正确解析了全部条目；false 时调用方不做软删除
-func parseClassroomLogs(item courseItem, logs *classroomLogsResp) (entity.Course, []entity.Assignment, []entity.FetchIssue, bool) {
+func parseClassroomLogs(baseURL string, item courseItem, logs *classroomLogsResp) (entity.Course, []entity.Assignment, []entity.FetchIssue, bool) {
 	course := entity.Course{
 		Platform:    entity.PlatformYuketang,
 		ExternalID:  item.CourseID.String(),
@@ -219,11 +223,25 @@ func parseClassroomLogs(item courseItem, logs *classroomLogsResp) (entity.Course
 				ok = false
 			}
 			if assignment != nil {
+				// 只有 type 20 与真实网页路由对上了；19 与视频类型没有样本
+				if act.Type == activityTypeQuiz && act.Content != nil {
+					assignment.DetailURL = quizDetailURL(
+						baseURL, item.ClassroomID.String(), act.Content.LeafID.String())
+				}
 				assignments = append(assignments, *assignment)
 			}
 		}
 	}
 	return course, assignments, warnings, ok
+}
+
+// quizDetailURL 只处理已经验证过的 type 20 习题
+func quizDetailURL(baseURL, classroomID, leafID string) string {
+	if baseURL == "" || classroomID == "" || leafID == "" {
+		return ""
+	}
+	return strings.TrimRight(baseURL, "/") + "/ai-workspace/lms-graph/" +
+		classroomID + "/quiz/" + leafID + "?is_chapter=1"
 }
 
 // 活动类型有两套编码，同一账号的课程里并存
