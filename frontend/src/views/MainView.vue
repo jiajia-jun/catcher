@@ -94,6 +94,17 @@ function statusMeta(row: AssignmentView): { text: string; type: TagType } {
   return { text: '未提交', type: 'warning' }
 }
 
+// 只放行绝对 http/https；后端已经兜底，这里防止脏数据进 BrowserOpenURL
+function isHttpURL(raw?: string): raw is string {
+  if (!raw) return false
+  try {
+    const u = new URL(raw)
+    return (u.protocol === 'http:' || u.protocol === 'https:') && u.host !== ''
+  } catch {
+    return false
+  }
+}
+
 const statusNames: Record<string, string> = {
   submitted: '已提交',
   unsubmitted: '未提交',
@@ -192,6 +203,53 @@ const columns: DataTableColumns<AssignmentView> = [
     key: 'title',
     minWidth: 260,
     ellipsis: { tooltip: true },
+    render: (row) => {
+      const text = row.title || '（无标题）'
+      const url = row.detailUrl
+      // 没有可用地址时保持纯文本，不显示假按钮
+      if (!isHttpURL(url)) return text
+      return h(
+        'span',
+        {
+          class: 'assignment-link',
+          role: 'link',
+          tabindex: 0,
+          title: text,
+          'aria-label': `在浏览器中打开：${text}`,
+          onClick: (event: MouseEvent) => {
+            // 当前行没有点击处理器，防止以后加行点击时误触
+            event.stopPropagation()
+            BrowserOpenURL(url)
+          },
+          onKeydown: (event: KeyboardEvent) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            BrowserOpenURL(url)
+          },
+        },
+        [
+          h('span', { class: 'assignment-link-text' }, text),
+          h(
+            'svg',
+            {
+              class: 'assignment-link-icon',
+              viewBox: '0 0 24 24',
+              fill: 'none',
+              stroke: 'currentColor',
+              'stroke-width': '2',
+              'stroke-linecap': 'round',
+              'stroke-linejoin': 'round',
+              'aria-hidden': 'true',
+            },
+            [
+              h('path', { d: 'M14 3h7v7' }),
+              h('path', { d: 'M10 14L21 3' }),
+              h('path', { d: 'M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5' }),
+            ],
+          ),
+        ],
+      )
+    },
   },
   {
     title: '状态',
@@ -821,6 +879,48 @@ function rowKey(row: AssignmentView) {
 
 .toast-action:hover {
   opacity: 0.8;
+}
+
+/* 作业标题可点击：悬停或聚焦时才露出下划线与外链图标
+   列 render 生成的节点不带 scoped 属性，和 status-cell 一样要用 :deep */
+:deep(.assignment-link) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  cursor: pointer;
+  color: inherit;
+  outline: none;
+}
+
+:deep(.assignment-link-text) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:deep(.assignment-link-icon) {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+:deep(.assignment-link:hover .assignment-link-text),
+:deep(.assignment-link:focus-visible .assignment-link-text) {
+  text-decoration: underline;
+}
+
+:deep(.assignment-link:hover .assignment-link-icon),
+:deep(.assignment-link:focus-visible .assignment-link-icon) {
+  opacity: 0.7;
+}
+
+:deep(.assignment-link:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 :deep(.status-cell) {

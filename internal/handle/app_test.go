@@ -45,6 +45,33 @@ func TestToAssignmentViewUsesEffectiveStatus(t *testing.T) {
 	}
 }
 
+// detail_url 有一部分来自平台 HTML，非 http/https 一律置空
+func TestToAssignmentViewSanitizesDetailURL(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "https 原样保留", raw: "https://example.com/course/1", want: "https://example.com/course/1"},
+		{name: "http 原样保留", raw: "http://example.com/a", want: "http://example.com/a"},
+		{name: "大写 scheme 原样保留", raw: "HTTPS://EXAMPLE.COM/a", want: "HTTPS://EXAMPLE.COM/a"},
+		{name: "javascript 置空", raw: "javascript:alert(1)", want: ""},
+		{name: "file 置空", raw: "file:///C:/secret.txt", want: ""},
+		{name: "相对路径置空", raw: "/relative/path", want: ""},
+		{name: "无 host 置空", raw: "https://", want: ""},
+		{name: "残缺 scheme 置空", raw: "://bad", want: ""},
+		{name: "空串保持空", raw: "", want: ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			item := entity.Assignment{DetailURL: c.raw}
+			if got := toAssignmentView(item, time.Now()).DetailURL; got != c.want {
+				t.Fatalf("DetailURL = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 // 没有手动值时，有效状态必须等于平台状态
 func TestToAssignmentViewWithoutManualStatus(t *testing.T) {
 	item := entity.Assignment{
