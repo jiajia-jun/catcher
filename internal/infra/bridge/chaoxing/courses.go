@@ -16,6 +16,10 @@ const courseListPath = "/mycourse/backclazzdata?view=json&rss=1"
 type courseEntry struct {
 	ID   json.Number `json:"id"`
 	Name string      `json:"name"`
+	// ClassID 与 CPI 挂在 channel 的 content 上，不在 course.data 里，
+	// 解析后由 fetchCourseList 补到每条课程上，用于拼课程主页地址
+	ClassID string `json:"-"`
+	CPI     string `json:"-"`
 }
 
 type courseListResp struct {
@@ -23,6 +27,8 @@ type courseListResp struct {
 	Msg         string      `json:"msg"`
 	ChannelList []struct {
 		Content struct {
+			ID     json.Number `json:"id"`
+			CPI    json.Number `json:"cpi"`
 			Course struct {
 				Data []courseEntry `json:"data"`
 			} `json:"course"`
@@ -64,9 +70,26 @@ func (c *Client) fetchCourseList(ctx context.Context, jar *cookieJar) ([]courseE
 
 	var entries []courseEntry
 	for _, channel := range out.ChannelList {
-		entries = append(entries, channel.Content.Course.Data...)
+		// 一个 channel 就是一个班，classId 与 cpi 对它下面的所有课程相同
+		classID := numberLiteral(channel.Content.ID)
+		cpi := numberLiteral(channel.Content.CPI)
+		for _, entry := range channel.Content.Course.Data {
+			entry.ClassID = classID
+			entry.CPI = cpi
+			entries = append(entries, entry)
+		}
 	}
 	return entries, nil
+}
+
+// numberLiteral 取 JSON 数字的原始字面量，顺带把服务端的「空」统一成空串。
+// 这些 id 都不能过 float64
+func numberLiteral(n json.Number) string {
+	raw := strings.TrimSpace(n.String())
+	if raw == "0" {
+		return ""
+	}
+	return raw
 }
 
 // courseNameMap 建立 courseId 字面量 → 完整课程名。
