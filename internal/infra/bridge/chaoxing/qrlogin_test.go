@@ -106,7 +106,7 @@ func newQRTestServer(t *testing.T) *qrTestServer {
 }
 
 func (s *qrTestServer) close() {
-	s.Server.Close()
+	s.Close()
 }
 
 func mustBeginQR(t *testing.T, client *Client) *entity.QRChallenge {
