@@ -40,6 +40,13 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	}
 
 	names := courseNameMap(entries)
+	// 作业跳转统一落到课程主页，地址只用课程列表里已有的字段拼，不额外发请求
+	courseURLs := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		if courseURL := c.courseHomeURL(entry); courseURL != "" {
+			courseURLs[entry.ID.String()] = courseURL
+		}
+	}
 	result := &entity.FetchResult{
 		Courses:  toCourses(entries),
 		Complete: true,
@@ -118,6 +125,12 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			})
 		}
 
+		// 有课程主页地址就用课程主页，缺 clazzId / cpi 的课程保留手机版详情链接
+		detailURL := item.DetailURL
+		if courseURL := courseURLs[item.CourseID]; courseURL != "" {
+			detailURL = courseURL
+		}
+
 		result.Assignments = append(result.Assignments, entity.Assignment{
 			Platform:         entity.PlatformChaoxing,
 			CourseExternalID: item.CourseID,
@@ -128,7 +141,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			Deadline:         deadline,
 			DeadlineSource:   source,
 			DeadlineRaw:      raw,
-			DetailURL:        item.DetailURL,
+			DetailURL:        detailURL,
 		})
 	}
 

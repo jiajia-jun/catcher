@@ -30,6 +30,8 @@ import (
 const (
 	// DefaultBaseURL 是课程与作业数据接口的域名
 	DefaultBaseURL = "https://mooc1-api.chaoxing.com"
+	// DefaultDesktopBaseURL 是课程主页（作业跳转落点）的域名
+	DefaultDesktopBaseURL = "https://mooc1.chaoxing.com"
 	// DefaultLoginBaseURL 是密码登录接口的域名
 	DefaultLoginBaseURL = "https://passport2.xuexitong.com"
 	// DefaultQRBaseURL 是扫码登录接口的域名。它和密码登录不是同一个站点
@@ -48,12 +50,13 @@ const (
 
 // Options 构造学习通适配器。Sender 由 cmd/app 注入，单独限速 250ms
 type Options struct {
-	BaseURL      string
-	LoginBaseURL string
-	QRBaseURL    string
-	Sender       *sender.Sender
-	Logger       logger.Logger
-	Now          func() time.Time
+	BaseURL        string
+	DesktopBaseURL string
+	LoginBaseURL   string
+	QRBaseURL      string
+	Sender         *sender.Sender
+	Logger         logger.Logger
+	Now            func() time.Time
 	// QRPollInterval 是扫码轮询间隔，默认 3 秒；测试里调小以免拖慢用例
 	QRPollInterval time.Duration
 }
@@ -61,6 +64,7 @@ type Options struct {
 // Client 同时实现 domain.PasswordAuthenticator、domain.QRLogin 与 domain.Fetcher
 type Client struct {
 	baseURL        string
+	desktopBaseURL string
 	loginBaseURL   string
 	qrBaseURL      string
 	qrPollInterval time.Duration
@@ -77,6 +81,7 @@ type Client struct {
 func New(opts Options) *Client {
 	c := &Client{
 		baseURL:        strings.TrimRight(opts.BaseURL, "/"),
+		desktopBaseURL: strings.TrimRight(opts.DesktopBaseURL, "/"),
 		loginBaseURL:   strings.TrimRight(opts.LoginBaseURL, "/"),
 		qrBaseURL:      strings.TrimRight(opts.QRBaseURL, "/"),
 		qrPollInterval: opts.QRPollInterval,
@@ -87,6 +92,9 @@ func New(opts Options) *Client {
 	}
 	if c.baseURL == "" {
 		c.baseURL = DefaultBaseURL
+	}
+	if c.desktopBaseURL == "" {
+		c.desktopBaseURL = DefaultDesktopBaseURL
 	}
 	if c.loginBaseURL == "" {
 		c.loginBaseURL = DefaultLoginBaseURL
