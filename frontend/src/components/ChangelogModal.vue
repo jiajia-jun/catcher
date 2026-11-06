@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NButton, NCard, NModal, NScrollbar, NTag } from 'naive-ui'
+import { NButton, NCard, NCollapse, NCollapseItem, NModal, NScrollbar, NTag } from 'naive-ui'
 import { CHANGELOG } from '../changelog'
 
 // 每个版本的固定收尾条目，避免手写时漏掉
@@ -11,6 +11,9 @@ const emit = defineEmits<{
   (e: 'update:show', value: boolean): void
   (e: 'close'): void
 }>()
+
+// 默认只展开最新版本，历史版本折叠
+const expandedNames = [CHANGELOG[0]?.version].filter((version): version is string => Boolean(version))
 
 // 关闭时通知外层记录已读；更新日志按版本倒序排列，历史条目一并展示
 const visible = computed({
@@ -31,24 +34,32 @@ const visible = computed({
       size="huge"
     >
       <n-scrollbar style="max-height: 58vh">
-        <section v-for="entry in CHANGELOG" :key="entry.version" class="entry">
-          <div class="entry-head">
-            <strong>v{{ entry.version }}</strong>
-            <n-tag
-              v-if="entry.version === current"
-              size="small"
-              type="success"
-              :bordered="false"
-            >
-              当前版本
-            </n-tag>
-            <span class="entry-date">{{ entry.date }}</span>
-          </div>
-          <ul class="entry-list">
-            <li v-for="(item, index) in entry.items" :key="index">{{ item }}</li>
-            <li>{{ FIXED_NOTE }}</li>
-          </ul>
-        </section>
+        <n-collapse :default-expanded-names="expandedNames">
+          <n-collapse-item
+            v-for="entry in CHANGELOG"
+            :key="entry.version"
+            :name="entry.version"
+          >
+            <template #header>
+              <div class="entry-head">
+                <strong>v{{ entry.version }}</strong>
+                <n-tag
+                  v-if="entry.version === current"
+                  size="small"
+                  type="success"
+                  :bordered="false"
+                >
+                  当前版本
+                </n-tag>
+                <span class="entry-date">{{ entry.date }}</span>
+              </div>
+            </template>
+            <ul class="entry-list">
+              <li v-for="(item, index) in entry.items" :key="index">{{ item }}</li>
+              <li>{{ FIXED_NOTE }}</li>
+            </ul>
+          </n-collapse-item>
+        </n-collapse>
       </n-scrollbar>
 
       <template #footer>
@@ -61,16 +72,11 @@ const visible = computed({
 </template>
 
 <style scoped>
-.entry + .entry {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(128, 128, 128, 0.18);
-}
-
 .entry-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .entry-date {
@@ -80,7 +86,7 @@ const visible = computed({
 }
 
 .entry-list {
-  margin: 8px 0 0;
+  margin: 0;
   padding-left: 18px;
   font-size: 13px;
   line-height: 1.75;
