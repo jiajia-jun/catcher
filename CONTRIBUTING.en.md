@@ -2,7 +2,9 @@
 
 [简体中文](CONTRIBUTING.md) | [English](CONTRIBUTING.en.md)
 
-Issues and pull requests are welcome. Catcher is a Windows desktop app (Wails v2 + Go + Vue 3) that aggregates assignments from Yuketang, Chaoxing, TronClass, and Pigai into one local window.
+Thank you for taking the time to open this guide. We welcome issues and pull requests at any time, and we would also love to hear your ideas.
+
+Catcher is currently a **Windows desktop app** (Wails v2 + Go + Vue 3) that solves the problem of scattered assignments by pulling assignments from **Yuketang, Chaoxing, TronClass, and Pigai** into one local window.
 
 Before contributing, make sure your change fits the project's positioning: **all data stays on this machine, is never uploaded to any server, and does not bypass platform login or anti-abuse mechanisms**.
 
@@ -105,6 +107,16 @@ Co-authored-by: Your Name <you@example.com>
 ```
 
 To be credited, include the name and email you want to use in the issue; a GitHub noreply address is fine if you prefer not to share your real one.
+
+## AI-assisted contributions
+
+We **welcome human-AI collaboration** on *Catcher*  
+We do not forbid AI tools, and you do not need to disclose how much of your contribution was AI-generated, but **you are responsible for what you submit**:
+
+- **Explain it, maintain it**: Understand your own changes and be able to say why they are needed. Do not submit generated content you cannot maintain
+- **Verify it yourself**: Run the commands in [Tests](#tests) before submitting. Fields and platform behavior drafted by AI must be backed by real packet captures or page source; do not present guesses as facts, and do not fabricate verification records, screenshots, or test results
+- **Keep real data out of external AI chats**: Real accounts, phone numbers, cookies, tokens, and unredacted packet captures, page exports, course names, and assignment titles should not be pasted into external AI conversations; redact them first as described in [Data and security](#data-and-security)
+- **Do not abuse it**: Do not use AI to mass-generate issues or PRs, resubmit existing proposals, or open any PR just to pad your contribution count; we hope everyone contributes to *Catcher* for real
 
 ## Code conventions
 
