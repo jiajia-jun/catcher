@@ -7,7 +7,7 @@
 <p align="center">A local desktop app that collects assignments from Yuketang, Chaoxing, TronClass, and Pigai into one window</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.3.0-4c6ef5">
+  <img alt="version" src="https://img.shields.io/badge/version-1.4.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="local-first" src="https://img.shields.io/badge/local--first-data%20stays%20local-4c6ef5">
   <img alt="no third-party" src="https://img.shields.io/badge/no%20third--party-no%20relay%20server-4c6ef5">
