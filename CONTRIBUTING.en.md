@@ -92,7 +92,7 @@ fix(学习通): 详情页 302 不再误判为登录失效
 docs(接口): 补充扫码状态表
 refactor(service): 拆分刷新任务
 test(config): 补数据目录解析用例
-chore(发布): 版本号改为 1.3.0
+chore(发布): 版本号改为 X.Y.Z
 ```
 
 - Keep it concise: **title only**; add one or two lines of rationale if needed
@@ -148,7 +148,7 @@ Explain the reason before adding a dependency; prefer the standard library.
 - Passwords and sessions are encrypted with DPAPI before storage; they **must not appear in logs, events, or DTO return values**
 - Do not log the values of `Cookie`, `Set-Cookie`, or `Authorization`; `pkg/logger` provides redaction helpers
 - Packet-capture exports and raw response archives are redacted by default; **never paste unredacted exports into issues, PRs, or commits**
-- Interface docs are published in `docs/接口文档/`. When adding or editing them, **replace real phone numbers, accounts, cookies, tokens, course IDs, course names, activity IDs, and assignment titles with placeholders**; follow the existing docs
+- Published interface docs live in `docs/接口文档/` (currently Chaoxing and Yuketang). When adding or editing them, **replace real phone numbers, accounts, cookies, tokens, course IDs, course names, activity IDs, and assignment titles with placeholders**; follow the existing docs
 - Mark unverified platform behavior as "unverified"; **do not present guesses as facts**, and do not remove existing warnings
 - **Do not submit changes that bypass login or anti-abuse mechanisms, mass-register accounts, or share accounts**
 
@@ -206,11 +206,12 @@ Use `docs(接口): ...` as the commit prefix.
 **Maintainers only.** A stable release follows these steps:
 
 1. Cut a `chore/release-X.Y.Z` branch from the latest `main`
-2. Update all four version locations:
+2. Update all five version locations:
    - `const Version` in `cmd/app/app.go`
    - the version badge at the top of `README.md`
    - the version badge at the top of `README.en.md`
    - `INFO_PRODUCTVERSION` and `INSTALLER_FILE_VERSION` in `build/windows/installer/project.nsi` (the latter must be four segments, `X.Y.Z.0`)
+   - add an entry at the top of the `frontend/src/changelog.ts` array; `version` must match `app.go`
 3. Commit `chore(发布): 版本号改为 X.Y.Z`, open a PR, merge with Rebase and merge, and delete the branch
 4. Tag the tip of `main` and push:
 
@@ -231,9 +232,9 @@ Use `docs(接口): ...` as the commit prefix.
 
 Notes:
 
-- Stable tags **must not contain `-`** (use `v1.3.0`, not `v1.3.0-final`). Otherwise CI marks the release as a pre-release, `releases/latest` cannot find it, and clients will not be prompted to update
+- Stable tags **must not contain `-`** (use `vX.Y.Z`, not `vX.Y.Z-final`). Otherwise CI marks the release as a pre-release, `releases/latest` cannot find it, and clients will not be prompted to update
 - Tag and `Version` in `cmd/app/app.go` mismatch makes **CI fail outright**
-- Before releasing, use `git grep` to search for the old version number and confirm all four locations were updated
+- Before releasing, use `git grep` to search for the old version number and confirm all five locations were updated
 - Hotfixes also start from `main` as `fix/<description>`, merge through the normal flow, and then get a patch version tag; do not skip the PR
 
 ## Reporting security issues

@@ -92,7 +92,7 @@ fix(学习通): 详情页 302 不再误判为登录失效
 docs(接口): 补充扫码状态表
 refactor(service): 拆分刷新任务
 test(config): 补数据目录解析用例
-chore(发布): 版本号改为 1.3.0
+chore(发布): 版本号改为 X.Y.Z
 ```
 
 - 以精简为主：**只写标题**，必要时可以选择补一两行关键原因
@@ -148,7 +148,7 @@ internal/infra -> internal/domain
 - 密码和会话只经 DPAPI 加密后落库，**不得出现在日志、事件或 DTO 返回值里**
 - 日志里不要打印 `Cookie`、`Set-Cookie`、`Authorization` 的值；`pkg/logger` 已提供打码工具
 - 抓包导出、原始响应留底默认打码，**不要把未脱敏的导出结果贴进 issue、PR 或提交**
-- 接口文档已随仓库发布在 `docs/接口文档/`。新增或修改文档时，**必须把真实手机号、账号、cookie、token、课程 ID、课程名、活动 ID、作业名替换成占位值**，参考现有文档的写法
+- 已公开的接口文档在 `docs/接口文档/`（目前是学习通与雨课堂）。新增或修改文档时，**必须把真实手机号、账号、cookie、token、课程 ID、课程名、活动 ID、作业名替换成占位值**，参考现有文档的写法
 - 平台行为没验证过的部分要标注「未证实」，**不要把推测写成事实**，也不要删掉已有的警告
 - **不要提交绕过登录、绕过风控、批量注册、共享账号一类的改动**
 
@@ -206,11 +206,12 @@ go vet ./...
 **仅维护者操作**。正式版本按下面的顺序走：
 
 1. 从最新 `main` 开 `chore/release-X.Y.Z` 分支
-2. 同时更新四处版本号：
+2. 同时更新五处版本号：
    - `cmd/app/app.go` 的 `const Version`
    - `README.md` 顶部的 version 徽章
    - `README.en.md` 顶部的 version 徽章
    - `build/windows/installer/project.nsi` 的 `INFO_PRODUCTVERSION` 与 `INSTALLER_FILE_VERSION`（后者必须是四段 `X.Y.Z.0`）
+   - `frontend/src/changelog.ts` 数组头部新增版本条目，`version` 必须与 `app.go` 一致
 3. 提交 `chore(发布): 版本号改为 X.Y.Z`，发 PR，Rebase 合并后删除分支
 4. 在 `main` 顶端打 tag 并推送：
 
@@ -231,9 +232,9 @@ go vet ./...
 
 注意事项：
 
-- 正式版本的 tag **不能带 `-`**（写 `v1.3.0`，不要写 `v1.3.0-final`），否则 CI 会自动标成 pre-release，`releases/latest` 查不到，客户端不会提示更新
+- 正式版本的 tag **不能带 `-`**（写 `vX.Y.Z`，不要写 `vX.Y.Z-final`），否则 CI 会自动标成 pre-release，`releases/latest` 查不到，客户端不会提示更新
 - tag 与 `cmd/app/app.go` 的 `Version` 不一致时 **CI 直接失败**
-- 发版前用 `git grep` 搜一遍旧版本号，确认四处都改到了
+- 发版前用 `git grep` 搜一遍旧版本号，确认五处都改到了
 - hotfix 同样从 `main` 拉 `fix/<描述>`，按正常流程合入后打补丁版本 tag，不要跳过 PR
 
 ## 报告安全问题

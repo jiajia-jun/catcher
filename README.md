@@ -7,7 +7,7 @@
 <p align="center">一个把雨课堂、学习通、学在重邮、批改网的作业抓取到一个本地窗口里的工具</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.3.0-4c6ef5">
+  <img alt="version" src="https://img.shields.io/badge/version-1.4.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="本地化" src="https://img.shields.io/badge/本地化-数据不出本机-4c6ef5">
   <img alt="无三方" src="https://img.shields.io/badge/无三方-无中转服务器-4c6ef5">
@@ -28,7 +28,7 @@
 
 - 作业表统一展示平台、课程、状态、截止时间与时间来源
 - 支持按课程搜索，点击作业标题跳到作业提交处（目前雨课堂部分作业可能出现无法跳转）
-- 平台卡可筛选平台、勾选是否参与刷新；概览单行排列，悬停滚轮左右切换
+- 平台卡可筛选平台、勾选是否参与刷新；平台卡片单行排列，悬停滚轮左右切换
 - 按平台刷新，带进度与取消，单个平台失败不影响其他
 - 支持**手动标记**作业提交状态
 - 启动时自动检查更新，升级后首次登录展示更新日志
