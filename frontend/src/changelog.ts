@@ -8,6 +8,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.4.0',
+    date: '2026-11-06',
+    items: [
+      '新增作业跳转功能',
+    ],
+  },
+  {
     version: '1.3.0',
     date: '2026-10-30',
     items: [
