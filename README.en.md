@@ -27,14 +27,11 @@
 ## Features
 
 - One assignment table showing platform, course, status, deadline, and deadline source
-- Search assignments by course
-- Click a platform card to show only that platform's assignments; click again to clear
-- Each platform card has a fetch checkbox; the selection is saved to the config file, and the overview supports selecting all at once
+- Search by course; click an assignment title to open its submission page (some Yuketang assignments may not open)
+- Platform cards filter the table and toggle whether a platform takes part in refresh; the overview scrolls sideways on a single row
 - Refresh per platform, with cancel and progress; one platform failing does not affect the other
-- Show the changelog on the first launch after an upgrade; reopen it from settings
-- The platform overview sits on a single row; hover it and scroll the wheel to move between platform cards
 - **Manual marking** for platforms that do not expose submission status; restore the platform value at any time
-- Check for updates on startup, prompt when a new version is available, and open the GitHub release page
+- Check for updates on startup; show the changelog after an upgrade
 - All data stays on this machine and is **never uploaded to any server**
 
 ## Installation
@@ -98,6 +95,7 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 - **TronClass only supports browser session import**: re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar details are not verified
 - **Pigai is experimental**: only the first page of each list is fetched — the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
 - **Some Chaoxing QR login branches are not verified**: normal scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are not verified; use phone number + password if you run into problems
+- **Chaoxing titles open the course page**: its mobile assignment page cannot submit, and the desktop answer page URL cannot be built client-side, so the title opens that course's assignment list — one more click is needed to reach the assignment
 - **Yuketang is experimental**: it has many assignment types, and this version may not cover some special ones, so fetching may fail for some accounts; session renewal and the 504 path during QR polling are not verified
 - **Pigai does not clean up old assignments while pagination is unverified**: each refresh only upserts, so historical data is kept and assignments from left classes may still appear
 - The installer and executable are **not code-signed**; Windows SmartScreen may show "Unknown publisher", which is expected
