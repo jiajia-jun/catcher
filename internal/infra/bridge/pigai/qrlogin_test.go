@@ -29,6 +29,8 @@ type fakePigai struct {
 	loginRedirect string
 	// loginScript 覆盖首跳 200 页面里的 JS 跳转目标，空则跳回自身（去掉 state）
 	loginScript string
+	// abortLogin 让换码请求直接断开连接，模拟站点不可达
+	abortLogin bool
 	// writeBody 是 c=write 返回的 JSON
 	writeBody string
 	image     []byte
@@ -82,8 +84,20 @@ func (f *fakePigai) handler() http.Handler {
 		switch {
 		case r.URL.Path == "/d3/weixin/login.php":
 			f.mu.Lock()
+			abort := f.abortLogin
 			override := f.loginRedirect
 			f.mu.Unlock()
+			if abort {
+				// 直接掐断连接：客户端会拿到 EOF，和站点不可达时的表现一致
+				if hj, ok := w.(http.Hijacker); ok {
+					if conn, _, err := hj.Hijack(); err == nil {
+						_ = conn.Close()
+						return
+					}
+				}
+				http.Error(w, "连接已断开", http.StatusBadGateway)
+				return
+			}
 			if override != "" {
 				w.Header().Set("Location", override)
 				w.WriteHeader(http.StatusFound)
@@ -406,6 +420,37 @@ func TestExtractScriptRedirect(t *testing.T) {
 		got, ok := extractScriptRedirect([]byte(tc.raw))
 		if ok != tc.ok || got != tc.want {
 			t.Fatalf("%q → (%q,%v), want (%q,%v)", tc.raw, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// 换码时站点不可达：给出可读提示，且错误串里不能带 OAuth code。
+// net/http 的错误串会回显完整 URL，直接抛到界面等于把 code 展示出去
+func TestLoginChainNetworkErrorIsFriendly(t *testing.T) {
+	f := newFake()
+	f.errcodes = []int{wxErrcodeConfirmed}
+	f.wxCodes = []string{"WXCODE-SECRET"}
+	f.abortLogin = true
+	c := newTestClient(t, f)
+
+	challenge, err := c.BeginQR(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _, err := c.PollQR(context.Background(), challenge)
+	if state != entity.QRFailed {
+		t.Fatalf("state = %s, want QRFailed", state)
+	}
+	if !errors.Is(err, entity.ErrNetwork) {
+		t.Fatalf("= %v, want ErrNetwork", err)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "暂时无法连接批改网") {
+		t.Fatalf("提示不可读: %s", msg)
+	}
+	for _, leaked := range []string{"WXCODE-SECRET", "login.php"} {
+		if strings.Contains(msg, leaked) {
+			t.Fatalf("错误串泄露了 %q: %s", leaked, msg)
 		}
 	}
 }

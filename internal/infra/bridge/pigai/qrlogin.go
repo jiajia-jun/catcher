@@ -219,10 +219,10 @@ func (c *Client) followLoginChain(ctx context.Context, rawURL string, jar *cooki
 		// 用原始错误判断 3xx：classifySendError 会把状态码折成领域错误
 		var status *sender.StatusError
 		if !errors.As(err, &status) || resp == nil {
-			return classifySendError(err)
+			return loginChainError(err)
 		}
 		if status.Code < 300 || status.Code >= 400 {
-			return classifySendError(err)
+			return loginChainError(err)
 		}
 		next := strings.TrimSpace(resp.Location)
 		if next == "" {
@@ -235,6 +235,23 @@ func (c *Client) followLoginChain(ctx context.Context, rawURL string, jar *cooki
 		current = resolved
 	}
 	return fmt.Errorf("%w: 换号跳转超过 %d 跳", entity.ErrPlatformChanged, maxLoginHops)
+}
+
+// loginChainError 把换码链路的传输失败收敛成一句用户能看懂的提示。
+//
+// 换码请求的 URL 里带着 OAuth code，net/http 的错误串会原样回显整个 URL，
+// 直接抛到界面既泄露授权码、对用户也没有意义；请求日志里有打码后的记录
+func loginChainError(err error) error {
+	var canceled *sender.CanceledError
+	if errors.As(err, &canceled) {
+		return fmt.Errorf("%w: %v", entity.ErrCanceled, err)
+	}
+	var timeout *sender.TimeoutError
+	var transport *sender.TransportError
+	if errors.As(err, &timeout) || errors.As(err, &transport) {
+		return fmt.Errorf("暂时无法连接批改网，请稍后重试（%w）", entity.ErrNetwork)
+	}
+	return classifySendError(err)
 }
 
 // resolveLoginURL 把 Location / JS 跳转按当前地址补全成绝对地址，并确认仍在批改网主机上
