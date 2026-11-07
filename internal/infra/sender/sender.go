@@ -211,7 +211,8 @@ func (s *Sender) wait(ctx context.Context) error {
 func (s *Sender) logRequest(method, rawURL string, status int, bodyBytes int64, header http.Header, err error, elapsed time.Duration) {
 	errText := ""
 	if err != nil {
-		errText = err.Error()
+		// 传输错误串里会回显完整 URL，必须和 url 字段一样打码
+		errText = logger.RedactText(err.Error())
 	}
 	s.logger.Debug("http",
 		"method", method,

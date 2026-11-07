@@ -3,6 +3,7 @@ package logger
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -92,6 +93,20 @@ func RedactHeaders(h http.Header) map[string][]string {
 		out[k] = RedactHeader(k, values)
 	}
 	return out
+}
+
+// urlInTextRe 匹配文本里出现的绝对 URL。遇到空白或引号即截止，
+// net/http 的错误串形如 `Get "https://...": EOF`
+var urlInTextRe = regexp.MustCompile(`https?://[^\s"'<>]+`)
+
+// RedactText 把一段文本里出现的 URL 逐个按查询串打码。
+// 只给结构化字段打码不够：错误串本身会回显完整 URL，
+// 其中的 OAuth code 会跟着进日志
+func RedactText(text string) string {
+	if !strings.Contains(text, "://") {
+		return text
+	}
+	return urlInTextRe.ReplaceAllStringFunc(text, RedactURL)
 }
 
 // RedactURL 对 URL 查询串中的敏感参数打码。

@@ -53,6 +53,20 @@ func TestRedactHeaders(t *testing.T) {
 	}
 }
 
+func TestRedactText(t *testing.T) {
+	in := `Get "https://www.pigai.org/d3/weixin/login.php?code=081ABC&state=www.pigai.org": EOF`
+	got := RedactText(in)
+	if strings.Contains(got, "081ABC") {
+		t.Fatalf("错误文本里的 code 未打码: %s", got)
+	}
+	if !strings.Contains(got, "www.pigai.org") || !strings.Contains(got, "state=www.pigai.org") {
+		t.Fatalf("普通内容被误伤: %s", got)
+	}
+	if plain := "no url here"; RedactText(plain) != plain {
+		t.Fatalf("无 URL 的文本被改动: %s", RedactText(plain))
+	}
+}
+
 func TestRedactURL(t *testing.T) {
 	in := "https://example.com/api?sessionid=abc&course=1&auth=xyz&code=oauth-secret"
 	got := RedactURL(in)
