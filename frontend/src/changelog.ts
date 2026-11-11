@@ -1,4 +1,4 @@
-// 更新日志。发版时在数组头部追加一条，version 必须与 cmd/app/app.go 的 Version 一致
+// 更新日志：发版时在数组头部追加一条，version 必须与 cmd/app/app.go 的 Version 一致
 // 弹窗会在每条末尾自动追加「修复了一些已知问题」，条目里不用重复写
 export interface ChangelogEntry {
   version: string

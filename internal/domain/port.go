@@ -1,7 +1,7 @@
-// Package domain 定义领域模型与端口接口。
+// Package domain 定义领域模型与端口接口
 //
-// 本包是最内层：不 import internal/ 下任何外层包，也不 import cmd/。
-// 具体实现（sqlite、DPAPI、各平台适配器）位于 internal/infra，由 cmd/app 注入。
+// 本包是最内层：不 import internal/ 下任何外层包，也不 import cmd/
+// 具体实现（sqlite、DPAPI、各平台适配器）位于 internal/infra，由 cmd/app 注入
 package domain
 
 import (
@@ -11,31 +11,31 @@ import (
 	"catcher/internal/domain/entity"
 )
 
-// Fetcher 是平台抓取能力。每个平台适配器实现一个。
+// Fetcher 是平台抓取能力。每个平台适配器实现一个
 type Fetcher interface {
 	Platform() entity.Platform
 	Fetch(ctx context.Context, account entity.Account, session entity.Session,
 		opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error)
 }
 
-// PasswordAuthenticator 是密码登录能力（学习通）。
+// PasswordAuthenticator 是密码登录能力（学习通）
 type PasswordAuthenticator interface {
 	LoginWithPassword(ctx context.Context, creds entity.PasswordCredential) (*entity.Session, error)
 }
 
-// QRLogin 是扫码登录能力（雨课堂）。
+// QRLogin 是扫码登录能力（雨课堂）
 type QRLogin interface {
 	BeginQR(ctx context.Context) (*entity.QRChallenge, error)
-	// PollQR 内部完成「轮询确认 + 换取会话」；返回 waiting 时继续调用。
+	// PollQR 内部完成「轮询确认 + 换取会话」；返回 waiting 时继续调用
 	PollQR(ctx context.Context, challenge *entity.QRChallenge) (entity.QRState, *entity.Session, error)
 }
 
-// SessionImporter 是浏览器 session 导入能力（学在重邮）。
+// SessionImporter 是浏览器 session 导入能力（学在重邮）
 type SessionImporter interface {
 	ImportSession(ctx context.Context, raw string) (*entity.Session, error)
 }
 
-// SessionRenewer 是自动续期能力。返回 ErrNotFound 表示无法续期，需要用户重新登录。
+// SessionRenewer 是自动续期能力。返回 ErrNotFound 表示无法续期，需要用户重新登录
 type SessionRenewer interface {
 	Renew(ctx context.Context, session entity.Session) (*entity.Session, error)
 }
@@ -53,25 +53,26 @@ type SecretCipher interface {
 	Decrypt(ciphertext []byte) ([]byte, error)
 }
 
-// AccountRepository 维护每平台唯一的账号行。
+// AccountRepository 维护每平台唯一的账号行
 type AccountRepository interface {
 	EnsurePlatforms(ctx context.Context, now time.Time) error
 	ListAccounts(ctx context.Context) ([]entity.Account, error)
 	GetAccount(ctx context.Context, platform entity.Platform) (*entity.Account, error)
 	SetLoginState(ctx context.Context, platform entity.Platform, state entity.LoginState, at time.Time) error
+
 	// SetDisplayName 只写入脱敏标识，并同时记录最近登录时间
 	SetDisplayName(ctx context.Context, platform entity.Platform, name string, at time.Time) error
 }
 
-// SessionRepository 维护加密后的会话秘密。
+// SessionRepository 维护加密后的会话秘密
 type SessionRepository interface {
 	Get(ctx context.Context, accountID int64) (*entity.Session, error)
 	Save(ctx context.Context, accountID int64, secret []byte, expiresAt *time.Time, at time.Time) error
 	Delete(ctx context.Context, accountID int64) error
 }
 
-// CredentialRepository 维护加密后的密码凭据（学习通手机号+密码）。
-// 只用于会话失效后的自动重登；用户取消「记住密码」时必须删除。
+// CredentialRepository 维护加密后的密码凭据（学习通手机号+密码）
+// 只用于会话失效后的自动重登；用户取消「记住密码」时必须删除
 type CredentialRepository interface {
 	Get(ctx context.Context, accountID int64) (*entity.PasswordCredential, error)
 	Save(ctx context.Context, accountID int64, creds entity.PasswordCredential, at time.Time) error
@@ -81,10 +82,12 @@ type CredentialRepository interface {
 // AssignmentRepository 读取作业，并按一次抓取结果写入快照
 type AssignmentRepository interface {
 	ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error)
+
 	// SaveSnapshot 在一个事务内 upsert 课程与作业，返回写入的作业条数。
 	// Complete 时平台级软删除；课程列表完整但部分课程失败时按课程清理，
 	// FailedCourses 里的课程保留旧作业。
 	SaveSnapshot(ctx context.Context, in entity.PersistInput) (upserted int, err error)
+
 	// SetManualStatus 写入或清除手动状态；status 为 nil 表示恢复平台值
 	SetManualStatus(ctx context.Context, id int64, status *entity.SubmissionStatus, at time.Time) (entity.Assignment, error)
 }
@@ -93,8 +96,10 @@ type AssignmentRepository interface {
 type FetchRunRepository interface {
 	Create(ctx context.Context, run *entity.FetchRun) error
 	Finish(ctx context.Context, run entity.FetchRun, issues []entity.FetchIssue, finishedAt time.Time) error
+
 	// ListIssues 按写入顺序返回某次刷新的问题明细
 	ListIssues(ctx context.Context, runID int64) ([]entity.FetchIssue, error)
+
 	// LatestRuns 返回每个平台最近一次刷新记录，没有记录的平台不出现在结果里
 	LatestRuns(ctx context.Context) (map[entity.Platform]entity.FetchRun, error)
 }

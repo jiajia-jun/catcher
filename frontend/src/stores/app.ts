@@ -32,7 +32,7 @@ import type {
   UpdateCheckResult,
 } from '../types'
 
-// 扫码登录的平台集合。三个平台的事件结构一致，处理逻辑共用一份
+// 扫码登录的平台集合：三个平台的事件结构一致，处理逻辑共用一份
 const QR_PLATFORMS = ['yuketang', 'chaoxing', 'pigai'] as const
 
 // 平台展示顺序与后端 entity.AllPlatforms 保持一致
