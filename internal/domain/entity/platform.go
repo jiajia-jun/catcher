@@ -91,7 +91,7 @@ const (
 	RunCanceled RunStatus = "canceled"
 )
 
-// IssueScope 标记问题影响的范围。
+// IssueScope 标记问题影响的范围
 type IssueScope string
 
 const (
@@ -100,7 +100,7 @@ const (
 	ScopeAssignment IssueScope = "assignment"
 )
 
-// IssueKind 是问题分类，决定 UI 提示与是否可重试。
+// IssueKind 是问题分类，决定 UI 提示与是否可重试
 type IssueKind string
 
 const (
@@ -112,7 +112,7 @@ const (
 	IssueInternal IssueKind = "internal"
 )
 
-// SubmissionStatus 只有三态。认不出的状态必须是 unknown，不能推断成已交。
+// SubmissionStatus 只有三态。认不出的状态必须是 unknown，不能推断成已交
 type SubmissionStatus string
 
 const (
@@ -130,7 +130,7 @@ func (s SubmissionStatus) Valid() bool {
 	}
 }
 
-// DeadlineSource 记录截止时间是怎么来的，便于界面解释与排查。
+// DeadlineSource 记录截止时间是怎么来的，便于界面解释与排查
 type DeadlineSource string
 
 const (

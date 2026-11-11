@@ -133,7 +133,7 @@ export async function cancelRefresh(jobId: string): Promise<void> {
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
-// 支持扫码的平台。三个平台的二维码都由服务端下发图片，前端只负责显示
+// 支持扫码的平台：三个平台的二维码都由服务端下发图片，前端只负责显示
 export type QRPlatform = 'yuketang' | 'chaoxing' | 'pigai'
 
 export async function startQRLogin(platform: QRPlatform): Promise<RefreshStartResult> {

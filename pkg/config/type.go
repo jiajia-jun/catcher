@@ -33,7 +33,7 @@ type UIConfig struct {
 	ChangelogSeenVersion string `mapstructure:"changelog_seen_version"`
 }
 
-// Default 返回设计文档约定的默认配置。
+// Default 返回内置的默认配置
 func Default() App {
 	return App{
 		Log: LogConfig{

@@ -1,9 +1,4 @@
 // Package secretstore 用 Windows DPAPI 加密本机凭据
-//
-// 约定（设计文档 §11.2）：
-//   - 密文只绑定当前 Windows 用户；换用户或换机器后必须重新登录；
-//   - 加密时带固定 entropy，降低同机其它程序直接解密的可能；
-//   - 解密失败视为登录态不可用，绝不回退到明文
 package secretstore
 
 import "errors"

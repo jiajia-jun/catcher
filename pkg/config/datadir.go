@@ -9,18 +9,19 @@ import (
 	"strings"
 )
 
-// DataDirOptions 允许测试注入环境。零值字段会使用真实实现。
+// DataDirOptions 允许测试注入环境。零值字段会使用真实实现
 type DataDirOptions struct {
 	Args       []string
 	Getenv     func(string) string
 	Executable func() (string, error)
 	WorkingDir func() (string, error)
-	// DevMode 为 true 且未显式指定目录时，使用当前工作目录下的 data/。
-	// wails dev 的可执行文件在临时目录，必须靠这个分支避免写进临时目录。
+
+	// DevMode 为 true 且未显式指定目录时，使用当前工作目录下的 data/
+	// wails dev 的可执行文件在临时目录，必须靠这个分支避免写进临时目录
 	DevMode bool
 }
 
-// DefaultDataDirOptions 返回生产环境使用的选项。
+// DefaultDataDirOptions 返回生产环境使用的选项
 func DefaultDataDirOptions() DataDirOptions {
 	return DataDirOptions{
 		Args:       os.Args[1:],
@@ -37,7 +38,7 @@ func DefaultDataDirOptions() DataDirOptions {
 //  3. wails dev 时的当前工作目录/data
 //  4. exe 同级 data/
 //
-// 解析后会创建目录并做一次写入探测。失败时显式报错，不回退到 C 盘或临时目录。
+// 解析后会创建目录并做一次写入探测。失败时显式报错，不回退到 C 盘或临时目录
 func ResolveDataDir(opts DataDirOptions) (string, error) {
 	if opts.Getenv == nil {
 		opts.Getenv = os.Getenv

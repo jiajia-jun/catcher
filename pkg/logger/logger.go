@@ -1,6 +1,6 @@
 // Package logger 封装 log/slog 与滚动文件，并提供敏感字段打码工具。
 //
-// 约定（与设计文档 §12 一致）：
+// 约定：
 //   - 日志文件位于 data/logs/catcher.log，按大小/备份数/天数滚动；
 //   - 开发模式同时写 stderr，发布模式只写文件；
 //   - Cookie / Set-Cookie / Authorization / 密码 / token / session 一律不得落日志。

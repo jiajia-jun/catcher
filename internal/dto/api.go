@@ -1,7 +1,7 @@
-// Package dto 定义 Wails 绑定方法的入参与出参。
+// Package dto 定义 Wails 绑定方法的入参与出参
 //
 // 这里只放传输结构，不放领域实体。所有方法都返回显式结果结构：
-// Wails 绑定在 JS 侧只能拿到 error 的文本，无法携带错误码。
+// Wails 绑定在 JS 侧只能拿到 error 的文本，无法携带错误码
 package dto
 
 type APIError struct {
@@ -143,7 +143,7 @@ type RefreshStartResult struct {
 	Error          *APIError `json:"error,omitempty"`
 }
 
-// PasswordLoginRequest 是学习通手机号+密码登录的入参。
+// PasswordLoginRequest 是学习通手机号+密码登录的入参
 // Password 只在本次调用内存在，不会出现在响应里
 type PasswordLoginRequest struct {
 	Phone    string `json:"phone"`

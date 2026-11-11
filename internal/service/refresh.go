@@ -396,7 +396,7 @@ type FinishedEvent struct {
 	Error    *ErrorEvent  `json:"error,omitempty"`
 }
 
-// ErrorCode 把领域错误翻译成设计文档 §8.3 的错误码
+// ErrorCode 把领域错误翻译成前端使用的错误码
 func ErrorCode(err error) string {
 	switch {
 	case errors.Is(err, entity.ErrAuthRequired):

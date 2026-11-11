@@ -1,6 +1,6 @@
-// Package handle 是 Wails 绑定层：参数校验、错误翻译、DTO 转换。
+// Package handle 是 Wails 绑定层：参数校验、错误翻译、DTO 转换
 //
-// 它不直接访问数据库或 HTTP；所有用例都经过 service。
+// 它不直接访问数据库或 HTTP；所有用例都经过 service
 package handle
 
 import (
@@ -18,7 +18,7 @@ import (
 	"catcher/internal/service"
 )
 
-// App 是 Wails 绑定的接收者。前端通过 window.go.handle.App 调用这些方法。
+// App 是 Wails 绑定的接收者。前端通过 window.go.handle.App 调用这些方法
 type App struct {
 	svc *service.Service
 	ctx context.Context
@@ -44,7 +44,7 @@ func (a *App) context() context.Context {
 	return a.ctx
 }
 
-// GetBootstrap 返回平台卡、统计、数据目录与版本。
+// GetBootstrap 返回平台卡、统计、数据目录与版本
 // termOnly 与列表的「只看本学期」开关保持一致
 func (a *App) GetBootstrap(termOnly bool) (res dto.BootstrapResult) {
 	defer func() {
@@ -107,7 +107,7 @@ func (a *App) GetBootstrap(termOnly bool) (res dto.BootstrapResult) {
 	return dto.BootstrapResult{OK: true, Data: &data}
 }
 
-// ListAssignments 返回统一作业表的数据。
+// ListAssignments 返回统一作业表的数据
 func (a *App) ListAssignments(filter dto.AssignmentFilter) (res dto.AssignmentListResult) {
 	defer func() {
 		if r := recover(); r != nil {
