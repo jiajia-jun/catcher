@@ -24,6 +24,7 @@ import (
 	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
 	"catcher/internal/infra/bridge/chaoxing"
+	"catcher/internal/infra/bridge/fiforal"
 	"catcher/internal/infra/bridge/pigai"
 	"catcher/internal/infra/bridge/tronclass"
 	"catcher/internal/infra/bridge/yuketang"
@@ -133,6 +134,16 @@ func Run(assets fs.FS) error {
 		Logger: lg,
 		Now:    time.Now,
 	})
+	fifSender := sender.New(sender.Config{
+		Transport:   transport,
+		MinInterval: 250 * time.Millisecond,
+		Logger:      lg,
+	})
+	fif := fiforal.New(fiforal.Options{
+		Sender: fifSender,
+		Logger: lg,
+		Now:    time.Now,
+	})
 	tron := tronclass.New(tronclass.Options{
 		Sender: tronSender,
 		Logger: lg,
@@ -158,6 +169,7 @@ func Run(assets fs.FS) error {
 			entity.PlatformYuketang:  yk,
 			entity.PlatformTronclass: tron,
 			entity.PlatformPigai:     pig,
+			entity.PlatformFiforal:   fif,
 		},
 		Renewers: map[entity.Platform]domain.SessionRenewer{
 			entity.PlatformYuketang: yk,
@@ -169,6 +181,7 @@ func Run(assets fs.FS) error {
 			entity.PlatformYuketang: yk,
 			entity.PlatformChaoxing: cx,
 			entity.PlatformPigai:    pig,
+			entity.PlatformFiforal:  fif,
 		},
 		Importer: tron,
 		Releases: releases,

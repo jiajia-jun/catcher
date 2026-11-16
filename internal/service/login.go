@@ -42,6 +42,12 @@ func (s *Service) StartPigaiLogin(ctx context.Context) (*RefreshStart, error) {
 	return s.startQRLogin(entity.PlatformPigai)
 }
 
+// StartFiforalLogin 启动 FiF 口语微信扫码登录任务
+func (s *Service) StartFiforalLogin(ctx context.Context) (*RefreshStart, error) {
+	_ = ctx
+	return s.startQRLogin(entity.PlatformFiforal)
+}
+
 // startQRLogin 同时只保留一个扫码任务，重复打开弹窗时以新任务为准
 func (s *Service) startQRLogin(platform entity.Platform) (*RefreshStart, error) {
 	qr := s.qrLogins[platform]
@@ -82,6 +88,11 @@ func (s *Service) CancelPigaiLogin(jobID string) error {
 	return s.CancelQRLogin(jobID)
 }
 
+// CancelFiforalLogin 停止 FiF 口语扫码轮询
+func (s *Service) CancelFiforalLogin(jobID string) error {
+	return s.CancelQRLogin(jobID)
+}
+
 // CancelQRLogin 停止扫码轮询
 func (s *Service) CancelQRLogin(jobID string) error {
 	s.jobsMu.Lock()
@@ -106,6 +117,11 @@ func (s *Service) RefreshChaoxingLogin(jobID string) error {
 
 // RefreshPigaiLogin 在自动换码次数用尽后，由用户手动换一张批改网二维码
 func (s *Service) RefreshPigaiLogin(jobID string) error {
+	return s.RefreshQRLogin(jobID)
+}
+
+// RefreshFiforalLogin 在自动换码次数用尽后，由用户手动换一张 FiF 口语二维码
+func (s *Service) RefreshFiforalLogin(jobID string) error {
 	return s.RefreshQRLogin(jobID)
 }
 
@@ -276,7 +292,7 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 // 微信扫码必须点确认，学习通同理；雨课堂扫完即完成
 func qrScannedMessage(platform entity.Platform) string {
 	switch platform {
-	case entity.PlatformChaoxing, entity.PlatformPigai:
+	case entity.PlatformChaoxing, entity.PlatformPigai, entity.PlatformFiforal:
 		return "已扫码，请在手机上确认"
 	default:
 		return "已扫码，正在确认"
@@ -312,6 +328,12 @@ func (s *Service) finishQRLogin(ctx context.Context, platform entity.Platform, s
 	if platform == entity.PlatformPigai && strings.TrimSpace(account.DisplayName) == "" {
 		if err := s.accounts.SetDisplayName(ctx, account.Platform, "批改网账号", s.now()); err != nil {
 			s.logger.Warn("更新批改网显示名失败", "error", err)
+		}
+	}
+	// FiF 的显示名不解析 token 里的 login_name，固定写一个名字
+	if platform == entity.PlatformFiforal && strings.TrimSpace(account.DisplayName) == "" {
+		if err := s.accounts.SetDisplayName(ctx, account.Platform, "FiF 口语账号", s.now()); err != nil {
+			s.logger.Warn("更新 FiF 口语显示名失败", "error", err)
 		}
 	}
 
