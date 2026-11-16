@@ -210,11 +210,15 @@ func (c *Client) callTaskList(ctx context.Context, jar *cookieJar, token *h5Toke
 		"status": {strconv.Itoa(status)},
 		"page":   {strconv.Itoa(page)},
 	}.Encode()
+	source := token.Source
+	if source == "" {
+		source = defaultSource
+	}
 
 	resp, err := c.do(ctx, http.MethodPost, c.taskBaseURL+taskListPath, jar, []byte(body), 0,
 		map[string]string{
 			"Authorization": "Bearer " + token.Value,
-			"source":        token.Source,
+			"source":        source,
 			"Content-Type":  "application/x-www-form-urlencoded",
 		})
 	if err != nil {
@@ -308,17 +312,19 @@ func descriptionOf(item taskItem) string {
 }
 
 func (r *fetchRun) statusOf(item taskItem, id string) entity.SubmissionStatus {
-	complete := item.complete()
-	switch {
-	case complete == nil:
+	complete, ok := item.complete()
+	if !ok {
+		// 缺失、null 或类型漂移都按未知处理，绝不能落到「未提交」
 		return entity.StatusUnknown
-	case *complete == 100:
+	}
+	switch complete {
+	case 100:
 		return entity.StatusSubmitted
-	case *complete == 0:
+	case 0:
 		return entity.StatusUnsubmitted
 	default:
 		r.warn(entity.ScopeAssignment, entity.FiforalDedupKey(id), entity.IssueParse,
-			fmt.Sprintf("提交状态 complete=%d 无法识别，按未知处理", *complete))
+			fmt.Sprintf("提交状态 complete=%d 无法识别，按未知处理", complete))
 		return entity.StatusUnknown
 	}
 }
@@ -327,7 +333,7 @@ func (r *fetchRun) statusOf(item taskItem, id string) entity.SubmissionStatus {
 // 实测 isDelay==0 时 delayTime 也可能非空且等于 endTime
 func (r *fetchRun) deadlineOf(item taskItem, id string) (string, *time.Time) {
 	raw := strings.TrimSpace(item.EndTime)
-	if item.isDelay() == 1 {
+	if delayed, ok := item.isDelay(); ok && delayed == 1 {
 		if delayed := strings.TrimSpace(item.DelayTime); delayed != "" {
 			raw = delayed
 		} else {

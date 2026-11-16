@@ -468,14 +468,30 @@ func TestFlexTypes(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &item); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if item.complete() == nil || *item.complete() != 100 {
+	if complete, ok := item.complete(); !ok || complete != 100 {
 		t.Fatalf("字符串 complete 没转成整数: %#v", item.Complete)
 	}
-	if item.isDelay() != 1 {
+	if delayed, ok := item.isDelay(); !ok || delayed != 1 {
 		t.Fatalf("字符串 isDelay 没转成整数: %#v", item.IsDelay)
 	}
 	if string(item.TaskModelType) != "2" {
 		t.Fatalf("taskModelType 没转成字符串: %q", item.TaskModelType)
+	}
+}
+
+func TestFlexIntUnparseableIsNotZero(t *testing.T) {
+	var item taskItem
+	if err := json.Unmarshal([]byte(`{"complete":"many"}`), &item); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := item.complete(); ok {
+		t.Fatal("无法解析的 complete 不能当成 0 或任何已知值")
+	}
+	now := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	c, _ := newTestClient(t, now, nil)
+	run := &fetchRun{client: c, result: &entity.FetchResult{}}
+	if got := run.statusOf(item, "a"); got != entity.StatusUnknown {
+		t.Fatalf("无法解析的 complete 应为未知，得到 %v", got)
 	}
 }
 
