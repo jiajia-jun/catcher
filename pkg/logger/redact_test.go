@@ -86,3 +86,36 @@ func TestRedactURL(t *testing.T) {
 		t.Fatal("查询串里的 code 应打码")
 	}
 }
+
+func TestRedactURLStripsFragment(t *testing.T) {
+	in := "https://static.fifedu.com/student-h5/index.html#/?type=1&token=eyJhbGciOi"
+	got := RedactURL(in)
+	if strings.Contains(got, "token") || strings.Contains(got, "eyJhbGciOi") {
+		t.Fatalf("fragment 未剥掉: %s", got)
+	}
+	if !strings.Contains(got, "static.fifedu.com") {
+		t.Fatalf("路径被误伤: %s", got)
+	}
+}
+
+func TestRedactHeaderLocation(t *testing.T) {
+	values := []string{"https://static.fifedu.com/a/index.html#/?token=secret"}
+	got := RedactHeader("Location", values)
+	if len(got) != 1 || strings.Contains(got[0], "secret") || strings.Contains(got[0], "#") {
+		t.Fatalf("Location 的 fragment 未剥掉: %#v", got)
+	}
+	if values[0] == got[0] {
+		t.Fatal("RedactHeader 修改了原值")
+	}
+}
+
+func TestRedactURLUsername(t *testing.T) {
+	in := "https://cycore.fifedu.com/cas-server/login?username=alice&password=c2VjcmV0"
+	got := RedactURL(in)
+	if strings.Contains(got, "alice") || strings.Contains(got, "c2VjcmV0") {
+		t.Fatalf("账号或密码未打码: %s", got)
+	}
+	if IsSensitiveKey("username") {
+		t.Fatal("字段名 username 不应视为凭据，只在查询串里打码")
+	}
+}
