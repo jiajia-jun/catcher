@@ -93,8 +93,7 @@ func testSession(cookies ...entity.FiforalCookie) entity.Session {
 }
 
 func flexPtr(v int64) *flexInt {
-	f := flexInt(v)
-	return &f
+	return &flexInt{value: v, ok: true}
 }
 
 func taskListBody(items ...string) string {

@@ -7,23 +7,26 @@ import (
 	"strings"
 )
 
-// flexInt 同时接受数字与数字字符串。
+// flexInt 同时接受数字与数字字符串，并记录是否解析成功。
 // complete / isDelay 实测是 int，但平台字段类型不稳定；
-// 类型漂移不能让整页解析失败
-type flexInt int64
+// 类型漂移不能让整页解析失败，也不能把认不出的值当成 0
+type flexInt struct {
+	value int64
+	ok    bool
+}
 
 func (f *flexInt) UnmarshalJSON(raw []byte) error {
 	s := strings.Trim(string(bytes.TrimSpace(raw)), `"`)
 	if s == "" || s == "null" {
-		*f = 0
+		*f = flexInt{}
 		return nil
 	}
 	v, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		*f = 0
+		*f = flexInt{}
 		return nil
 	}
-	*f = flexInt(v)
+	*f = flexInt{value: v, ok: true}
 	return nil
 }
 
@@ -92,17 +95,19 @@ func (t taskItem) taskID() string {
 	return strings.TrimSpace(t.ID)
 }
 
-func (t taskItem) isDelay() int64 {
-	if t.IsDelay == nil {
-		return 0
+// isDelay 返回延期标记；缺失或无法解析时 ok 为 false
+func (t taskItem) isDelay() (int64, bool) {
+	if t.IsDelay == nil || !t.IsDelay.ok {
+		return 0, false
 	}
-	return int64(*t.IsDelay)
+	return t.IsDelay.value, true
 }
 
-func (t taskItem) complete() *int64 {
-	if t.Complete == nil {
-		return nil
+// complete 返回提交状态；缺失、null 或无法解析时 ok 为 false，
+// 调用方必须按未知处理，不能当成 0（0 表示明确未提交）
+func (t taskItem) complete() (int64, bool) {
+	if t.Complete == nil || !t.Complete.ok {
+		return 0, false
 	}
-	v := int64(*t.Complete)
-	return &v
+	return t.Complete.value, true
 }
