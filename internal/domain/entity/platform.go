@@ -48,7 +48,7 @@ func (p Platform) DisplayName() string {
 // Experimental 表示该平台还有未验证的关键路径，界面标注「实验性」
 func (p Platform) Experimental() bool {
 	switch p {
-	case PlatformYuketang, PlatformPigai, PlatformFiforal:
+	case PlatformYuketang, PlatformPigai:
 		return true
 	default:
 		return false
