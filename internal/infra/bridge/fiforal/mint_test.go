@@ -221,6 +221,26 @@ func TestTokenFromURLNoFragment(t *testing.T) {
 	}
 }
 
+func TestCASLoginSuccessWithoutTokenFails(t *testing.T) {
+	now := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	c, _ := newTestClient(t, now, func(r *http.Request) (*http.Response, error) {
+		if r.URL.Query().Get("get-lt") == "true" {
+			return newResponse(200, `jsonpcallback({"lt":"LT-1","execution":"e2s1"})`, nil), nil
+		}
+		return newResponse(200, `logincallback({"login":"success","token":""})`, nil), nil
+	})
+	page := &callbackPage{
+		Username:   "u",
+		Password:   "p",
+		NextPage:   "https://oral.fifedu.com/x",
+		SSOService: "https://www.fifedu.com/iplat/ssoservice",
+		CASServer:  "https://cycore.fifedu.com/cas-server",
+	}
+	if _, err := c.casLogin(context.Background(), newCookieJar(nil, nil), page); !errors.Is(err, entity.ErrAuthFailed) {
+		t.Fatalf("login=success 但 token 为空应报 ErrAuthFailed，得到 %v", err)
+	}
+}
+
 func TestCASLoginFailure(t *testing.T) {
 	now := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
 	c, _ := newTestClient(t, now, func(r *http.Request) (*http.Response, error) {

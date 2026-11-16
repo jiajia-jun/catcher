@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -247,6 +248,36 @@ func TestFetchAuthExpiredRemintsOnce(t *testing.T) {
 	}
 	if c.token == nil || c.token.Value != newJWT {
 		t.Fatal("新 token 没有被缓存")
+	}
+}
+
+func TestFetchStopsAtMaxPages(t *testing.T) {
+	now := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	c, ft := newFetchClient(t, now, func(r *http.Request) (*http.Response, error) {
+		_ = r.ParseForm()
+		if r.Form.Get("status") == "2" {
+			return newResponse(200, taskListBody(), nil), nil
+		}
+		page, _ := strconv.Atoi(r.Form.Get("page"))
+		item := fmt.Sprintf(`{"taskId":"t-%d","taskName":"T","complete":0}`, page)
+		return newResponse(200, taskListBody(item), nil), nil
+	})
+
+	result, err := runFetch(t, c)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if result.Complete {
+		t.Fatal("超过页数上限时列表应标记不完整")
+	}
+	if len(result.Assignments) != maxPages {
+		t.Fatalf("作业数 = %d, want %d", len(result.Assignments), maxPages)
+	}
+	if !hasWarning(result.Warnings, "超过 100 页") {
+		t.Fatalf("缺少页数上限告警: %#v", result.Warnings)
+	}
+	if got := ft.Count(taskListPath); got != maxPages+1 {
+		t.Fatalf("请求次数 = %d, want %d", got, maxPages+1)
 	}
 }
 
