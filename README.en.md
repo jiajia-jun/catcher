@@ -11,7 +11,7 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="local-first" src="https://img.shields.io/badge/local--first-data%20stays%20local-4c6ef5">
   <img alt="no third-party" src="https://img.shields.io/badge/no%20third--party-no%20relay%20server-4c6ef5">
-  <img alt="license" src="https://img.shields.io/badge/license-MIT-4c6ef5">
+  <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-4c6ef5">
   <a href="https://github.com/jiajia-jun/catcher/releases/latest"><img alt="download latest" src="https://img.shields.io/badge/download-latest-4c6ef5"></a>
 </p>
 
@@ -125,7 +125,11 @@ wails dev              # frontend hot reload; data goes to data/ at the repo roo
 - The interface docs in this repository were compiled from public pages and packet captures, for learning and technical research only; the interfaces and related content belong to their respective platforms — contact us for removal if anything infringes
 - Users must comply with each platform's user agreement, terms of service, and applicable laws; do not use this project for commercial purposes, bulk scraping, disrupting platform services, or other improper uses
 - You use this project at your own risk; the author is not liable for data accuracy, service availability, or any damages arising from its use
-- Provided "as is" under the MIT License, without warranty of any kind, express or implied
+- Provided "as is" under the Apache License 2.0, without warranty of any kind, express or implied
+
+## License
+
+Starting with v1.5.0, this project is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for copyright and attribution notices, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party notices shipped with the release. Versions v1.4.0 and earlier remain available under the [MIT License](https://github.com/jiajia-jun/catcher/blob/v1.4.0/LICENSE).
 
 ## Notes
 
