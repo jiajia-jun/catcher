@@ -11,7 +11,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '1.5.0',
     date: '2026-11-17',
     items: [
-      '接入FIF口语平台，微信扫码登录即可绑定平台',
+      '接入FiF口语平台，微信扫码登录即可绑定平台',
       '点击FiF口语平台的作业标题，可跳转到详情页',
       '开源协议由 MIT 变更为 Apache-2.0',
     ],
