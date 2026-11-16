@@ -69,14 +69,16 @@ const platformNames: Record<string, string> = {
   yuketang: '雨课堂',
   tronclass: '学在重邮',
   pigai: '批改网',
+  fiforal: 'FiF 口语',
 }
 
-// 平台标签配色：学习通红、雨课堂蓝、学在重邮青、批改网橙，白字压在实色底上
+// 平台标签配色：学习通红、雨课堂蓝、学在重邮青、批改网橙、FiF 紫，白字压在实色底上
 const platformTones: Record<string, { bg: string; fg: string }> = {
   chaoxing: { bg: '#d03050', fg: '#fff' },
   yuketang: { bg: '#1668dc', fg: '#fff' },
   tronclass: { bg: '#0a756b', fg: '#fff' },
   pigai: { bg: '#d46b08', fg: '#fff' },
+  fiforal: { bg: '#722ed1', fg: '#fff' },
 }
 
 const deadlineSourceNames: Record<string, string> = {
@@ -317,7 +319,7 @@ function onWheel(e: WheelEvent) {
   if (!el) return
   // 触控板的横向手势交给原生滚动
   if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
-  // 放得下四张时不劫持滚轮
+  // 放得下全部卡片时不劫持滚轮
   if (el.scrollWidth <= el.clientWidth) return
 
   const delta = normalizeDelta(e, el.clientWidth)
@@ -376,7 +378,7 @@ async function onCancelRefresh() {
 
 async function onLogin(platform: string) {
   if (platform !== 'yuketang' && platform !== 'chaoxing' && platform !== 'tronclass'
-    && platform !== 'pigai') return
+    && platform !== 'pigai' && platform !== 'fiforal') return
   try {
     await store.beginLogin(platform)
   } catch (err) {

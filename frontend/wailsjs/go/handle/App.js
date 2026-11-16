@@ -6,6 +6,10 @@ export function CancelChaoxingLogin(arg1) {
   return window['go']['handle']['App']['CancelChaoxingLogin'](arg1);
 }
 
+export function CancelFiforalLogin(arg1) {
+  return window['go']['handle']['App']['CancelFiforalLogin'](arg1);
+}
+
 export function CancelPigaiLogin(arg1) {
   return window['go']['handle']['App']['CancelPigaiLogin'](arg1);
 }
@@ -58,6 +62,10 @@ export function RefreshChaoxingLogin(arg1) {
   return window['go']['handle']['App']['RefreshChaoxingLogin'](arg1);
 }
 
+export function RefreshFiforalLogin(arg1) {
+  return window['go']['handle']['App']['RefreshFiforalLogin'](arg1);
+}
+
 export function RefreshPigaiLogin(arg1) {
   return window['go']['handle']['App']['RefreshPigaiLogin'](arg1);
 }
@@ -76,6 +84,10 @@ export function SetEnabledPlatforms(arg1) {
 
 export function StartChaoxingLogin() {
   return window['go']['handle']['App']['StartChaoxingLogin']();
+}
+
+export function StartFiforalLogin() {
+  return window['go']['handle']['App']['StartFiforalLogin']();
 }
 
 export function StartPigaiLogin() {
