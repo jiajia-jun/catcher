@@ -34,9 +34,11 @@ var sensitiveSuffixes = []string{
 
 // 只在 URL 查询串里算凭据的键。
 // code 当 header 或字段名会误伤课程编号一类的普通值，
-// 但出现在查询串里的 code 基本都是 OAuth 授权码
+// 但出现在查询串里的 code 基本都是 OAuth 授权码；
+// username 只应出现在登录跳转的查询串里，不能进日志
 var sensitiveQueryKeys = map[string]struct{}{
-	"code": {},
+	"code":     {},
+	"username": {},
 }
 
 // IsSensitiveKey 判断字段名是否属于凭据。大小写不敏感。
@@ -72,9 +74,17 @@ func Redact(key, value string) string {
 }
 
 // RedactHeader 对单个 header 的值打码。
+// Location 的 fragment 里可能带 H5 token，保留路径、丢掉 fragment
 func RedactHeader(name string, values []string) []string {
 	if !IsSensitiveKey(name) {
-		return values
+		if !strings.EqualFold(strings.TrimSpace(name), "Location") {
+			return values
+		}
+		out := make([]string, len(values))
+		for i := range out {
+			out[i] = stripFragment(values[i])
+		}
+		return out
 	}
 	out := make([]string, len(values))
 	for i := range out {
@@ -109,24 +119,46 @@ func RedactText(text string) string {
 	return urlInTextRe.ReplaceAllStringFunc(text, RedactURL)
 }
 
-// RedactURL 对 URL 查询串中的敏感参数打码。
-// 路径与普通参数保持不变，方便排查。
+// RedactURL 对 URL 查询串中的敏感参数打码，并剥掉 fragment。
+// 路径与普通参数保持不变，方便排查；fragment 里可能带 H5 token
 func RedactURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return raw
 	}
-	q := u.Query()
 	changed := false
+	q := u.Query()
 	for k := range q {
 		if IsSensitiveQueryKey(k) {
 			q.Set(k, "***")
 			changed = true
 		}
 	}
+	if changed {
+		u.RawQuery = q.Encode()
+	}
+	if u.Fragment != "" {
+		u.Fragment = ""
+		changed = true
+	}
 	if !changed {
 		return raw
 	}
-	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// stripFragment 去掉 URL 的 fragment。解析失败时按第一个 # 截断
+func stripFragment(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		if i := strings.IndexByte(raw, '#'); i >= 0 {
+			return raw[:i]
+		}
+		return raw
+	}
+	if u.Fragment == "" {
+		return raw
+	}
+	u.Fragment = ""
 	return u.String()
 }
