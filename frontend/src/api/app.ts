@@ -1,5 +1,6 @@
 import {
   CancelChaoxingLogin,
+  CancelFiforalLogin,
   CancelPigaiLogin,
   CancelRefresh,
   CancelYuketangLogin,
@@ -13,11 +14,13 @@ import {
   MarkChangelogSeen,
   OpenDataDir,
   RefreshChaoxingLogin,
+  RefreshFiforalLogin,
   RefreshPigaiLogin,
   RefreshYuketangLogin,
   SetAssignmentStatus,
   SetEnabledPlatforms,
   StartChaoxingLogin,
+  StartFiforalLogin,
   StartPigaiLogin,
   StartRefresh,
   StartYuketangLogin,
@@ -133,8 +136,8 @@ export async function cancelRefresh(jobId: string): Promise<void> {
   if (!res?.ok) throw apiFailure(res?.error)
 }
 
-// 支持扫码的平台：三个平台的二维码都由服务端下发图片，前端只负责显示
-export type QRPlatform = 'yuketang' | 'chaoxing' | 'pigai'
+// 支持扫码的平台：二维码都由服务端下发图片，前端只负责显示
+export type QRPlatform = 'yuketang' | 'chaoxing' | 'pigai' | 'fiforal'
 
 export async function startQRLogin(platform: QRPlatform): Promise<RefreshStartResult> {
   ensureRuntime()
@@ -145,6 +148,9 @@ export async function startQRLogin(platform: QRPlatform): Promise<RefreshStartRe
       break
     case 'pigai':
       res = (await StartPigaiLogin()) as RefreshStartResult
+      break
+    case 'fiforal':
+      res = (await StartFiforalLogin()) as RefreshStartResult
       break
     default:
       res = (await StartYuketangLogin()) as RefreshStartResult
@@ -183,6 +189,9 @@ export async function cancelQRLogin(platform: QRPlatform, jobId: string): Promis
     case 'pigai':
       res = (await CancelPigaiLogin(jobId)) as APIResult
       break
+    case 'fiforal':
+      res = (await CancelFiforalLogin(jobId)) as APIResult
+      break
     default:
       res = (await CancelYuketangLogin(jobId)) as APIResult
   }
@@ -198,6 +207,9 @@ export async function refreshQRLogin(platform: QRPlatform, jobId: string): Promi
       break
     case 'pigai':
       res = (await RefreshPigaiLogin(jobId)) as APIResult
+      break
+    case 'fiforal':
+      res = (await RefreshFiforalLogin(jobId)) as APIResult
       break
     default:
       res = (await RefreshYuketangLogin(jobId)) as APIResult

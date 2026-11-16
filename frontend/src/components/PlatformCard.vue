@@ -29,7 +29,8 @@ const canLogin = computed(
     props.data.platform === 'yuketang' ||
     props.data.platform === 'chaoxing' ||
     props.data.platform === 'tronclass' ||
-    props.data.platform === 'pigai',
+    props.data.platform === 'pigai' ||
+    props.data.platform === 'fiforal',
 )
 const loginText = computed(() => {
   const connected = props.data.loginState === 'connected'
@@ -46,6 +47,7 @@ const platformNames: Record<string, string> = {
   yuketang: '雨课堂',
   tronclass: '学在重邮',
   pigai: '批改网',
+  fiforal: 'FiF 口语',
 }
 
 const loginMeta = computed<{ text: string; type: TagType }>(() => {

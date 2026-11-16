@@ -32,13 +32,13 @@ import type {
   UpdateCheckResult,
 } from '../types'
 
-// 扫码登录的平台集合：三个平台的事件结构一致，处理逻辑共用一份
-const QR_PLATFORMS = ['yuketang', 'chaoxing', 'pigai'] as const
+// 扫码登录的平台集合：各平台的事件结构一致，处理逻辑共用一份
+const QR_PLATFORMS = ['yuketang', 'chaoxing', 'pigai', 'fiforal'] as const
 
 // 平台展示顺序与后端 entity.AllPlatforms 保持一致
-const PLATFORM_ORDER = ['chaoxing', 'yuketang', 'tronclass', 'pigai']
+const PLATFORM_ORDER = ['chaoxing', 'yuketang', 'tronclass', 'pigai', 'fiforal']
 
-type LoginPlatform = '' | 'yuketang' | 'chaoxing' | 'tronclass' | 'pigai'
+type LoginPlatform = '' | 'yuketang' | 'chaoxing' | 'tronclass' | 'pigai' | 'fiforal'
 
 function isQRPlatform(platform: LoginPlatform): platform is QRPlatform {
   return (QR_PLATFORMS as readonly string[]).includes(platform)
@@ -51,6 +51,8 @@ function qrHint(platform: QRPlatform): string {
       return '请使用学习通 App 扫码登录'
     case 'pigai':
       return '请使用微信扫一扫登录批改网'
+    case 'fiforal':
+      return '请使用微信扫一扫登录 FiF 口语'
     default:
       return '请使用雨课堂扫码登录'
   }
@@ -121,7 +123,7 @@ export const useAppStore = defineStore('app', () => {
 
   let eventsBound = false
 
-  // 雨课堂、学习通与批改网的扫码事件结构一致，处理逻辑共用一份
+  // 各扫码平台的扫码事件结构一致，处理逻辑共用一份
   function bindQREvents(platform: QRPlatform) {
     const hint = qrHint(platform)
 
@@ -181,6 +183,7 @@ export const useAppStore = defineStore('app', () => {
     bindQREvents('yuketang')
     bindQREvents('chaoxing')
     bindQREvents('pigai')
+    bindQREvents('fiforal')
 
     EventsOn('account.state', (ev: AccountStateEvent) => {
       const data = bootstrap.value

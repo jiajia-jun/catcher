@@ -40,6 +40,7 @@ const platformNames: Record<string, string> = {
   yuketang: '雨课堂',
   chaoxing: '学习通',
   pigai: '批改网',
+  fiforal: 'FiF 口语',
 }
 const platformName = computed(
   () => platformNames[store.login.platform] ?? store.login.platform,
@@ -49,9 +50,12 @@ const title = computed(() => {
   if (isPasswordForm.value) return '学习通账号登录'
   return `${platformName.value}扫码登录`
 })
-// 批改网走微信扫码，没有自己的手机端，失败提示单独写
+// 批改网与 FiF 口语都走微信扫码，没有自己的手机端，失败提示单独写
+const isWeixinLogin = computed(
+  () => store.login.platform === 'pigai' || store.login.platform === 'fiforal',
+)
 const failedHint = computed(() =>
-  store.login.platform === 'pigai'
+  isWeixinLogin.value
     ? '二维码过期或登录失败时可以换一张；仍未成功请确认微信可正常扫码'
     : `二维码过期或登录失败时可以换一张；仍未成功请确认手机端${platformName.value}可正常使用`,
 )

@@ -4,6 +4,8 @@ import {dto} from '../models';
 
 export function CancelChaoxingLogin(arg1:string):Promise<dto.APIResult>;
 
+export function CancelFiforalLogin(arg1:string):Promise<dto.APIResult>;
+
 export function CancelPigaiLogin(arg1:string):Promise<dto.APIResult>;
 
 export function CancelRefresh(arg1:string):Promise<dto.APIResult>;
@@ -30,6 +32,8 @@ export function OpenDataDir():Promise<dto.APIResult>;
 
 export function RefreshChaoxingLogin(arg1:string):Promise<dto.APIResult>;
 
+export function RefreshFiforalLogin(arg1:string):Promise<dto.APIResult>;
+
 export function RefreshPigaiLogin(arg1:string):Promise<dto.APIResult>;
 
 export function RefreshYuketangLogin(arg1:string):Promise<dto.APIResult>;
@@ -39,6 +43,8 @@ export function SetAssignmentStatus(arg1:dto.AssignmentStatusRequest):Promise<dt
 export function SetEnabledPlatforms(arg1:Array<string>):Promise<dto.APIResult>;
 
 export function StartChaoxingLogin():Promise<dto.RefreshStartResult>;
+
+export function StartFiforalLogin():Promise<dto.RefreshStartResult>;
 
 export function StartPigaiLogin():Promise<dto.RefreshStartResult>;
 

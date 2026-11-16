@@ -23,6 +23,7 @@ const platformNames: Record<string, string> = {
   yuketang: '雨课堂',
   tronclass: '学在重邮',
   pigai: '批改网',
+  fiforal: 'FiF 口语',
 }
 
 const title = computed(() => {
