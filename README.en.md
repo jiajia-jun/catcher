@@ -4,10 +4,10 @@
 
 <p align="center"><a href="README.md">简体中文</a> | <a href="README.en.md">English</a></p>
 
-<p align="center">A local desktop app that collects assignments from Yuketang, Chaoxing, TronClass, and Pigai into one window</p>
+<p align="center">A local desktop app that collects assignments from Yuketang, Chaoxing, TronClass, Pigai, and FiF Oral into one window</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.0-4c6ef5">
+  <img alt="version" src="https://img.shields.io/badge/version-1.5.0-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="local-first" src="https://img.shields.io/badge/local--first-data%20stays%20local-4c6ef5">
   <img alt="no third-party" src="https://img.shields.io/badge/no%20third--party-no%20relay%20server-4c6ef5">
@@ -23,6 +23,7 @@
 | Chaoxing | QR code / phone number + password | Verified on real devices |
 | TronClass | Import browser session | Verified on real devices |
 | Pigai | WeChat QR code | Experimental (pagination untested) |
+| FiF Oral | WeChat QR code | Verified on real devices |
 
 ## Features
 
@@ -83,22 +84,22 @@ Installing on a local disk is recommended. SQLite file locking is unreliable on 
 ## Security and privacy
 
 - The app **does not listen on any local port** and runs no background service; it only makes outbound requests it initiates
-- Yuketang, Chaoxing, and Pigai use HTTPS; the TronClass campus site only offers HTTP, so the session is transmitted in plaintext within that site — **using the campus network or a VPN is recommended**
-- Login sessions (including Pigai cookies) and the Chaoxing password are encrypted with Windows DPAPI and stored in local SQLite; only the current Windows user can decrypt them
+- Yuketang, Chaoxing, Pigai, and FiF Oral use HTTPS; the TronClass campus site only offers HTTP, so the session is transmitted in plaintext within that site — **using the campus network or a VPN is recommended**
+- Login sessions (including Pigai and FiF Oral cookies) and the Chaoxing password are encrypted with Windows DPAPI and stored in local SQLite; only the current Windows user can decrypt them
 - Logs **do not record** Cookie, Set-Cookie, Authorization, passwords, tokens, or QR code contents
 - The update check only asks GitHub for the latest version number; the request contains only the client version and standard HTTP headers, no account, assignment, or log data
 - Data is **never uploaded to any third-party server**
 
 ## Known limitations
 
-- **Log level and similar settings are still read-only**: they live in `data/catcher.yaml` and require a restart; the UI only supports editing the platform refresh selection
-- **TronClass only supports browser session import**: re-import after the session expires; CAS auto-login is not supported. Import and current-semester fetching have been verified in the real environment; session rotation and similar details are not verified
-- **Pigai is experimental**: only the first page of each list is fetched — the pagination parameters are unverified, so older records may be missed when there are many assignments; password login is not supported, and an expired session must be re-scanned
-- **Some Chaoxing QR login branches are not verified**: normal scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are not verified; use phone number + password if you run into problems
-- **Chaoxing titles open the course page**: its mobile assignment page cannot submit, and the desktop answer page URL cannot be built client-side, so the title opens that course's assignment list — one more click is needed to reach the assignment
-- **Yuketang is experimental**: it has many assignment types, and this version may not cover some special ones, so fetching may fail for some accounts; session renewal and the 504 path during QR polling are not verified
-- **Pigai does not clean up old assignments while pagination is unverified**: each refresh only upserts, so historical data is kept and assignments from left classes may still appear
+- **Settings are still read-only**: log level and similar options live in `data/catcher.yaml` and require a restart; the UI only supports editing the platform refresh selection
+- **TronClass only supports browser session import**: re-import after the session expires; CAS auto-login is not supported
+- **Chaoxing titles open the course assignment list first**: one more click is needed to reach the assignment
+- **Yuketang and Pigai are still marked experimental**: some assignment types may not be fetched; Pigai only fetches the first page of each list, so older records may be missed when there are many assignments
+- **FiF Oral only supports WeChat QR login**: a new scan is required after the app has been closed for a few hours; assignment details require the browser itself to be signed in to FiF
 - The installer and executable are **not code-signed**; Windows SmartScreen may show "Unknown publisher", which is expected
+
+See [Contributing](CONTRIBUTING.en.md#known-limitations-and-verification-status) for detailed platform verification status and implementation limitations.
 
 <details>
 <summary>Build from source</summary>
@@ -120,7 +121,7 @@ wails dev              # frontend hot reload; data goes to data/ at the repo roo
 
 ## Disclaimer
 
-- This is an unofficial personal project, not affiliated with or endorsed by Yuketang, Chaoxing, TronClass, Pigai, or their operators
+- This is an unofficial personal project, not affiliated with or endorsed by Yuketang, Chaoxing, TronClass, Pigai, FiF Oral, or their operators
 - The interface docs in this repository were compiled from public pages and packet captures, for learning and technical research only; the interfaces and related content belong to their respective platforms — contact us for removal if anything infringes
 - Users must comply with each platform's user agreement, terms of service, and applicable laws; do not use this project for commercial purposes, bulk scraping, disrupting platform services, or other improper uses
 - You use this project at your own risk; the author is not liable for data accuracy, service availability, or any damages arising from its use

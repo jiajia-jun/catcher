@@ -4,7 +4,7 @@
 
 Thank you for taking the time to open this guide. We welcome issues and pull requests at any time, and we would also love to hear your ideas.
 
-Catcher is currently a **Windows desktop app** (Wails v2 + Go + Vue 3) that solves the problem of scattered assignments by pulling assignments from **Yuketang, Chaoxing, TronClass, and Pigai** into one local window.
+Catcher is currently a **Windows desktop app** (Wails v2 + Go + Vue 3) that solves the problem of scattered assignments by pulling assignments from **Yuketang, Chaoxing, TronClass, Pigai, and FiF Oral** into one local window.
 
 Before contributing, make sure your change fits the project's positioning: **all data stays on this machine, is never uploaded to any server, and does not bypass platform login or anti-abuse mechanisms**.
 
@@ -100,7 +100,8 @@ chore(发布): 版本号改为 X.Y.Z
 
 ## Contributor credit
 
-**Good ideas count as contributions too!** If a proposal from your issue or discussion is adopted and implemented by a maintainer, **we will credit you in the corresponding release commit**:
+**Good ideas count as contributions too!**  
+If a proposal from your issue or discussion is adopted and implemented by a maintainer, **we will credit you in the corresponding release commit**:
 
 ```text
 Co-authored-by: Your Name <you@example.com>
@@ -148,9 +149,18 @@ Explain the reason before adding a dependency; prefer the standard library.
 - Passwords and sessions are encrypted with DPAPI before storage; they **must not appear in logs, events, or DTO return values**
 - Do not log the values of `Cookie`, `Set-Cookie`, or `Authorization`; `pkg/logger` provides redaction helpers
 - Packet-capture exports and raw response archives are redacted by default; **never paste unredacted exports into issues, PRs, or commits**
-- Published interface docs live in `docs/接口文档/` (currently Chaoxing and Yuketang). When adding or editing them, **replace real phone numbers, accounts, cookies, tokens, course IDs, course names, activity IDs, and assignment titles with placeholders**; follow the existing docs
+- Interface docs published with the repository live in `docs/接口文档/` (currently Chaoxing and Yuketang). When adding or editing them, **replace real phone numbers, accounts, cookies, tokens, course IDs, course names, activity IDs, and assignment titles with placeholders**; follow the existing docs
 - Mark unverified platform behavior as "unverified"; **do not present guesses as facts**, and do not remove existing warnings
 - **Do not submit changes that bypass login or anti-abuse mechanisms, mass-register accounts, or share accounts**
+
+## Known limitations and verification status
+
+- **Settings**: log level and similar options live in `data/catcher.yaml` and require a restart; the UI only supports editing the platform refresh selection
+- **Chaoxing**: normal QR scanning (get code, poll, confirm) works on real devices; the intermediate "scanned / cancelled" states and behavior after the QR code expires are unverified. The mobile assignment page cannot submit, and the desktop answer page URL cannot be built client-side, so the title opens that course's assignment list
+- **Yuketang**: assignment type coverage is incomplete and fetching may fail for some accounts; session renewal and the 504 path during QR polling are unverified. The platform card is marked experimental
+- **TronClass**: browser session import only; re-import after expiry, and CAS auto-login is not supported. Session rotation and pagination boundaries are unverified
+- **Pigai**: only the first page of each list is fetched (pagination parameters are unverified), so older records may be missed when there are many assignments; while pagination is unverified it does not soft-delete, so old assignments from left or deleted classes may remain. The platform card is marked experimental
+- **FiF Oral**: WeChat QR login only. The 120-minute H5 token renews automatically while the SSO cookie is valid, but the underlying SSO cookie only lasts a few hours in practice; if the app has been closed longer than that, a new WeChat scan is required. Assignment details use an H5 route that carries no token, so the browser itself must be signed in to FiF; otherwise it lands on the QR login page
 
 ## Tests
 
@@ -183,8 +193,8 @@ Tests and static checks run once on `windows-latest` (amd64), and the build job 
 - [docs/架构.md](docs/架构.md): layering, layer responsibilities, dependency direction, and `pkg` constraints
 - [internal/infra/sender/README.md](internal/infra/sender/README.md): the `sender` design contract; required reading before changing `Do`
 - [docs/接口文档/](docs/接口文档/): interface notes for Chaoxing and Yuketang; read them before changing the corresponding adapter. **Do not treat the "implementation notes" or "unverified" sections at the end of each doc as confirmed facts**
-- The TronClass interface docs are not public yet; ask the maintainer when you need to change that adapter
-- The README is user-facing: put new features under "Features" and unverified work under "Known limitations"; do not present experimental capabilities as stable
+- The TronClass, FiF Oral, and Pigai interface docs are not kept in the repository (ignored by `.gitignore`); ask the maintainer when you need to change those adapters
+- The README is user-facing: put new features under "Features" and keep "Known limitations" to short user-facing notes; put detailed platform verification status under "Known limitations and verification status"; do not present experimental capabilities as stable
 - Markdown follows `.markdownlint.json` at the repo root
 
 ## Contributing interface docs
