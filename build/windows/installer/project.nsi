@@ -124,6 +124,11 @@ Section
 
     !insertmacro wails.files
 
+    # 随安装目录一并分发许可证与第三方声明
+    File "..\..\..\LICENSE"
+    File "..\..\..\NOTICE"
+    File "..\..\..\THIRD_PARTY_NOTICES.md"
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
@@ -149,6 +154,9 @@ keepData:
 
     # 只删已知文件，不用 RMDir /r，避免误删用户放在安装目录里的其他内容
     Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    Delete "$INSTDIR\LICENSE"
+    Delete "$INSTDIR\NOTICE"
+    Delete "$INSTDIR\THIRD_PARTY_NOTICES.md"
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"

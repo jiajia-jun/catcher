@@ -253,4 +253,4 @@ Notes:
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). Contributions to code, docs, and tests are licensed under the same terms; no additional CLA is required.
+This project is licensed under the [Apache License 2.0](LICENSE). Contributions to code, docs, and tests are licensed under the same terms; no additional CLA is required. Any future relicensing requires the consent of the relevant contributors.

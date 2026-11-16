@@ -95,7 +95,7 @@ jobs:
           $stage = Join-Path $PWD 'stage'
           New-Item -ItemType Directory -Force -Path (Join-Path $stage 'logo') | Out-Null
           Copy-Item build/bin/Catcher.exe $stage
-          Copy-Item README.md, LICENSE $stage
+          Copy-Item README.md, LICENSE, NOTICE, THIRD_PARTY_NOTICES.md $stage
           Copy-Item logo/logo-wordmark-1024x256.png (Join-Path $stage 'logo')
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath "Catcher-${{ matrix.asset }}.zip" -Force
 

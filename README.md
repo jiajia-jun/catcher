@@ -11,7 +11,7 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="本地化" src="https://img.shields.io/badge/本地化-数据不出本机-4c6ef5">
   <img alt="无三方" src="https://img.shields.io/badge/无三方-无中转服务器-4c6ef5">
-  <img alt="license" src="https://img.shields.io/badge/license-MIT-4c6ef5">
+  <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-4c6ef5">
   <a href="https://github.com/jiajia-jun/catcher/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/下载-最新版-4c6ef5"></a>
 </p>
 
@@ -125,7 +125,11 @@ wails dev              # 前端热更新，数据写到仓库根目录 data/
 - 仓库内的接口文档由公开页面抓包整理而来，仅用于学习与技术研究；接口及相关内容归各平台所有，如有侵权请联系删除
 - 使用者应自行遵守各平台的用户协议、服务条款和所在地法律法规，不得将本项目用于商业用途、批量抓取、干扰平台正常服务或其他不当用途
 - 使用本项目产生的一切后果由使用者自行承担；作者不对数据准确性、服务可用性及由此造成的任何损失负责
-- 项目按 MIT 许可证「按现状」提供，不附带任何明示或暗示的担保
+- 项目按 Apache 2.0 许可证「按现状」提供，不附带任何明示或暗示的担保
+
+## 许可证
+
+本项目自 v1.5.0 起采用 [Apache License 2.0](LICENSE)，版权与归属声明见 [NOTICE](NOTICE)，随发布包分发的第三方声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。v1.4.0 及更早版本仍按 [MIT 许可证](https://github.com/jiajia-jun/catcher/blob/v1.4.0/LICENSE) 发布。
 
 ## 说明
 
