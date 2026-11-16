@@ -56,6 +56,24 @@ type PigaiSecret struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// FiforalCookie 保留 domain/path，FiF 的登录态跨 6 个主机
+// 平铺的 name/value 表会把 host-only cookie 发给错误主机
+type FiforalCookie struct {
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	Domain   string `json:"domain"` // 小写，不带前导点
+	Path     string `json:"path"`
+	HostOnly bool   `json:"host_only"`
+	Secure   bool   `json:"secure"`
+}
+
+// FiforalSecret 只持久化 cookie 表与用户 id；H5 token 不落库
+type FiforalSecret struct {
+	Cookies   []FiforalCookie `json:"cookies"`
+	UserID    string          `json:"user_id"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 // MaskPhone 把 11 位手机号变成 138****1234，用于 accounts.display_name
 func MaskPhone(phone string) string {
 	if len(phone) != 11 {

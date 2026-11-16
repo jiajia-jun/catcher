@@ -113,3 +113,8 @@ func TronclassDedupKey(courseID, activityID string) string {
 func PigaiDedupKey(requestID string) string {
 	return "pigai:" + requestID
 }
+
+// FiforalDedupKey 只用平台任务 id：两个列表共用同一个 id 空间。
+func FiforalDedupKey(taskID string) string {
+	return "fiforal:" + taskID
+}
