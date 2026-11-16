@@ -10,16 +10,17 @@ const (
 	PlatformYuketang  Platform = "yuketang"
 	PlatformTronclass Platform = "tronclass"
 	PlatformPigai     Platform = "pigai"
+	PlatformFiforal   Platform = "fiforal"
 )
 
 // AllPlatforms 返回 UI 与初始化使用的固定顺序
 func AllPlatforms() []Platform {
-	return []Platform{PlatformChaoxing, PlatformYuketang, PlatformTronclass, PlatformPigai}
+	return []Platform{PlatformChaoxing, PlatformYuketang, PlatformTronclass, PlatformPigai, PlatformFiforal}
 }
 
 func (p Platform) Valid() bool {
 	switch p {
-	case PlatformChaoxing, PlatformYuketang, PlatformTronclass, PlatformPigai:
+	case PlatformChaoxing, PlatformYuketang, PlatformTronclass, PlatformPigai, PlatformFiforal:
 		return true
 	default:
 		return false
@@ -37,6 +38,8 @@ func (p Platform) DisplayName() string {
 		return "学在重邮"
 	case PlatformPigai:
 		return "批改网"
+	case PlatformFiforal:
+		return "FiF 口语"
 	default:
 		return string(p)
 	}
@@ -45,7 +48,7 @@ func (p Platform) DisplayName() string {
 // Experimental 表示该平台还有未验证的关键路径，界面标注「实验性」
 func (p Platform) Experimental() bool {
 	switch p {
-	case PlatformYuketang, PlatformPigai:
+	case PlatformYuketang, PlatformPigai, PlatformFiforal:
 		return true
 	default:
 		return false

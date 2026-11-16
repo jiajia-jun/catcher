@@ -6,6 +6,7 @@ func TestPlatformExperimental(t *testing.T) {
 	cases := map[Platform]bool{
 		PlatformYuketang:  true,
 		PlatformPigai:     true,
+		PlatformFiforal:   true,
 		PlatformChaoxing:  false,
 		PlatformTronclass: false,
 	}
