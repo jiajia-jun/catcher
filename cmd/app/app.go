@@ -134,9 +134,11 @@ func Run(assets fs.FS) error {
 		Logger: lg,
 		Now:    time.Now,
 	})
+	// FiF 登录链是十几跳串行 302，每跳本身只有几十到一百毫秒，
+	// 250ms 的间隔会把确认后的等待拉长约两秒；抓取请求量也不大，100ms 足够
 	fifSender := sender.New(sender.Config{
 		Transport:   transport,
-		MinInterval: 250 * time.Millisecond,
+		MinInterval: 100 * time.Millisecond,
 		Logger:      lg,
 	})
 	fif := fiforal.New(fiforal.Options{
