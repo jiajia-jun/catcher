@@ -180,6 +180,9 @@ func upsertAssignment(ctx context.Context, tx *sqlx.Tx, in entity.PersistInput,
 		deadline = formatTime(*item.Deadline)
 	}
 
+	// 截止时间读不到时保留库中旧值：学习通等平台对已提交作业不再提供截止时间，
+	// 用 NULL 覆盖等于每次刷新都擦掉一次已知数据
+	// 三列以 excluded.deadline_at 为唯一开关，要么整体保留，要么整体覆盖
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO assignments (account_id, platform, course_id, course_external_id,
 			course_name, external_id, dedup_key, title, status, deadline_at,
@@ -193,9 +196,17 @@ func upsertAssignment(ctx context.Context, tx *sqlx.Tx, in entity.PersistInput,
 			external_id        = excluded.external_id,
 			title              = excluded.title,
 			status             = excluded.status,
-			deadline_at        = excluded.deadline_at,
-			deadline_source    = excluded.deadline_source,
-			deadline_raw       = excluded.deadline_raw,
+			deadline_at        = COALESCE(excluded.deadline_at, assignments.deadline_at),
+			deadline_source    = CASE
+				WHEN excluded.deadline_at IS NULL AND assignments.deadline_at IS NOT NULL
+				THEN assignments.deadline_source
+				ELSE excluded.deadline_source
+			END,
+			deadline_raw       = CASE
+				WHEN excluded.deadline_at IS NULL AND assignments.deadline_at IS NOT NULL
+				THEN assignments.deadline_raw
+				ELSE excluded.deadline_raw
+			END,
 			detail_url         = excluded.detail_url,
 			description        = excluded.description,
 			last_seen_at       = excluded.last_seen_at,
