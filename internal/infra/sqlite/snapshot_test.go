@@ -136,6 +136,104 @@ func TestSaveSnapshotUpsertAndSoftDelete(t *testing.T) {
 	}
 }
 
+// 截止时间未知不覆盖已存值：学习通已提交作业刷新后平台不再提供截止时间
+func TestSaveSnapshotPreservesKnownDeadline(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustYuketangAccount(t, repo)
+
+	at := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	known := at.Add(72 * time.Hour)
+	knownSource := entity.DeadlineDetailExact
+	knownRaw := "截止时间09月25日22时55分18秒"
+
+	base := entity.PersistInput{
+		AccountID: account.ID,
+		Platform:  entity.PlatformYuketang,
+		At:        at,
+		Result: entity.FetchResult{
+			Complete: true,
+			Courses:  []entity.Course{course("1001", "2001")},
+		},
+	}
+
+	withKnown := yuketangAssignment("1001", "2001", "3001", "已提交作业", &known)
+	withKnown.DeadlineSource = knownSource
+	withKnown.DeadlineRaw = knownRaw
+	neverKnown := yuketangAssignment("1001", "2001", "3002", "首次就未知", nil)
+	neverKnown.DeadlineSource = entity.DeadlineUnknown
+
+	first := base
+	first.Result.Assignments = []entity.Assignment{withKnown, neverKnown}
+	if _, err := repo.SaveSnapshot(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+
+	load := func() map[string]entity.Assignment {
+		t.Helper()
+		items, err := repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make(map[string]entity.Assignment, len(items))
+		for _, item := range items {
+			out[item.DedupKey] = item
+		}
+		return out
+	}
+
+	// 第二次：平台不再提供截止时间，三列保持上一次的值
+	unknown := yuketangAssignment("1001", "2001", "3001", "已提交作业", nil)
+	unknown.DeadlineSource = entity.DeadlineUnknown
+	second := base
+	second.At = at.Add(24 * time.Hour)
+	second.Result.Assignments = []entity.Assignment{unknown, neverKnown}
+	if _, err := repo.SaveSnapshot(ctx, second); err != nil {
+		t.Fatal(err)
+	}
+
+	got := load()[withKnown.DedupKey]
+	if got.Deadline == nil || !got.Deadline.Equal(known) {
+		t.Fatalf("截止时间被清空: %v", got.Deadline)
+	}
+	if got.DeadlineSource != knownSource {
+		t.Fatalf("截止来源 = %q, want %q", got.DeadlineSource, knownSource)
+	}
+	if got.DeadlineRaw != knownRaw {
+		t.Fatalf("截止原文 = %q, want %q", got.DeadlineRaw, knownRaw)
+	}
+
+	// 第三次：拿到新的已知截止时间，三列整体覆盖
+	newDeadline := known.Add(48 * time.Hour)
+	updated := yuketangAssignment("1001", "2001", "3001", "已提交作业", &newDeadline)
+	updated.DeadlineSource = entity.DeadlineDerivedRemaining
+	updated.DeadlineRaw = "311小时"
+	third := base
+	third.At = at.Add(48 * time.Hour)
+	third.Result.Assignments = []entity.Assignment{updated, neverKnown}
+	if _, err := repo.SaveSnapshot(ctx, third); err != nil {
+		t.Fatal(err)
+	}
+
+	got = load()[updated.DedupKey]
+	if got.Deadline == nil || !got.Deadline.Equal(newDeadline) {
+		t.Fatalf("新截止时间未覆盖: %v", got.Deadline)
+	}
+	if got.DeadlineSource != entity.DeadlineDerivedRemaining || got.DeadlineRaw != "311小时" {
+		t.Fatalf("截止来源/原文未更新: %q / %q", got.DeadlineSource, got.DeadlineRaw)
+	}
+
+	// 从未读到过截止时间的作业保持未知
+	got = load()[neverKnown.DedupKey]
+	if got.Deadline != nil {
+		t.Fatalf("未知作业不应有截止时间: %v", got.Deadline)
+	}
+	if got.DeadlineSource != entity.DeadlineUnknown {
+		t.Fatalf("未知作业来源 = %q", got.DeadlineSource)
+	}
+}
+
 func TestSaveSnapshotIncompleteKeepsOldRows(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
