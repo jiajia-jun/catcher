@@ -249,10 +249,13 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 					s.emitQRState(job, entity.QRFailed, "登录成功但没有拿到会话")
 					return
 				}
+				saveStarted := time.Now()
 				if err := s.finishQRLogin(ctx, job.platform, *res.session); err != nil {
 					s.emitQRState(job, entity.QRFailed, err.Error())
 					return
 				}
+				s.logger.Debug("扫码登录完成", "platform", string(job.platform),
+					"save_ms", time.Since(saveStarted).Milliseconds())
 				s.emitQRState(job, entity.QRSucceeded, "登录成功")
 				return
 			case entity.QRExpired:

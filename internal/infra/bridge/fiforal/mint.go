@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"catcher/internal/domain/entity"
 	"catcher/internal/infra/sender"
@@ -163,8 +164,17 @@ func parseJSONP(raw []byte, out any) error {
 // landingToToken 逐跳跟随落地链，从 302 的 Location fragment 里取 H5 token。
 // sender 不跟随重定向，这里必须手工走完，包括 /cas-server/ 那一跳
 func (c *Client) landingToToken(ctx context.Context, jar *cookieJar, startURL string) (*h5Token, error) {
+	started := time.Now()
+	hops := 0
+	// 登录与续期共用这条链，跳数是解释登录耗时的主要线索
+	defer func() {
+		c.logger.Debug("fiforal login", "event", "landing",
+			"hops", hops, "duration_ms", time.Since(started).Milliseconds())
+	}()
+
 	current := startURL
 	for hop := 0; hop < maxLandingHops; hop++ {
+		hops = hop + 1
 		resp, err := c.doRaw(ctx, http.MethodGet, current, jar, 0)
 		if err != nil {
 			var status *sender.StatusError
