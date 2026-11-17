@@ -39,11 +39,14 @@ type qrSession struct {
 	wxJar *cookieJar
 	// last 是上一次轮询的 errcode，404 之后的请求要带上它
 	last string
+	// scannedAt 是首次收到 404 的时刻，用来量「已扫码」到「已确认」的间隔
+	scannedAt time.Time
 }
 
 // BeginQR 取一张微信扫码登录的二维码。
 // 取码走 getWebLoginUrl → 微信扫码页 → 二维码图片，图片转 data URL 交给前端
 func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
+	started := time.Now()
 	jar := newCookieJar(nil, c.now)
 
 	// 统一登录页只用来播种 cookie，打不开不影响后面取码
@@ -91,6 +94,9 @@ func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 		wxJar:     wxJar,
 	}
 	c.qrMu.Unlock()
+
+	c.logger.Debug("fiforal login", "event", "qr_ready",
+		"duration_ms", time.Since(started).Milliseconds())
 
 	return &entity.QRChallenge{
 		ID:        uuid,
@@ -204,7 +210,7 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 		c.setLast(qs.uuid, "")
 		return entity.QRWaiting, nil, nil
 	case wxErrcodeScanned:
-		c.setLast(qs.uuid, strconv.Itoa(wxErrcodeScanned))
+		c.markScanned(qs.uuid)
 		return entity.QRScanned, nil, nil
 	case wxErrcodeExpired, wxErrcodeCanceled, wxErrcodeServer:
 		// 二维码失效、用户在手机上取消、微信侧异常，都让前端自动换一张新码
@@ -214,6 +220,10 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 		if strings.TrimSpace(wxCode) == "" {
 			c.dropQR(qs.uuid)
 			return entity.QRFailed, nil, fmt.Errorf("%w: 已确认但未拿到授权码", entity.ErrAuthFailed)
+		}
+		if scanned := c.scannedTime(qs.uuid); !scanned.IsZero() {
+			c.logger.Debug("fiforal login", "event", "confirmed",
+				"since_scan_ms", c.now().Sub(scanned).Milliseconds())
 		}
 		return c.finish(ctx, qs, wxCode)
 	default:
@@ -225,15 +235,24 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 // finish 用授权码走完「回调页 → 两步 CAS → 落地 → 验证」并保存会话
 func (c *Client) finish(ctx context.Context, qs *qrSession, wxCode string) (entity.QRState, *entity.Session, error) {
 	c.dropQR(qs.uuid)
+	started := time.Now()
 
 	page, err := c.fetchCallbackPage(ctx, qs.jar, wxCode, qs.state)
 	if err != nil {
 		return entity.QRFailed, nil, err
 	}
+	callbackDone := time.Now()
+	c.logger.Debug("fiforal login", "event", "callback_page",
+		"duration_ms", callbackDone.Sub(started).Milliseconds())
+
 	prodToken, err := c.casLogin(ctx, qs.jar, page)
 	if err != nil {
 		return entity.QRFailed, nil, err
 	}
+	casDone := time.Now()
+	c.logger.Debug("fiforal login", "event", "cas",
+		"duration_ms", casDone.Sub(callbackDone).Milliseconds())
+
 	// logincallback 的 token 就是新的 prod-token
 	qs.jar.setCookie(entity.FiforalCookie{
 		Name:     "prod-token",
@@ -249,15 +268,24 @@ func (c *Client) finish(ctx context.Context, qs *qrSession, wxCode string) (enti
 	if err != nil {
 		return entity.QRFailed, nil, err
 	}
+	landedDone := time.Now()
+
 	if err := c.verifyToken(ctx, qs.jar, token); err != nil {
 		return entity.QRFailed, nil, err
 	}
+	verifiedDone := time.Now()
 	c.cacheToken(token)
 
 	session, err := c.newSession(qs.jar, token.UserID)
 	if err != nil {
 		return entity.QRFailed, nil, err
 	}
+	c.logger.Debug("fiforal login", "event", "completed",
+		"total_ms", verifiedDone.Sub(started).Milliseconds(),
+		"callback_ms", callbackDone.Sub(started).Milliseconds(),
+		"cas_ms", casDone.Sub(callbackDone).Milliseconds(),
+		"landing_ms", landedDone.Sub(casDone).Milliseconds(),
+		"verify_ms", verifiedDone.Sub(landedDone).Milliseconds())
 	return entity.QRSucceeded, session, nil
 }
 
@@ -292,6 +320,29 @@ func (c *Client) setLast(uuid, last string) {
 	if qs := c.qrSessions[uuid]; qs != nil {
 		qs.last = last
 	}
+}
+
+// markScanned 记下 404 并保留首次扫码时刻，用来量到 405 的间隔
+func (c *Client) markScanned(uuid string) {
+	c.qrMu.Lock()
+	defer c.qrMu.Unlock()
+	qs := c.qrSessions[uuid]
+	if qs == nil {
+		return
+	}
+	qs.last = strconv.Itoa(wxErrcodeScanned)
+	if qs.scannedAt.IsZero() {
+		qs.scannedAt = c.now()
+	}
+}
+
+func (c *Client) scannedTime(uuid string) time.Time {
+	c.qrMu.Lock()
+	defer c.qrMu.Unlock()
+	if qs := c.qrSessions[uuid]; qs != nil {
+		return qs.scannedAt
+	}
+	return time.Time{}
 }
 
 func (c *Client) dropQR(uuid string) {
