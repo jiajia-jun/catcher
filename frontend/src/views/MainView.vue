@@ -588,13 +588,7 @@ function rowKey(row: AssignmentView) {
             size="small"
           >
             <template #empty>
-              <n-empty :description="emptyText">
-                <template #extra>
-                  <div class="empty-hint">
-                    作业数据只来自平台抓取，不会凭空生成；未登录或抓取失败时保留上次成功的数据。
-                  </div>
-                </template>
-              </n-empty>
+              <n-empty :description="emptyText" />
             </template>
           </n-data-table>
         </div>
@@ -797,14 +791,6 @@ function rowKey(row: AssignmentView) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.empty-hint {
-  max-width: 520px;
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.6;
-  opacity: 0.6;
 }
 
 .footer-note {
