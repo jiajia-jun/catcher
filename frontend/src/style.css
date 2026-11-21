@@ -1,3 +1,28 @@
+/* 自定义样式用的 CSS 变量；浅色保持原值，深色对齐 theme.ts 的 GitHub 配色 */
+:root {
+  color-scheme: light;
+  --app-bg: #ffffff;
+  --app-text-muted: rgba(0, 0, 0, 0.6);
+  --app-accent: #18a058;
+  --app-accent-strong: #0f7b41;
+  --app-success: #18a058;
+  --app-success-bg: #e8f7ee;
+  --app-danger: #d03050;
+  --app-danger-bg: #ffece8;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --app-bg: #0d1117;
+  --app-text-muted: #8b949e;
+  --app-accent: #58a6ff;
+  --app-accent-strong: #79c0ff;
+  --app-success: #3fb950;
+  --app-success-bg: rgba(46, 160, 67, 0.15);
+  --app-danger: #f85149;
+  --app-danger-bg: rgba(248, 81, 73, 0.12);
+}
+
 html,
 body,
 #app {
@@ -5,9 +30,14 @@ body,
   margin: 0;
 }
 
+html {
+  background: var(--app-bg);
+}
+
 body {
   font-family: "Segoe UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
+  background: var(--app-bg);
 }
 
 * {

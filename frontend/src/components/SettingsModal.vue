@@ -152,12 +152,12 @@ function onOpenRelease() {
 }
 
 .feedback-link {
-  color: #18a058;
+  color: var(--app-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .feedback-link:hover {
-  color: #0f7b41;
+  color: var(--app-accent-strong);
 }
 </style>

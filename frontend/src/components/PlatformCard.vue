@@ -164,7 +164,7 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
 
 /* 筛选中的平台用描边标出来，不改边框颜色，避免和 hover 规则互相覆盖 */
 .platform-card.is-selected {
-  outline: 2px solid rgba(24, 160, 88, 0.55);
+  outline: 2px solid var(--app-success);
   outline-offset: 1px;
 }
 
@@ -175,8 +175,8 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
 /* 边框色由 Naive UI 的 .n-card 规则控制，同权重下按注入顺序可能被盖掉，这里提高优先级 */
 .platform-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(24, 160, 88, 0.55) !important;
-  box-shadow: 0 10px 24px rgba(24, 160, 88, 0.14);
+  border-color: var(--app-success) !important;
+  box-shadow: 0 10px 24px rgba(1, 4, 9, 0.18);
 }
 
 .platform-head {
@@ -215,7 +215,7 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
 }
 
 .count-item.danger strong {
-  color: #d03050;
+  color: var(--app-danger);
 }
 
 .count-item.muted strong {
@@ -235,7 +235,7 @@ const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error
 }
 
 .card-hint.is-error {
-  color: #d03050;
+  color: var(--app-danger);
   opacity: 1;
 }
 
