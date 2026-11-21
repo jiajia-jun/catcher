@@ -4,8 +4,7 @@ import "time"
 
 // FetchOptions 是适配器执行一次抓取时可用的选项。
 type FetchOptions struct {
-	IncludeHistory bool
-	Now            func() time.Time
+	Now func() time.Time
 	// OnSessionUpdated 在平台轮换会话/累积 cookie 后立即调用。
 	// 它允许适配器把最新登录态交给上层加密持久化，避免进程崩溃后丢失。
 	OnSessionUpdated func(Session) error

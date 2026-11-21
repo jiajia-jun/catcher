@@ -99,13 +99,12 @@ type AssignmentListResult struct {
 }
 
 type SettingsView struct {
-	LogLevel       string `json:"logLevel"`
-	RawEnabled     bool   `json:"rawEnabled"`
-	RawRetention   int    `json:"rawRetentionDays"`
-	IncludeHistory bool   `json:"includeHistory"`
-	Theme          string `json:"theme"`
-	DataDir        string `json:"dataDir"`
-	Version        string `json:"version"`
+	LogLevel     string `json:"logLevel"`
+	RawEnabled   bool   `json:"rawEnabled"`
+	RawRetention int    `json:"rawRetentionDays"`
+	Theme        string `json:"theme"`
+	DataDir      string `json:"dataDir"`
+	Version      string `json:"version"`
 	// EnabledPlatforms 是「刷新全部」勾选的平台，已经过服务端归一
 	EnabledPlatforms []string `json:"enabledPlatforms"`
 	// ChangelogSeenVersion 是用户已读更新日志的版本号，空表示还没记录

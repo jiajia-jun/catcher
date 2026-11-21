@@ -91,7 +91,6 @@ export interface SettingsView {
   logLevel: string
   rawEnabled: boolean
   rawRetentionDays: number
-  includeHistory: boolean
   theme: string
   dataDir: string
   version: string

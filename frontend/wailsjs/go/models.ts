@@ -533,7 +533,6 @@ export namespace dto {
 	    logLevel: string;
 	    rawEnabled: boolean;
 	    rawRetentionDays: number;
-	    includeHistory: boolean;
 	    theme: string;
 	    dataDir: string;
 	    version: string;
@@ -550,7 +549,6 @@ export namespace dto {
 	        this.logLevel = source["logLevel"];
 	        this.rawEnabled = source["rawEnabled"];
 	        this.rawRetentionDays = source["rawRetentionDays"];
-	        this.includeHistory = source["includeHistory"];
 	        this.theme = source["theme"];
 	        this.dataDir = source["dataDir"];
 	        this.version = source["version"];

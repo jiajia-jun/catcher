@@ -2,10 +2,9 @@ package config
 
 // App 是 data/catcher.yaml 的结构。配置里不允许放任何凭据。
 type App struct {
-	Log   LogConfig   `mapstructure:"log"`
-	Raw   RawConfig   `mapstructure:"raw"`
-	Fetch FetchConfig `mapstructure:"fetch"`
-	UI    UIConfig    `mapstructure:"ui"`
+	Log LogConfig `mapstructure:"log"`
+	Raw RawConfig `mapstructure:"raw"`
+	UI  UIConfig  `mapstructure:"ui"`
 }
 
 type LogConfig struct {
@@ -19,10 +18,6 @@ type RawConfig struct {
 	Enabled       bool `mapstructure:"enabled"`        // 失败响应留底
 	RetentionDays int  `mapstructure:"retention_days"` // 保留天数
 	MaxTotalMB    int  `mapstructure:"max_total_mb"`   // 总大小上限
-}
-
-type FetchConfig struct {
-	IncludeHistory bool `mapstructure:"include_history"` // v1 固定 false
 }
 
 type UIConfig struct {
@@ -47,8 +42,7 @@ func Default() App {
 			RetentionDays: 7,
 			MaxTotalMB:    100,
 		},
-		Fetch: FetchConfig{IncludeHistory: false},
-		UI:    UIConfig{Theme: "auto"},
+		UI: UIConfig{Theme: "auto"},
 	}
 }
 
