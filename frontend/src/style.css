@@ -9,6 +9,7 @@
   --app-success-bg: #e8f7ee;
   --app-danger: #d03050;
   --app-danger-bg: #ffece8;
+  --app-button-shadow: rgba(0, 0, 0, 0.1);
 }
 
 :root[data-theme='dark'] {
@@ -21,6 +22,7 @@
   --app-success-bg: rgba(46, 160, 67, 0.15);
   --app-danger: #f85149;
   --app-danger-bg: rgba(248, 81, 73, 0.12);
+  --app-button-shadow: rgba(1, 4, 9, 0.4);
 }
 
 html,

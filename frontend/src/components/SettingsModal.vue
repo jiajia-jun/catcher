@@ -86,7 +86,9 @@ function onOpenRelease() {
           </n-tag>
           <n-button
             size="tiny"
-            class="check-button"
+            class="check-button ghost-button"
+            type="primary"
+            ghost
             :loading="updateInfo.checking"
             :disabled="updateInfo.checking"
             @click="onCheckUpdate"
@@ -95,7 +97,9 @@ function onOpenRelease() {
           </n-button>
         </n-descriptions-item>
         <n-descriptions-item label="更新日志">
-          <n-button size="tiny" @click="store.openChangelog()">查看更新日志</n-button>
+          <n-button size="tiny" class="ghost-button" type="primary" ghost @click="store.openChangelog()">
+            查看更新日志
+          </n-button>
         </n-descriptions-item>
         <n-descriptions-item label="数据目录">
           <span class="path">{{ settings.dataDir }}</span>
@@ -104,10 +108,12 @@ function onOpenRelease() {
           {{ settings.logLevel }}
         </n-descriptions-item>
         <n-descriptions-item label="失败响应留底">
-          <n-tag size="small" :type="settings.rawEnabled ? 'success' : 'default'" :bordered="false">
-            {{ settings.rawEnabled ? '开启' : '关闭' }}
-          </n-tag>
-          <span class="hint">保留 {{ settings.rawRetentionDays }} 天</span>
+          <span class="raw-row">
+            <n-tag size="small" :type="settings.rawEnabled ? 'success' : 'default'" :bordered="false">
+              {{ settings.rawEnabled ? '开启' : '关闭' }}
+            </n-tag>
+            <span class="hint">保留 {{ settings.rawRetentionDays }} 天</span>
+          </span>
         </n-descriptions-item>
         <n-descriptions-item label="主题">
           {{ settings.theme }}
@@ -119,7 +125,7 @@ function onOpenRelease() {
 
       <template #footer>
         <n-space justify="space-between">
-          <n-button @click="onOpenDir">打开数据目录</n-button>
+          <n-button class="ghost-button" type="primary" ghost @click="onOpenDir">打开数据目录</n-button>
           <n-button type="primary" @click="visible = false">关闭</n-button>
         </n-space>
       </template>
@@ -133,8 +139,13 @@ function onOpenRelease() {
   user-select: text;
 }
 
+.raw-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .hint {
-  margin-left: 8px;
   opacity: 0.6;
   font-size: 12px;
 }
@@ -146,6 +157,23 @@ function onOpenRelease() {
 
 .check-button {
   margin-left: 12px;
+}
+
+/* 描述表里的按钮常驻描边绿，悬停时整块轻微上浮 */
+.ghost-button {
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+}
+
+.ghost-button:hover,
+.ghost-button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--app-button-shadow);
+}
+
+/* 禁用或加载中保持原位，避免抖动 */
+.ghost-button.n-button--disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .feedback-link {
