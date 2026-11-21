@@ -84,8 +84,8 @@ const platformTones: Record<string, { bg: string; fg: string }> = {
 const deadlineSourceNames: Record<string, string> = {
   platform_exact: '平台给出',
   detail_exact: '详情页',
-  derived_remaining: '剩余时间推算',
-  inferred_year: '年份推断',
+  derived_remaining: '平台给出',
+  inferred_year: '年份推断(仅参考)',
   unknown: '未知',
 }
 
