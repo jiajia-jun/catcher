@@ -19,6 +19,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
 	"catcher/internal/domain"
 	"catcher/internal/domain/entity"
@@ -222,8 +223,12 @@ func Run(assets fs.FS) error {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 248, G: 250, B: 252, A: 1},
-		OnStartup:        h.Startup,
+		BackgroundColour: windowBackground(cfg.UI.Theme),
+		Windows: &windows.Options{
+			// 原生标题栏跟随 ui.theme，否则深色页面会顶一条白色横栏
+			Theme: windowTheme(cfg.UI.Theme),
+		},
+		OnStartup: h.Startup,
 		OnShutdown: func(context.Context) {
 			shutdown()
 		},
@@ -233,4 +238,24 @@ func Run(assets fs.FS) error {
 		return fmt.Errorf("启动 Wails 窗口失败: %w", wailsErr)
 	}
 	return nil
+}
+
+// windowTheme 把 ui.theme 映射为原生窗口主题，auto 交给系统
+func windowTheme(mode string) windows.Theme {
+	switch mode {
+	case "dark":
+		return windows.Dark
+	case "light":
+		return windows.Light
+	default:
+		return windows.SystemDefault
+	}
+}
+
+// windowBackground 是 WebView2 首帧绘制前的底色，深色主题下避免启动闪白
+func windowBackground(mode string) *options.RGBA {
+	if mode == "dark" {
+		return &options.RGBA{R: 13, G: 17, B: 23, A: 1}
+	}
+	return &options.RGBA{R: 248, G: 250, B: 252, A: 1}
 }

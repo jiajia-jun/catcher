@@ -400,17 +400,17 @@ async function onClose() {
 .guide {
   font-size: 12px;
   line-height: 1.6;
-  color: rgba(0, 0, 0, 0.62);
+  color: var(--app-text-muted);
 }
 
 .guide-link {
-  color: #18a058;
+  color: var(--app-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .guide-link:hover {
-  color: #0f7b41;
+  color: var(--app-accent-strong);
 }
 
 .guide-sep {
@@ -437,7 +437,7 @@ async function onClose() {
 
 .cookie-table th {
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--app-text-muted);
   background: rgba(128, 128, 128, 0.08);
 }
 
@@ -455,11 +455,11 @@ async function onClose() {
 
 .cookie-name {
   font-weight: 600;
-  color: #18a058;
+  color: var(--app-accent);
 }
 
 .cookie-value {
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--app-text-muted);
 }
 
 .state-banner {
@@ -473,13 +473,13 @@ async function onClose() {
 }
 
 .state-banner.is-success {
-  background: #e8f7ee;
-  color: #18a058;
+  background: var(--app-success-bg);
+  color: var(--app-success);
 }
 
 .state-banner.is-error {
-  background: #ffece8;
-  color: #d03050;
+  background: var(--app-danger-bg);
+  color: var(--app-danger);
 }
 
 .state-banner.is-neutral {

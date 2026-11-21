@@ -594,7 +594,7 @@ function rowKey(row: AssignmentView) {
         </div>
 
         <p class="footer-note">
-          所有数据只保存在本机数据目录；凭据使用 Windows DPAPI 加密。
+          所有数据只保存在本机数据目录；凭据使用 Windows DPAPI 加密
         </p>
         <p class="disclaimer">作业详细情况请以实际情况为准，本页面仅供参考</p>
       </n-spin>
@@ -823,17 +823,17 @@ function rowKey(row: AssignmentView) {
   min-width: 240px;
   max-width: 360px;
   padding: 12px 16px;
-  border: 1px solid #18a058;
+  border: 1px solid var(--app-success);
   border-radius: 10px;
-  background: #e8f7ee;
-  color: #18a058;
+  background: var(--app-success-bg);
+  color: var(--app-success);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 .success-toast.is-error {
-  border-color: #d03050;
-  background: #ffece8;
-  color: #d03050;
+  border-color: var(--app-danger);
+  background: var(--app-danger-bg);
+  color: var(--app-danger);
 }
 
 .success-toast-title {
