@@ -109,9 +109,6 @@ function onOpenRelease() {
           </n-tag>
           <span class="hint">保留 {{ settings.rawRetentionDays }} 天</span>
         </n-descriptions-item>
-        <n-descriptions-item label="抓取历史">
-          {{ settings.includeHistory ? '包含历史' : '当前学年' }}
-        </n-descriptions-item>
         <n-descriptions-item label="主题">
           {{ settings.theme }}
         </n-descriptions-item>

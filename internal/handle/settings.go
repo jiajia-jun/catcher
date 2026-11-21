@@ -25,7 +25,6 @@ func (a *App) GetSettings() (res dto.SettingsResult) {
 			LogLevel:             cfg.Log.Level,
 			RawEnabled:           cfg.Raw.Enabled,
 			RawRetention:         cfg.Raw.RetentionDays,
-			IncludeHistory:       cfg.Fetch.IncludeHistory,
 			Theme:                cfg.UI.Theme,
 			DataDir:              a.svc.DataDir(),
 			Version:              a.svc.Version(),

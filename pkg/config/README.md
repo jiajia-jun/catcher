@@ -27,9 +27,6 @@ raw:
   retention_days: 7
   max_total_mb: 100
 
-fetch:
-  include_history: false
-
 ui:
   theme: auto
 ```
