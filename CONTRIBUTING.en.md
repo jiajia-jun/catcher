@@ -107,7 +107,7 @@ If a proposal from your issue or discussion is adopted and implemented by a main
 Co-authored-by: Your Name <you@example.com>
 ```
 
-To be credited, include the name and email you want to use in the issue; a GitHub noreply address is fine if you prefer not to share your real one.
+To be credited, include the name and email you want to use; a GitHub noreply address is fine if you prefer not to share your real one.
 
 ## AI-assisted contributions
 
