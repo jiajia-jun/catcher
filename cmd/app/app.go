@@ -91,7 +91,7 @@ func Run(assets fs.FS) error {
 		return err
 	}
 
-	repo := sqlite.NewRepo(db)
+	repo := sqlite.NewRepo(db, sqlite.WithLogger(lg))
 	if err := repo.EnsurePlatforms(ctx, time.Now()); err != nil {
 		closeAll()
 		return err

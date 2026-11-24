@@ -11,15 +11,33 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"catcher/internal/domain/entity"
+	"catcher/pkg/logger"
 )
 
 // Repo 是 domain 端口在 sqlite 上的实现
 type Repo struct {
-	db *DB
+	db     *DB
+	logger logger.Logger
 }
 
-func NewRepo(db *DB) *Repo {
-	return &Repo{db: db}
+// RepoOption 在构造时调整仓储的可选依赖
+type RepoOption func(*Repo)
+
+// WithLogger 注入日志，缺省丢弃
+func WithLogger(l logger.Logger) RepoOption {
+	return func(r *Repo) {
+		if l != nil {
+			r.logger = l
+		}
+	}
+}
+
+func NewRepo(db *DB, opts ...RepoOption) *Repo {
+	r := &Repo{db: db, logger: logger.Discard()}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 // EnsurePlatforms 保证每个平台恰好有一行账号，重复调用无副作用
