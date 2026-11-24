@@ -7,7 +7,7 @@
 <p align="center">一个把雨课堂、学习通、学在重邮、批改网、FiF 口语的作业抓取到一个本地窗口里的工具</p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.5.0-4c6ef5">
+  <img alt="version" src="https://img.shields.io/badge/version-1.5.1-4c6ef5">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%2Farm64-4c6ef5">
   <img alt="本地化" src="https://img.shields.io/badge/本地化-数据不出本机-4c6ef5">
   <img alt="无三方" src="https://img.shields.io/badge/无三方-无中转服务器-4c6ef5">
