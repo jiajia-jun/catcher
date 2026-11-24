@@ -96,7 +96,7 @@ func TestImportSessionExpired(t *testing.T) {
 		{
 			name: "401",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				// 401 下发的匿名 session 必须被忽略
+				// 401 下发的匿名 session 被忽略
 				http.SetCookie(w, &http.Cookie{Name: "session", Value: "anonymous"})
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
@@ -220,7 +220,7 @@ func TestParseUID(t *testing.T) {
 		{session: "V2-1-uuid..1700000000.sig", want: ""},
 		{session: "V2-1-uuid.!!!.1700000000.sig", want: ""},
 		{session: "no-dots", want: ""},
-		// base64url 解出不可打印字节
+		// base64url 解出非打印字节
 		{session: "V2-1-uuid.Bw.1700000000.sig", want: ""},
 	}
 	for _, c := range cases {

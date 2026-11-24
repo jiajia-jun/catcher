@@ -50,7 +50,7 @@ const title = computed(() => {
   if (isPasswordForm.value) return '学习通账号登录'
   return `${platformName.value}扫码登录`
 })
-// 批改网与 FiF 口语都走微信扫码，没有自己的手机端，失败提示单独写
+// 批改网与 FiF 口语都走微信扫码，失败提示单独写
 const isWeixinLogin = computed(
   () => store.login.platform === 'pigai' || store.login.platform === 'fiforal',
 )
@@ -90,7 +90,7 @@ watch(
   () => [store.login.show, showQR.value] as const,
   ([show, qr]) => {
     if (show && qr) {
-      // 弹窗可能是启动很久后才打开的，先用当前时间刷新，避免倒计时凭空少一截
+      // 弹窗可能在启动很久后才打开，先用当前时间刷新倒计时基准
       tick()
       if (!timer) timer = window.setInterval(tick, 1000)
     }
@@ -113,12 +113,12 @@ onBeforeUnmount(() => {
 const remaining = computed(() => {
   if (!store.login.expiresAt) return 0
   const end = new Date(store.login.expiresAt).getTime()
-  // 向上取整：刚拿到码时显示 5:00，而不是立刻掉到 4:59
+  // 向上取整：刚拿到码时显示 5:00，随后进入正常倒计时
   return Math.max(0, Math.ceil((end - now.value) / 1000))
 })
 
 const remainingText = computed(() => {
-  // 第一张二维码还没到时不要显示「已过期」
+  // 第一张二维码到达前保持空文案
   if (!store.login.expiresAt) return ''
   if (remaining.value <= 0) return '二维码已过期'
   const m = Math.floor(remaining.value / 60)
@@ -312,7 +312,7 @@ async function onClose() {
         {{ bannerText }}
       </div>
       <n-text depth="3" class="hint">
-        学习通使用手机号 + 密码登录；勾选记住后，密码只在本机用 Windows DPAPI 加密保存
+        学习通使用手机号+密码登录；勾选记住后，密码只在本机用 Windows DPAPI 加密保存
       </n-text>
       <n-button text type="primary" size="small" @click="onUseQR">改用扫码登录</n-button>
     </div>

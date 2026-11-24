@@ -1,13 +1,4 @@
 // Package tronclass 实现学在重邮的浏览器会话导入与作业抓取
-//
-// 接口依据 docs/接口文档/学在重邮.md。几条刻意保留的陷阱：
-//   - 数据全在 lms.tc.cqupt.edu.cn，登录链跨三台机器；本版本只导入 session，不做 CAS 登录
-//   - 只靠 session，role_token 不依赖也不保存
-//   - 每个 200 都轮换 session；401/302 下发的匿名 session 绝不能覆盖已保存值
-//   - 未认证时 Accept: application/json 决定失败形态（401 JSON 而不是 302）
-//   - 作业列表越界页会重复最后一页，空课程 page=0，翻页只能用 pages 终止
-//   - 作业项没有 course_id，课程归属只能从请求 URL 带出
-//   - 提交判据只用 submitted，截止时间只认 deadline
 package tronclass
 
 import (
@@ -26,7 +17,7 @@ import (
 
 const (
 	// DefaultBaseURL 是学在重邮数据接口的地址
-	// 2026-10-24 实测 443 端口拒绝连接，站点只监听 80，接口文档里的 https 示例不成立
+	// 站点只监听 80 端口，443 端口拒绝连接
 	DefaultBaseURL = "http://lms.tc.cqupt.edu.cn"
 
 	// maxSessionBytes 是导入会话的长度上限
@@ -35,11 +26,11 @@ const (
 	// retryDelay 是网络类错误的退避间隔
 	retryDelay = 250 * time.Millisecond
 
-	// userAgent 伪装成桌面浏览器
+	// userAgent 是请求使用的桌面浏览器 UA 标识
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 )
 
-// Options 构造学在重邮适配器。Sender 由 cmd/app 注入，单独限速 250ms
+// Options 是学在重邮适配器的构造参数，Sender 由 cmd/app 注入并单独限速 250ms
 type Options struct {
 	BaseURL string
 	Sender  *sender.Sender
@@ -110,7 +101,8 @@ func (c *Client) newSession(value, uid string) (*entity.Session, error) {
 
 // do 发送一次请求，网络类错误退避后重试一次
 //
-// 只有传输失败与超时重试；状态码错误、取消、响应超限都不重试
+// 重试条件为传输失败或超时，状态码错误、取消与响应超限直接返回
+// 未认证时 Accept: application/json 使服务端返回 401 JSON
 func (c *Client) do(ctx context.Context, method, path string, body []byte, session string) (*sender.Response, error) {
 	header := map[string]string{
 		"Accept":     "application/json",
@@ -206,7 +198,7 @@ func classifySendError(err error) error {
 	var status *sender.StatusError
 	if errors.As(err, &status) {
 		switch {
-		// sender 不跟随重定向；数据接口被 3xx 带去 CAS 说明会话失效
+		// sender 将重定向作为状态码返回，数据接口被 3xx 带去 CAS 时按会话失效处理
 		case status.Code >= 300 && status.Code < 400:
 			return fmt.Errorf("%w: 请求被重定向（HTTP %d）", entity.ErrAuthExpired, status.Code)
 		case status.Code == http.StatusUnauthorized:

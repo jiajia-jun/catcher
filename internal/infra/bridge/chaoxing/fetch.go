@@ -11,7 +11,7 @@ import (
 
 // Fetch 抓取学习通的课程与作业
 //
-// 学习通是全局作业列表，没有学期概念；课程列表只用于补全被截断的课程名
+// 学习通按全局作业列表组织，课程列表用于补全被截断的课程名
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
 	_ = account
@@ -40,7 +40,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	}
 
 	names := courseNameMap(entries)
-	// 作业跳转统一落到课程主页，地址只用课程列表里已有的字段拼，不额外发请求
+	// 作业跳转统一落到课程主页，地址仅用课程列表已有字段拼接
 	courseURLs := make(map[string]string, len(entries))
 	for _, entry := range entries {
 		if courseURL := c.courseHomeURL(entry); courseURL != "" {
@@ -55,7 +55,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	progress(entity.Progress{Platform: entity.PlatformChaoxing, Phase: "assignments", Message: "读取作业列表"})
 	page, err := c.fetchWorkList(ctx, jar)
 	if err != nil {
-		// 登录失效/取消立即中止，本次结果不落库
+		// 登录失效或取消时立即中止，本次结果丢弃
 		return nil, err
 	}
 	result.Complete = result.Complete && page.Complete
@@ -86,8 +86,8 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 				})
 			} else {
 				detail = parseDetailDeadline(body)
-				// 有剩余时间的条目，截止时刻由「now + 剩余」决定；
-				// 详情页没有截止时间是常态，不算问题
+				// 有剩余时间的条目，截止时刻由「now + 剩余」决定
+				// 详情页缺截止时间属于常态，只有无剩余时间的条目才告警
 				if detail == nil && !item.HasRemaining {
 					result.Warnings = append(result.Warnings, entity.FetchIssue{
 						Scope:   entity.ScopeAssignment,
@@ -107,7 +107,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			deadline, source, raw, warns = resolveDeadline(item, detail, now)
 			result.Warnings = append(result.Warnings, warns...)
 		} else {
-			// 已完成条目常常拿不到截止时间，按未知保留，不猜测
+			// 已完成条目通常缺截止时间，按未知保留
 			source = entity.DeadlineUnknown
 		}
 

@@ -63,7 +63,7 @@ func TestPollQRWaitingThenSucceeded(t *testing.T) {
 		case pollPath:
 			n := atomic.AddInt32(&polls, 1)
 			if n == 1 {
-				// 未扫码：nginx 504 HTML，不是错误
+				// 未扫码时返回 nginx 504 HTML，按继续等待处理
 				w.WriteHeader(http.StatusGatewayTimeout)
 				_, _ = io.WriteString(w, "<html><title>504 Gateway Time-out</title></html>")
 				return
@@ -154,7 +154,7 @@ func TestPollQRTokenExpired(t *testing.T) {
 
 func TestExchangeFailsWithoutSessionCookie(t *testing.T) {
 	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ③ 失败返回登录页 HTML，不下发 sessionid
+		// 换会话失败时返回登录页 HTML，sessionid 缺失
 		_, _ = io.WriteString(w, `<html data-status_code="401">login</html>`)
 	}), 0)
 

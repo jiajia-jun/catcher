@@ -1,13 +1,4 @@
 // Package yuketang 实现雨课堂的扫码登录、会话续期与作业抓取
-//
-// 接口依据 docs/接口文档/雨课堂.md。几条刻意保留的陷阱：
-//   - ② 未扫码时是 nginx 504 或超时，属于「继续等」，不是错误
-//   - ② token 作废是 400 + code 50400，需要重新取码
-//   - ③ 的 body 是 JSON，Content-Type 却是 form-urlencoded
-//   - 登录态看响应体 op == "web_redirect"，不看 HTTP 200
-//   - activities 是按日期分组的嵌套数组，必须先摊平
-//   - score_d 是 13 位毫秒，create_time 是 10 位秒
-//   - 提交状态平台未暴露，全部落到 unknown
 package yuketang
 
 import (
@@ -24,17 +15,17 @@ import (
 )
 
 const (
-	// DefaultBaseURL 是雨课堂网页端域名，①②③④⑤ 全在这里
+	// DefaultBaseURL 是雨课堂网页端域名，登录与数据接口都在此域名下
 	DefaultBaseURL = "https://changjiang.yuketang.cn"
 
-	// defaultPollTimeout 必须大于服务端约 60 秒的挂起时间
+	// defaultPollTimeout 大于服务端约 60 秒的挂起时间
 	defaultPollTimeout = 70 * time.Second
 
 	// qrLifetime 是二维码 token 的声明有效期
 	qrLifetime = 5 * time.Minute
 )
 
-// Options 构造雨课堂适配器。Sender 由 cmd/app 注入，并按平台独立限速
+// Options 是雨课堂适配器的构造参数，Sender 由 cmd/app 注入并按平台独立限速
 type Options struct {
 	BaseURL     string
 	Sender      *sender.Sender
@@ -97,7 +88,8 @@ func (c *Client) get(ctx context.Context, path, sessionID string) (*sender.Respo
 	return resp, nil
 }
 
-// postJSON 发送 JSON body；contentType 单独给出，因为 ③ 需要反直觉的组合
+// postJSON 发送 JSON body，contentType 由调用方指定
+// 换会话接口的 body 是 JSON，Content-Type 声明为 form-urlencoded
 func (c *Client) postJSON(ctx context.Context, path, contentType string, body []byte, timeout time.Duration) (*sender.Response, error) {
 	resp, err := c.http.Do(ctx, &sender.Request{
 		Method: http.MethodPost,
@@ -143,7 +135,7 @@ func classifySendError(err error) error {
 	return fmt.Errorf("%w: %v", entity.ErrNetwork, err)
 }
 
-// sessionCookie 从原始 Set-Cookie 行里取 sessionid，不依赖 net/http/cookiejar
+// sessionCookie 直接解析原始 Set-Cookie 行，取其中的 sessionid
 func sessionCookie(setCookies []string) string {
 	for _, line := range setCookies {
 		name, value, ok := strings.Cut(line, "=")

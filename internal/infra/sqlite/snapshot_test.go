@@ -111,7 +111,7 @@ func TestSaveSnapshotUpsertAndSoftDelete(t *testing.T) {
 		t.Fatalf("last_seen_at = %v, want %v", got.LastSeenAt, t2)
 	}
 
-	// 旧记录仍在库里，只是 active=0；且没有重复行
+	// 旧记录仍在库里，只是 active=0，且不产生重复行
 	var total, inactive int
 	if err := db.SQL().GetContext(ctx, &total, `SELECT COUNT(*) FROM assignments`); err != nil {
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestSaveSnapshotCourseScopedSoftDelete(t *testing.T) {
 	}
 }
 
-// 课程列表本身不完整时不做任何软删除
+// 课程列表本身不完整时跳过全部软删除
 func TestSaveSnapshotCourseListIncompleteKeepsEverything(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -417,7 +417,7 @@ func TestSaveSnapshotCourseListIncompleteKeepsEverything(t *testing.T) {
 	}
 }
 
-// 手动状态与平台状态分开存：刷新和软删除都不能冲掉手动值
+// 手动状态与平台状态分开存：刷新和软删除保持手动值不变
 func TestManualStatusSurvivesRefreshAndFilters(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -482,7 +482,7 @@ func TestManualStatusSurvivesRefreshAndFilters(t *testing.T) {
 		t.Fatalf("状态筛选未按有效状态: %#v", items)
 	}
 
-	// 平台再次抓取到 unknown，手动值必须保留
+	// 平台再次抓取到 unknown，手动值保持不变
 	in.At = at.Add(2 * time.Hour)
 	if _, err := repo.SaveSnapshot(ctx, in); err != nil {
 		t.Fatal(err)
@@ -536,7 +536,7 @@ func TestManualStatusSurvivesRefreshAndFilters(t *testing.T) {
 		t.Fatalf("恢复平台值后应重新显示，实际 %d 条", len(items))
 	}
 
-	// 重复恢复不应报错，撤销可能重复调用
+	// 重复恢复按成功处理，撤销可能重复调用
 	if _, err := repo.SetManualStatus(ctx, id, nil, at.Add(6*time.Hour)); err != nil {
 		t.Fatalf("重复恢复平台值失败: %v", err)
 	}

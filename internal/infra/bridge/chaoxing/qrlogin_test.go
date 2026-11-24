@@ -22,7 +22,7 @@ const (
 // qrTestPNG 只需要文件头，用例不解码图片
 var qrTestPNG = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x0e")
 
-// qrTestServer 同时扮演 passport2 与 mooc1-api。
+// qrTestServer 同时扮演 passport2 与 mooc1-api
 // mode 是 /getauthstatus 原样返回的正文，各用例按需切换
 type qrTestServer struct {
 	*httptest.Server
@@ -36,7 +36,7 @@ func newQRTestServer(t *testing.T) *qrTestServer {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(qrLoginPath, func(w http.ResponseWriter, r *http.Request) {
-		// 学习通的扫码页只认 GET，POST 会 302 到 passport404
+		// 学习通的扫码页使用 GET，POST 会 302 到 passport404
 		if r.Method != http.MethodGet {
 			t.Errorf("扫码页方法 = %s, want GET", r.Method)
 		}
@@ -45,7 +45,7 @@ func newQRTestServer(t *testing.T) *qrTestServer {
 			t.Errorf("扫码页查询参数不全: %s", r.URL.RawQuery)
 		}
 		http.SetCookie(w, &http.Cookie{Name: "JSESSIONID", Value: "qr-sess", Path: "/", HttpOnly: true})
-		// 故意把 enc 的 value 写在 id 前面，覆盖两种属性顺序
+		// 把 enc 的 value 写在 id 前面，覆盖两种属性顺序
 		_, _ = io.WriteString(w, `<html><body>
 <input type="hidden" id="uuid" value="`+qrTestUUID+`"/>
 <input type="hidden" value="`+qrTestEnc+`" id="enc"/>
@@ -60,7 +60,7 @@ func newQRTestServer(t *testing.T) *qrTestServer {
 		if got := r.Header.Get("Cookie"); !strings.Contains(got, "JSESSIONID=qr-sess") {
 			t.Errorf("取图没有带扫码页的 cookie: %q", got)
 		}
-		// 真实接口声明 image/jpeg，实际返回 PNG
+		// 接口声明 image/jpeg，实际返回 PNG
 		w.Header().Set("Content-Type", "image/jpeg")
 		_, _ = w.Write(qrTestPNG)
 	})

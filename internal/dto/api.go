@@ -1,7 +1,7 @@
 // Package dto 定义 Wails 绑定方法的入参与出参
 //
-// 这里只放传输结构，不放领域实体。所有方法都返回显式结果结构：
-// Wails 绑定在 JS 侧只能拿到 error 的文本，无法携带错误码
+// 这里只放传输结构，领域实体留在 entity
+// Wails 在 JS 侧只暴露 error 文本，因此所有方法返回显式结果结构
 package dto
 
 type APIError struct {
@@ -107,9 +107,9 @@ type SettingsView struct {
 	Version      string `json:"version"`
 	// EnabledPlatforms 是「刷新全部」勾选的平台，已经过服务端归一
 	EnabledPlatforms []string `json:"enabledPlatforms"`
-	// ChangelogSeenVersion 是用户已读更新日志的版本号，空表示还没记录
+	// ChangelogSeenVersion 是用户已读更新日志的版本号，空表示尚无记录
 	ChangelogSeenVersion string `json:"changelogSeenVersion"`
-	// FirstRun 表示本次是首次安装，更新日志只记录不弹出
+	// FirstRun 表示本次是首次安装，更新日志只记录已读状态
 	FirstRun bool `json:"firstRun"`
 }
 
@@ -119,8 +119,8 @@ type SettingsResult struct {
 	Settings *SettingsView `json:"settings,omitempty"`
 }
 
-// UpdateCheckResult 是一次版本检查的结果。
-// Skipped 表示开发模式下跳过了自动检查，不代表已是最新
+// UpdateCheckResult 是一次版本检查的结果
+// Skipped 表示开发模式下跳过了自动检查，结果状态保持未知
 type UpdateCheckResult struct {
 	OK          bool      `json:"ok"`
 	Current     string    `json:"current"`
@@ -143,14 +143,14 @@ type RefreshStartResult struct {
 }
 
 // PasswordLoginRequest 是学习通手机号+密码登录的入参
-// Password 只在本次调用内存在，不会出现在响应里
+// Password 只在本次调用内使用，响应只返回登录结果
 type PasswordLoginRequest struct {
 	Phone    string `json:"phone"`
 	Password string `json:"password"`
 	Remember bool   `json:"remember"`
 }
 
-// PasswordLoginResult 是密码登录结果。明文密码绝不回传
+// PasswordLoginResult 是密码登录结果，响应中只包含登录状态与显示名
 type PasswordLoginResult struct {
 	OK          bool      `json:"ok"`
 	LoginState  string    `json:"loginState,omitempty"`
@@ -159,7 +159,7 @@ type PasswordLoginResult struct {
 }
 
 // SessionImportRequest 是浏览器会话导入的入参
-// Session 只在本次调用内存在，不会出现在响应里
+// Session 只在本次调用内使用，响应只返回登录结果
 type SessionImportRequest struct {
 	Session string `json:"session"`
 }
@@ -172,7 +172,7 @@ type SessionImportResult struct {
 	Error       *APIError `json:"error,omitempty"`
 }
 
-// FetchIssueView 是一次刷新的问题摘要，不含任何凭据
+// FetchIssueView 是一次刷新的问题摘要，只包含白名单字段
 type FetchIssueView struct {
 	Scope   string `json:"scope"`
 	Ref     string `json:"ref,omitempty"`

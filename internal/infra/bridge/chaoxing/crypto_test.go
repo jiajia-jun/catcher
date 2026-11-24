@@ -47,7 +47,8 @@ func TestEncryptAESRoundTrip(t *testing.T) {
 }
 
 func TestEncryptAESDeterministic(t *testing.T) {
-	// IV 等于密钥，同一明文必须得到同一密文；随机 IV 会破坏这个前提
+	// IV 等于密钥，同一明文得到同一密文
+	// 随机 IV 会破坏这个前提
 	a, err := encryptAES("13800138000")
 	if err != nil {
 		t.Fatal(err)

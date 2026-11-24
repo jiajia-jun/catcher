@@ -60,7 +60,7 @@ func TestEnabledPlatformsPersisted(t *testing.T) {
 
 func TestEnabledPlatformsRollsBackOnSaveFailure(t *testing.T) {
 	cfg := config.Default()
-	// 没有数据目录时写盘必然失败，内存值必须回滚
+	// 无数据目录时写盘失败，内存值回滚
 	svc := New(Deps{Config: &cfg, Version: "1.3.0", Logger: logger.Discard()})
 
 	if err := svc.SetEnabledPlatforms([]entity.Platform{entity.PlatformPigai}); err == nil {

@@ -15,7 +15,7 @@ func TestPlatformExperimental(t *testing.T) {
 			t.Errorf("%s.Experimental() = %v, want %v", p, got, want)
 		}
 	}
-	// 未知平台不标实验性，避免把拼错的值当成已知平台
+	// 未知平台按非实验性处理，拼错的值同样落到这个分支
 	if Platform("unknown").Experimental() {
 		t.Fatal("未知平台不应标实验性")
 	}

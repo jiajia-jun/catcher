@@ -16,13 +16,13 @@ const (
 	pollPath     = "/api/v3/user/login/app-web-login"
 	webLoginPath = "/pc/web_login"
 
-	// contentFormURLEncoded 是 ③ 必须使用的 Content-Type：body 是 JSON，声明却是 form
+	// contentFormURLEncoded 用于换会话接口，body 是 JSON，声明为 form-urlencoded
 	contentFormURLEncoded = "application/x-www-form-urlencoded; charset=UTF-8"
 	// tokenExpiredCode 表示二维码 token 作废
 	tokenExpiredCode = 50400
 )
 
-// BeginQR 取二维码。qrContent 是待渲染的 URL，token 5 分钟有效
+// BeginQR 取二维码，qrContent 是待渲染的 URL，token 5 分钟有效
 func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	resp, err := c.get(ctx, preInfoPath, "")
 	if err != nil {
@@ -48,9 +48,9 @@ func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	}, nil
 }
 
-// PollQR 轮询扫码结果；拿到 UserID/Auth 后立即走 ③ 换取 sessionid
+// PollQR 轮询扫码结果，拿到 UserID/Auth 后立即换取 sessionid
 //
-// 504 与超时都返回 waiting：未扫码时服务端是挂住而不是拒绝
+// 504 与超时都返回 waiting：未扫码时服务端保持挂起状态
 func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (entity.QRState, *entity.Session, error) {
 	if challenge == nil || challenge.ID == "" {
 		return entity.QRFailed, nil, fmt.Errorf("%w: 缺少二维码 token", entity.ErrAuthFailed)
@@ -93,8 +93,8 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 	return entity.QRSucceeded, session, nil
 }
 
-// classifyPollError 区分「继续等」和「真的失败」
-// 400 只有在业务 code == 50400 时才算二维码作废
+// classifyPollError 区分「继续等」和「失败」
+// 400 且业务 code 为 50400 时按二维码作废处理
 func (c *Client) classifyPollError(resp *sender.Response, err error) (entity.QRState, *entity.Session, error) {
 	var status *sender.StatusError
 	if errors.As(err, &status) {
@@ -122,7 +122,7 @@ func (c *Client) classifyPollError(resp *sender.Response, err error) (entity.QRS
 	return entity.QRFailed, nil, classifySendError(err)
 }
 
-// Renew 用已保存的 Auth 重放 ③，无需重新扫码
+// Renew 用已保存的 Auth 重新换取会话，无需重新扫码
 func (c *Client) Renew(ctx context.Context, session entity.Session) (*entity.Session, error) {
 	secret, err := decodeSecret(session.Secret)
 	if err != nil {
@@ -134,8 +134,8 @@ func (c *Client) Renew(ctx context.Context, session entity.Session) (*entity.Ses
 	return c.exchange(ctx, json.Number(secret.UserID), secret.Auth)
 }
 
-// exchange 执行 ③：body 是 JSON，Content-Type 是 form-urlencoded
-// 成败只看有没有下发 sessionid，不硬解成功正文
+// exchange 换取会话，body 是 JSON，Content-Type 是 form-urlencoded
+// 成败以下发 sessionid 为准，响应正文留给上层日志
 func (c *Client) exchange(ctx context.Context, userID json.Number, auth string) (*entity.Session, error) {
 	body, err := webLoginBody(userID, auth)
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *Client) exchange(ctx context.Context, userID json.Number, auth string) 
 
 	sid := sessionCookie(resp.SetCookies)
 	if sid == "" {
-		// 失败响应是登录页 HTML，不解析、不把它当异常
+		// 失败响应是登录页 HTML，此处只检查 sessionid
 		return nil, fmt.Errorf("%w: 换取会话未下发 sessionid", entity.ErrAuthFailed)
 	}
 
@@ -172,7 +172,7 @@ func (c *Client) exchange(ctx context.Context, userID json.Number, auth string) 
 	}, nil
 }
 
-// webLoginBody 按原始字面量构造 UserID：它是数字，不能变成字符串
+// webLoginBody 按原始字面量构造 UserID，数字保持数字类型
 func webLoginBody(userID json.Number, auth string) ([]byte, error) {
 	raw := userID.String()
 	if raw == "" {

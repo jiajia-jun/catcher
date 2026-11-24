@@ -217,7 +217,7 @@ func TestFetchMergesListsAndMapsFields(t *testing.T) {
 		t.Fatalf("详情请求漏了 _display=json: %v", f.missingDisplay)
 	}
 
-	// 已完成作业的标题来自详情，不是列表里的「第N号 作文」
+	// 已完成作业的标题来自详情，列表标题是「第N号 作文」
 	r2 := assignmentByKey(t, result, "R2")
 	if r2.Status != entity.StatusSubmitted || r2.Title != "第二次作业" {
 		t.Fatalf("R2 = %s / %q", r2.Status, r2.Title)
@@ -322,7 +322,7 @@ func TestFetchDetailFailureKeepsAssignment(t *testing.T) {
 	assertWarning(t, result, entity.ScopeAssignment)
 }
 
-// 未完成列表是主数据源，它失败就整次失败，不能返回空列表
+// 未完成列表是主数据源，失败时整次按失败处理，空列表保留给「没有作业」
 func TestFetchPendingFailureAborts(t *testing.T) {
 	f := &fetchFake{pendingErr: 302}
 	c := newFetchClient(t, f)
@@ -383,8 +383,8 @@ func TestStripHTML(t *testing.T) {
 	}
 }
 
-// 分页字段的类型在不同账号下不一致：文档样本里 cnt 是数字，
-// 真机返回的是字符串，两种都不能让整份已完成列表解析失败
+// 分页字段的类型在不同账号下不一致：cnt 可能是数字或字符串
+// 两种类型都按原始值保留，已完成列表正常解析
 func TestCompletedDataAcceptsMixedPagingTypes(t *testing.T) {
 	cases := []string{
 		`{"essayList":[{"request_id":"R1"}],"allNum":1,"cnt":5}`,
@@ -402,7 +402,7 @@ func TestCompletedDataAcceptsMixedPagingTypes(t *testing.T) {
 	}
 }
 
-// now_time 也可能给成字符串，类型漂移不能让整次刷新失败
+// now_time 也可能给成字符串，类型漂移按 0 处理
 func TestNowTimeAcceptsMixedTypes(t *testing.T) {
 	for _, body := range []string{
 		`{"now_time":1793199195}`,

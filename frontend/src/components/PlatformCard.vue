@@ -38,7 +38,7 @@ const loginText = computed(() => {
     return connected ? '重新导入' : '导入会话'
   }
   if (connected) return '重新登录'
-  // 学习通扫码与账号密码都支持，按钮上不绑定具体方式
+  // 学习通扫码与账号密码都支持，按钮对应两种方式
   return props.data.platform === 'chaoxing' ? '登录' : '扫码登录'
 })
 
@@ -65,8 +65,8 @@ const loginMeta = computed<{ text: string; type: TagType }>(() => {
 
 const counts = computed(() => props.data.counts)
 
-// 进度与错误共用同一行：这行的高度是固定的，卡片高度不随刷新的开始/结束而变化，
-// 否则下方平台概览的滚动条会跟着上下跳
+// 进度与错误共用同一行，行高固定
+// 卡片高度保持稳定，下方平台概览的滚动条因此不会跳动
 const hint = computed(() => (props.refreshing ? props.progress ?? '' : props.data.error?.message ?? ''))
 const hintIsError = computed(() => !props.refreshing && Boolean(props.data.error))
 </script>

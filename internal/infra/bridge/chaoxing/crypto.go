@@ -13,16 +13,16 @@ import (
 )
 
 const (
-	// aesKey 是学习通登录表单的固定密钥，IV 与密钥相同（不是随机 IV）
+	// aesKey 是学习通登录表单的固定密钥，IV 与密钥相同
 	aesKey = "u2oh6Vu^HWe4_AES"
 )
 
 var phonePattern = regexp.MustCompile(`^\d{11}$`)
 
-// validateCredential 在发请求前拦掉明显错误的账号形态
+// validateCredential 在发请求前拦截明显错误的账号形态
 //
-// 服务端对「账号错」和「密码错」返回同一句提示，不本地校验就只能看到
-// 误导性的「用户名或密码错误」
+// 服务端对「账号错」和「密码错」返回同一句提示，本地校验用于给出
+// 更准确的错误信息
 func validateCredential(creds entity.PasswordCredential) error {
 	phone := strings.TrimSpace(creds.Phone)
 	if phone == "" || creds.Password == "" {
@@ -34,8 +34,8 @@ func validateCredential(creds entity.PasswordCredential) error {
 	return nil
 }
 
-// encryptAES 按 AES-128-CBC + PKCS7 + Base64 加密登录字段。
-// 明文就是原文，不做 JSON 包装
+// encryptAES 按 AES-128-CBC + PKCS7 + Base64 加密登录字段
+// 入参按原文直接加密，外层无 JSON 结构
 func encryptAES(plaintext string) (string, error) {
 	block, err := aes.NewCipher([]byte(aesKey))
 	if err != nil {

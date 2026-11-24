@@ -12,7 +12,7 @@ import (
 	"catcher/internal/domain/entity"
 )
 
-// h5Token 是任务接口要用的 120 分钟 JWT。只放内存，不落库
+// h5Token 是任务接口要用的 120 分钟 JWT，只存在于内存
 type h5Token struct {
 	Value     string
 	UserID    string
@@ -59,8 +59,8 @@ func (c *Client) cacheToken(token *h5Token) {
 	c.tokenMu.Unlock()
 }
 
-// tokenFromURL 从落地跳转的 fragment 里取 token 与 source。
-// 没有 token 返回 (nil, nil)，格式不对返回错误
+// tokenFromURL 从落地跳转的 fragment 里取 token 与 source
+// fragment 缺少 token 时返回 (nil, nil)，格式异常时返回错误
 func tokenFromURL(raw string) (*h5Token, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -84,7 +84,7 @@ func tokenFromURL(raw string) (*h5Token, error) {
 	return parseH5Token(value, values.Get("source"))
 }
 
-// parseH5Token 解析 3 段式 JWT 的载荷。长度不固定，不能硬编码
+// parseH5Token 解析 3 段式 JWT 的载荷，载荷长度按实际内容读取
 func parseH5Token(value, source string) (*h5Token, error) {
 	parts := strings.Split(value, ".")
 	if len(parts) != 3 || parts[1] == "" {

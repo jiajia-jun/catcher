@@ -8,8 +8,8 @@ import (
 	"catcher/internal/service"
 )
 
-// 四个平台的扫码流程完全一致，只有平台名不同。
-// 导出方法保持独立以便 Wails 绑定；recover、参数校验与错误翻译收敛在下面三个 helper
+// 四个平台的扫码流程完全一致，只有平台名不同
+// 导出方法保持独立以便 Wails 绑定，recover、参数校验与错误翻译收敛在下面三个 helper
 
 func (a *App) startQRLogin(name string, start func(context.Context) (*service.RefreshStart, error)) (res dto.RefreshStartResult) {
 	defer func() {

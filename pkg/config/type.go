@@ -1,6 +1,6 @@
 package config
 
-// App 是 data/catcher.yaml 的结构。配置里不允许放任何凭据。
+// App 是 data/catcher.yaml 的结构，配置只保存非敏感设置
 type App struct {
 	Log LogConfig `mapstructure:"log"`
 	Raw RawConfig `mapstructure:"raw"`
@@ -46,7 +46,8 @@ func Default() App {
 	}
 }
 
-// Normalize 用默认值补齐非法/缺失项。配置错误不应阻止应用启动。
+// Normalize 用默认值补齐非法或缺失项
+// 配置错误按默认值处理，应用继续启动
 func (a *App) Normalize() {
 	d := Default()
 

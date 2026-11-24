@@ -159,11 +159,10 @@ type pollResult struct {
 	err     error
 }
 
-// pollInterruptible 在轮询期间监听「换一张」。
+// pollInterruptible 在轮询期间监听「换一张」
 //
-// 雨课堂的轮询是长轮询、学习通内部还要睡 3 秒，直接调用 PollQR 会让按钮看起来失效：
-// 用户点换码后必须立刻中断旧轮询，否则信号只能积压在 channel 里，
-// 直到二维码自己过期才被处理
+// 雨课堂的轮询是长轮询，学习通内部还会等待 3 秒，直接调用 PollQR 会让按钮看起来失效
+// 用户点换码后立即中断旧轮询，信号在本次轮询结束后读取
 func (s *Service) pollInterruptible(ctx context.Context, job *loginJob, qr domain.QRLogin,
 	challenge *entity.QRChallenge) (pollResult, bool) {
 	// 上一轮点过换码、信号还压在缓冲里
@@ -186,7 +185,7 @@ func (s *Service) pollInterruptible(ctx context.Context, job *loginJob, qr domai
 	case res := <-done:
 		return res, false
 	case <-job.refresh:
-		// 只取消在途请求，不等它返回：适配器即使忽略 ctx 也不会卡住任务
+		// 只取消在途请求，任务随后继续推进
 		cancel()
 		return pollResult{}, true
 	case <-ctx.Done():
@@ -266,7 +265,7 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 			}
 		}
 
-		// 用户主动换码：不算过期，也不消耗自动换码次数
+		// 用户主动换码：按新码处理，自动换码次数保持原值
 		if manual {
 			autoRefreshes = 0
 			continue
@@ -291,8 +290,8 @@ func (s *Service) runQRLogin(ctx context.Context, job *loginJob, qr domain.QRLog
 	}
 }
 
-// qrScannedMessage 只在需要手机二次确认的平台给出确认提示。
-// 微信扫码必须点确认，学习通同理；雨课堂扫完即完成
+// qrScannedMessage 只在需要手机二次确认的平台给出确认提示
+// 微信扫码与学习通需要点确认，雨课堂扫完即完成
 func qrScannedMessage(platform entity.Platform) string {
 	switch platform {
 	case entity.PlatformChaoxing, entity.PlatformPigai, entity.PlatformFiforal:
@@ -302,8 +301,8 @@ func qrScannedMessage(platform entity.Platform) string {
 	}
 }
 
-// finishQRLogin 保存会话并更新登录态。
-// 学习通扫码拿不到手机号，只在显示名为空时写一个通用名字
+// finishQRLogin 保存会话并更新登录态
+// 学习通扫码拿不到手机号，显示名为空时写一个通用名字
 func (s *Service) finishQRLogin(ctx context.Context, platform entity.Platform, session entity.Session) error {
 	account, err := s.accounts.GetAccount(ctx, platform)
 	if err != nil {
@@ -326,14 +325,13 @@ func (s *Service) finishQRLogin(ctx context.Context, platform entity.Platform, s
 			s.logger.Warn("更新学习通显示名失败", "error", err)
 		}
 	}
-	// 批改网的 _JUKU_USER 带学号与班级，但字段语义未证实，不解析，
-	// 只写一个固定名字
+	// 批改网的 _JUKU_USER 带学号与班级，字段语义未证实，这里只写固定名字
 	if platform == entity.PlatformPigai && strings.TrimSpace(account.DisplayName) == "" {
 		if err := s.accounts.SetDisplayName(ctx, account.Platform, "批改网账号", s.now()); err != nil {
 			s.logger.Warn("更新批改网显示名失败", "error", err)
 		}
 	}
-	// FiF 的显示名不解析 token 里的 login_name，固定写一个名字
+	// FiF 的显示名使用固定值
 	if platform == entity.PlatformFiforal && strings.TrimSpace(account.DisplayName) == "" {
 		if err := s.accounts.SetDisplayName(ctx, account.Platform, "FiF 口语账号", s.now()); err != nil {
 			s.logger.Warn("更新 FiF 口语显示名失败", "error", err)

@@ -1,4 +1,4 @@
-// Package service 编排业务用例。它只依赖 domain 定义的端口，
+// Package service 编排业务用例，依赖 domain 定义的端口
 // 具体实现在 cmd/app 中注入
 package service
 
@@ -17,7 +17,7 @@ import (
 	"catcher/pkg/logger"
 )
 
-// Counts 是作业统计。unknown 永远不计入未交
+// Counts 是作业统计，unknown 单独计数
 type Counts struct {
 	OpenUnsubmitted    int
 	OverdueUnsubmitted int
@@ -138,7 +138,7 @@ func New(d Deps) *Service {
 	return s
 }
 
-// SetEmitter 注入事件出口。handle 在 Wails 启动后调用一次
+// SetEmitter 注入事件出口，handle 在 Wails 启动后调用一次
 func (s *Service) SetEmitter(emit func(name string, payload any)) {
 	s.emitMu.Lock()
 	s.emit = emit
@@ -154,7 +154,7 @@ func (s *Service) emitEvent(name string, payload any) {
 	}
 }
 
-// Bootstrap 读取账号、active 作业与每平台最近一次刷新，并按平台聚合统计。
+// Bootstrap 读取账号、active 作业与每平台最近一次刷新，并按平台聚合统计
 // termOnly 为 true 时只统计本学期的作业，与列表口径保持一致
 func (s *Service) Bootstrap(ctx context.Context, termOnly bool) (*Bootstrap, error) {
 	accounts, err := s.accounts.ListAccounts(ctx)
@@ -232,7 +232,7 @@ func (s *Service) SetAssignmentStatus(ctx context.Context, id int64,
 	return s.assignments.SetManualStatus(ctx, id, status, s.now())
 }
 
-// resolveTerm 把「只看本学期」换算成具体的截止时间下界。
+// resolveTerm 把「只看本学期」换算成具体的截止时间下界
 // 学期起点按 9 月 1 日、东八区计算，由 service 决定，仓储只认绝对时刻
 func (s *Service) resolveTerm(filter entity.AssignmentFilter) entity.AssignmentFilter {
 	if !filter.TermOnly {
@@ -350,7 +350,7 @@ func (s *Service) MarkChangelogSeen() error {
 	return nil
 }
 
-// saveConfigLocked 把当前配置写回数据目录，调用方必须持有 cfgMu 写锁
+// saveConfigLocked 把当前配置写回数据目录，调用方持有 cfgMu 写锁
 func (s *Service) saveConfigLocked() error {
 	if s.dataDir == "" {
 		return fmt.Errorf("数据目录未配置")

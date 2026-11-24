@@ -165,13 +165,13 @@ export interface PasswordLoginInput {
   remember: boolean
 }
 
-// 登录失败需要通过返回值展示在弹窗里，这里不抛异常
+// 登录失败通过返回值展示在弹窗里
 export async function loginChaoxing(input: PasswordLoginInput): Promise<PasswordLoginResult> {
   ensureRuntime()
   return (await LoginChaoxing(input)) as PasswordLoginResult
 }
 
-// 导入失败同样通过返回值展示，不抛异常
+// 导入失败同样通过返回值展示
 export async function importTronclassSession(
   input: SessionImportRequest,
 ): Promise<SessionImportResult> {

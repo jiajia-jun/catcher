@@ -1,11 +1,11 @@
-// Package logger 封装 log/slog 与滚动文件，并提供敏感字段打码工具。
+// Package logger 封装 log/slog 与滚动文件，并提供敏感字段打码工具
 //
 // 约定：
-//   - 日志文件位于 data/logs/catcher.log，按大小/备份数/天数滚动；
-//   - 开发模式同时写 stderr，发布模式只写文件；
-//   - Cookie / Set-Cookie / Authorization / 密码 / token / session 一律不得落日志。
+//   - 日志文件位于 data/logs/catcher.log，按大小、备份数、天数滚动
+//   - 开发模式同时写 stderr，发布模式只写文件
+//   - Cookie / Set-Cookie / Authorization / 密码 / token / session 只以打码形式出现
 //
-// 本包只做通用能力，不 import internal/ 或 cmd/。
+// 本包只做通用能力，导入范围限于标准库与第三方包
 package logger
 
 import (
@@ -19,7 +19,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// Logger 是项目内使用的日志接口。
+// Logger 是项目内使用的日志接口
 type Logger interface {
 	Debug(msg string, args ...any)
 	Info(msg string, args ...any)
@@ -28,7 +28,7 @@ type Logger interface {
 	With(args ...any) Logger
 }
 
-// Options 配置 Logger。Dir 为空时只输出到 Console（或丢弃）。
+// Options 配置 Logger，Dir 为空时只输出到 Console（或丢弃）
 type Options struct {
 	Dir        string
 	Level      string
@@ -50,7 +50,7 @@ func (s *slogLogger) With(args ...any) Logger {
 	return &slogLogger{l: s.l.With(args...)}
 }
 
-// New 创建 Logger。返回的 io.Closer 用于关闭日志文件，调用方应在退出时调用。
+// New 创建 Logger，返回的 io.Closer 用于关闭日志文件，调用方在退出时调用
 func New(opts Options) (Logger, io.Closer, error) {
 	level := parseLevel(opts.Level)
 
@@ -85,7 +85,7 @@ func New(opts Options) (Logger, io.Closer, error) {
 	handler := slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: level,
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-			// 兜底：即使调用方误把敏感键交给 slog，也在输出前打码。
+			// 兜底：调用方误把敏感键交给 slog 时，输出前打码
 			if IsSensitiveKey(a.Key) {
 				return slog.String(a.Key, "***")
 			}
@@ -100,7 +100,7 @@ func New(opts Options) (Logger, io.Closer, error) {
 	return &slogLogger{l: l}, file, nil
 }
 
-// Discard 返回一个不输出任何内容的 Logger，用于测试或可选依赖。
+// Discard 返回空实现的 Logger，用于测试或可选依赖
 func Discard() Logger {
 	return &slogLogger{l: slog.New(slog.NewTextHandler(io.Discard, nil))}
 }

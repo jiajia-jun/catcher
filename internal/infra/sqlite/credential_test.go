@@ -75,7 +75,7 @@ func TestCredentialRepoDelete(t *testing.T) {
 	if _, err := credentials.Get(ctx, account.ID); !errors.Is(err, entity.ErrNotFound) {
 		t.Fatalf("删除后应返回 ErrNotFound，实际 %v", err)
 	}
-	// 幂等：重复删除不是错误
+	// 幂等：重复删除按成功处理
 	if err := credentials.Delete(ctx, account.ID); err != nil {
 		t.Fatal(err)
 	}

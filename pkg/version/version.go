@@ -1,6 +1,6 @@
-// Package version 规范化并比较 semver 版本号。
+// Package version 规范化并比较 semver 版本号
 //
-// 平台的发布 tag 习惯带 v 前缀（v1.2.3），程序内常量不带（1.2.3），
+// 平台的发布 tag 习惯带 v 前缀（v1.2.3），程序内常量不带（1.2.3）
 // 这里统一补上 v 前缀再交给 golang.org/x/mod/semver 比较
 package version
 
@@ -12,8 +12,8 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// semverRe 要求完整的 主.次.修订 三段。x/mod/semver 会接受 v1.0 这类简写，
-// 发布 tag 一律写成 vX.Y.Z，这里不接受简写以免版本比较出现意外
+// semverRe 要求完整的 主.次.修订 三段
+// x/mod/semver 接受 v1.0 这类简写，发布 tag 统一写成 vX.Y.Z，这里按完整三段校验
 var semverRe = regexp.MustCompile(
 	`^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
 
@@ -34,7 +34,7 @@ func Parse(raw string) (string, error) {
 	return s, nil
 }
 
-// Display 返回去掉 v 前缀的展示形式；无法解析时原样返回
+// Display 返回去掉 v 前缀的展示形式，解析失败时原样返回
 func Display(raw string) string {
 	s, err := Parse(raw)
 	if err != nil {

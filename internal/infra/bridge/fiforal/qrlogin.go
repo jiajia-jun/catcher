@@ -17,7 +17,7 @@ import (
 	"catcher/internal/infra/sender"
 )
 
-// 微信扫码的状态码。408 未扫码、404 已扫待确认、405 已确认、
+// 微信扫码的状态码：408 未扫码、404 已扫待确认、405 已确认、
 // 402 二维码失效、403 用户取消、500 服务端异常
 const (
 	wxErrcodeWaiting   = 408
@@ -35,7 +35,7 @@ type qrSession struct {
 	expiresAt time.Time
 	// jar 只接收 fifedu 域的 cookie，换到登录态后整体落库
 	jar *cookieJar
-	// wxJar 是微信域名的临时 cookie 袋，不落库
+	// wxJar 是微信域名的临时 cookie 袋，只存在于内存
 	wxJar *cookieJar
 	// last 是上一次轮询的 errcode，404 之后的请求要带上它
 	last string
@@ -43,7 +43,7 @@ type qrSession struct {
 	scannedAt time.Time
 }
 
-// BeginQR 取一张微信扫码登录的二维码。
+// BeginQR 取一张微信扫码登录的二维码
 // 取码走 getWebLoginUrl → 微信扫码页 → 二维码图片，图片转 data URL 交给前端
 func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	started := time.Now()
@@ -105,7 +105,7 @@ func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	}, nil
 }
 
-// fetchWeixinURL 调 getWebLoginUrl 取微信扫码地址。status 是数字 1
+// fetchWeixinURL 调 getWebLoginUrl 取微信扫码地址，status 是数字 1
 func (c *Client) fetchWeixinURL(ctx context.Context, jar *cookieJar) (string, error) {
 	apiURL := c.passBaseURL + "/iplat-pass/web/getWebLoginUrl?" + url.Values{
 		"type":    {"2"},
@@ -168,9 +168,9 @@ func (c *Client) followWeixin(ctx context.Context, rawURL string, jar *cookieJar
 	return nil, fmt.Errorf("%w: 微信扫码页跳转超过 %d 跳", entity.ErrPlatformChanged, maxLoginHops)
 }
 
-// PollQR 长轮询一次扫码状态。
+// PollQR 长轮询一次扫码状态
 //
-// 超时与 5xx 都当成「继续等」：长轮询没有消息时本来就以超时结束
+// 超时与 5xx 按「继续等」处理，长轮询没有消息时以超时结束
 func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (entity.QRState, *entity.Session, error) {
 	if challenge == nil || challenge.ID == "" {
 		return entity.QRFailed, nil, fmt.Errorf("%w: 缺少二维码 id", entity.ErrAuthFailed)
@@ -389,7 +389,7 @@ func queryValue(rawURL, key string) string {
 	return u.Query().Get(key)
 }
 
-// extractUUID 从扫码页 HTML 里取 uuid，两种出现形式都吃
+// extractUUID 从扫码页 HTML 里取 uuid，支持两种出现形式
 func extractUUID(html string) string {
 	if m := uuidFromQRCodeRe.FindStringSubmatch(html); len(m) == 2 {
 		return m[1]

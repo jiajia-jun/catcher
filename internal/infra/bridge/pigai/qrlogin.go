@@ -16,7 +16,7 @@ import (
 	"catcher/internal/infra/sender"
 )
 
-// 微信扫码的状态码。408 未扫码、404 已扫待确认、405 已确认、
+// 微信扫码的状态码：408 未扫码、404 已扫待确认、405 已确认、
 // 402 二维码失效、403 用户取消、500 服务端异常
 const (
 	wxErrcodeWaiting   = 408
@@ -31,20 +31,20 @@ const (
 type qrSession struct {
 	uuid      string
 	expiresAt time.Time
-	// jar 只保存 www.pigai.org 的 cookie；微信域名的响应写进临时袋，
-	// 避免把 open.weixin.qq.com 的 cookie 一起塞进持久化会话
+	// jar 只保存 www.pigai.org 的 cookie，微信域名的响应写入临时袋
+	// 持久化会话因此只包含站点 cookie
 	jar *cookieJar
-	// wxJar 是微信域名专用的临时 cookie 袋，不落库
+	// wxJar 是微信域名专用的临时 cookie 袋，只存在于内存
 	wxJar *cookieJar
 	// last 是上一次轮询的 errcode，404 / 403 之后的请求要带上它
 	last string
 }
 
-// BeginQR 取一张微信扫码登录的二维码。
+// BeginQR 取一张微信扫码登录的二维码
 //
-// 二维码是服务端按 uuid 生成的 JPEG，不是前端算出来的：
-// 先打开扫码页拿 uuid，再用同一个 uuid 取图。图片本身转成 data URL 交给前端，
-// 前端不必再请求微信域名（那会被域名策略拦下）
+// 二维码由服务端按 uuid 生成 JPEG
+// 先打开扫码页拿 uuid，再用同一个 uuid 取图，图片转成 data URL 交给前端
+// 前端直接显示该 data URL，避开微信域名的跨域限制
 func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	jar := newCookieJar(nil)
 
@@ -104,9 +104,9 @@ func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	}, nil
 }
 
-// PollQR 长轮询一次扫码状态。微信侧会阻塞到状态变化或约 15 秒超时。
+// PollQR 长轮询一次扫码状态，微信侧会阻塞到状态变化或约 15 秒超时
 //
-// 超时与 5xx 都当成「继续等」：长轮询没有消息时本来就以超时结束
+// 超时与 5xx 按「继续等」处理，长轮询没有消息时以超时结束
 func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (entity.QRState, *entity.Session, error) {
 	if challenge == nil || challenge.ID == "" {
 		return entity.QRFailed, nil, fmt.Errorf("%w: 缺少二维码 id", entity.ErrAuthFailed)
@@ -176,7 +176,7 @@ func (c *Client) finish(ctx context.Context, qs *qrSession, wxCode string) (enti
 		return entity.QRFailed, nil, err
 	}
 
-	// _JUKU_USER 是登录成功的实体凭据，换号链路没有它等于没登录
+	// _JUKU_USER 是登录成功的实体凭据，换号链路以拿到它为准
 	if qs.jar.get("_JUKU_USER") == "" {
 		return entity.QRFailed, nil, fmt.Errorf("%w: 换号后没有拿到登录凭据", entity.ErrAuthFailed)
 	}
@@ -191,11 +191,11 @@ func (c *Client) finish(ctx context.Context, qs *qrSession, wxCode string) (enti
 	return entity.QRSucceeded, session, nil
 }
 
-// followLoginChain 逐跳跟随换号重定向，每跳都累积 Set-Cookie。
-// sender 不跟随重定向，这里必须手工走完；跨出 pigai.org 一律视为异常
+// followLoginChain 逐跳跟随换号重定向，每跳都累积 Set-Cookie
+// sender 将重定向作为状态码返回，这里手工走完跳转链，跨出 pigai.org 视为异常
 //
 // 首跳是特例：login.php 带 state 时返回 200 + 一段 JS 跳到去掉 state 的自身，
-// 真正的 302 链路从第二跳才开始。只认 3xx 会在这里停下，拿不到 _JUKU_USER
+// 真正的 302 链路从第二跳开始；只处理 3xx 会在首跳停下，_JUKU_USER 拿不到
 func (c *Client) followLoginChain(ctx context.Context, rawURL string, jar *cookieJar) error {
 	current := rawURL
 	for hop := 0; hop <= maxLoginHops; hop++ {
@@ -237,10 +237,10 @@ func (c *Client) followLoginChain(ctx context.Context, rawURL string, jar *cooki
 	return fmt.Errorf("%w: 换号跳转超过 %d 跳", entity.ErrPlatformChanged, maxLoginHops)
 }
 
-// loginChainError 把换码链路的传输失败收敛成一句用户能看懂的提示。
+// loginChainError 把换码链路的传输失败收敛成一句用户能看懂的提示
 //
-// 换码请求的 URL 里带着 OAuth code，net/http 的错误串会原样回显整个 URL，
-// 直接抛到界面既泄露授权码、对用户也没有意义；请求日志里有打码后的记录
+// 换码请求的 URL 里带着 OAuth code，net/http 的错误串会原样回显整个 URL
+// 直接抛到界面会泄露授权码，请求日志里有打码后的记录
 func loginChainError(err error) error {
 	var canceled *sender.CanceledError
 	if errors.As(err, &canceled) {
@@ -274,7 +274,7 @@ func (c *Client) resolveLoginURL(current, next string) (string, error) {
 	return resolved.String(), nil
 }
 
-// verifyLogin 用作业页确认登录态。信封的 error 才是判据，HTTP 状态码没有意义
+// verifyLogin 用作业页确认登录态，判据是信封的 error 字段
 func (c *Client) verifyLogin(ctx context.Context, jar *cookieJar) error {
 	env, err := c.fetchEnvelope(ctx, c.apiURL(url.Values{"c": {"write"}}), jar)
 	if err != nil {
@@ -284,8 +284,8 @@ func (c *Client) verifyLogin(ctx context.Context, jar *cookieJar) error {
 		return err
 	}
 
-	// _u 是当前用户块。缺省不判失败（白名单外字段随时可能消失），
-	// 但出现了就必须带 user_id
+	// _u 是当前用户块，缺省时视为正常
+	// 该字段出现时要求带 user_id
 	var data struct {
 		User *struct {
 			UserID string `json:"user_id"`
@@ -358,8 +358,8 @@ var (
 	scriptRedirectRe = regexp.MustCompile(`(?:top\.|window\.)?location\.(?:href\s*=\s*|replace\(\s*)['"]([^'"]+)['"]`)
 )
 
-// extractScriptRedirect 从 200 页面里取 JS 跳转目标。
-// login.php 首跳就是这么跳的，响应头里没有 Location
+// extractScriptRedirect 从 200 页面里取 JS 跳转目标
+// login.php 首跳走这条路径，响应头里只有 200
 func extractScriptRedirect(raw []byte) (string, bool) {
 	m := scriptRedirectRe.FindSubmatch(raw)
 	if len(m) != 2 {
@@ -372,7 +372,7 @@ func extractScriptRedirect(raw []byte) (string, bool) {
 	return target, true
 }
 
-// extractUUID 从扫码页 HTML 里取 uuid，两种出现形式都吃
+// extractUUID 从扫码页 HTML 里取 uuid，支持两种出现形式
 func extractUUID(html string) string {
 	if m := uuidFromQRCodeRe.FindStringSubmatch(html); len(m) == 2 {
 		return m[1]
@@ -401,7 +401,8 @@ func parseQRResponse(raw []byte) (int, string, bool) {
 	return errcode, code, true
 }
 
-// sniffImageMime 按文件头判断图片类型，二维码接口的 Content-Type 不可信
+// sniffImageMime 按文件头判断图片类型
+// 二维码接口的 Content-Type 与实际内容可能不一致
 func sniffImageMime(raw []byte) string {
 	switch {
 	case bytes.HasPrefix(raw, []byte("\x89PNG\r\n\x1a\n")):

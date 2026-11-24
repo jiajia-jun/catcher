@@ -1,6 +1,6 @@
 // Package domain 定义领域模型与端口接口
 //
-// 本包是最内层：不 import internal/ 下任何外层包，也不 import cmd/
+// 本包位于最内层，import 范围限于标准库与 pkg
 // 具体实现（sqlite、DPAPI、各平台适配器）位于 internal/infra，由 cmd/app 注入
 package domain
 
@@ -11,7 +11,7 @@ import (
 	"catcher/internal/domain/entity"
 )
 
-// Fetcher 是平台抓取能力。每个平台适配器实现一个
+// Fetcher 是平台抓取能力，每个平台适配器实现一个
 type Fetcher interface {
 	Platform() entity.Platform
 	Fetch(ctx context.Context, account entity.Account, session entity.Session,
@@ -35,19 +35,19 @@ type SessionImporter interface {
 	ImportSession(ctx context.Context, raw string) (*entity.Session, error)
 }
 
-// SessionRenewer 是自动续期能力。返回 ErrNotFound 表示无法续期，需要用户重新登录
+// SessionRenewer 是自动续期能力，返回 ErrNotFound 表示需要用户重新登录
 type SessionRenewer interface {
 	Renew(ctx context.Context, session entity.Session) (*entity.Session, error)
 }
 
-// ReleaseChecker 查询最新的正式发布。实现是 infra/updater（GitHub Releases API）
-// 它只读取版本信息，不下载任何内容；失败必须返回实体定义的哨兵错误，方便上层区分
+// ReleaseChecker 查询最新的正式发布，实现是 infra/updater（GitHub Releases API）
+// 它只读取版本信息，失败时返回实体定义的哨兵错误，方便上层区分
 type ReleaseChecker interface {
 	LatestRelease(ctx context.Context) (entity.ReleaseInfo, error)
 }
 
-// SecretCipher 加密/解密本机凭据。实现是 infra/secretstore（Windows DPAPI）
-// 解密失败必须返回错误，调用方据此把平台标记为需要重新登录，不能回退明文
+// SecretCipher 加密/解密本机凭据，实现是 infra/secretstore（Windows DPAPI）
+// 解密失败时返回错误，调用方据此把平台标记为需要重新登录
 type SecretCipher interface {
 	Encrypt(plaintext []byte) ([]byte, error)
 	Decrypt(ciphertext []byte) ([]byte, error)
@@ -72,7 +72,7 @@ type SessionRepository interface {
 }
 
 // CredentialRepository 维护加密后的密码凭据（学习通手机号+密码）
-// 只用于会话失效后的自动重登；用户取消「记住密码」时必须删除
+// 只用于会话失效后的自动重登，用户取消「记住密码」时删除
 type CredentialRepository interface {
 	Get(ctx context.Context, accountID int64) (*entity.PasswordCredential, error)
 	Save(ctx context.Context, accountID int64, creds entity.PasswordCredential, at time.Time) error
@@ -83,9 +83,9 @@ type CredentialRepository interface {
 type AssignmentRepository interface {
 	ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error)
 
-	// SaveSnapshot 在一个事务内 upsert 课程与作业，返回写入的作业条数。
-	// Complete 时平台级软删除；课程列表完整但部分课程失败时按课程清理，
-	// FailedCourses 里的课程保留旧作业。
+	// SaveSnapshot 在一个事务内 upsert 课程与作业，返回写入的作业条数
+	// Complete 时执行平台级软删除，课程列表完整但部分课程失败时按课程清理
+	// FailedCourses 里的课程保留旧作业
 	SaveSnapshot(ctx context.Context, in entity.PersistInput) (upserted int, err error)
 
 	// SetManualStatus 写入或清除手动状态；status 为 nil 表示恢复平台值
@@ -100,6 +100,6 @@ type FetchRunRepository interface {
 	// ListIssues 按写入顺序返回某次刷新的问题明细
 	ListIssues(ctx context.Context, runID int64) ([]entity.FetchIssue, error)
 
-	// LatestRuns 返回每个平台最近一次刷新记录，没有记录的平台不出现在结果里
+	// LatestRuns 返回每个平台最近一次刷新记录，结果只包含有记录的平台
 	LatestRuns(ctx context.Context) (map[entity.Platform]entity.FetchRun, error)
 }

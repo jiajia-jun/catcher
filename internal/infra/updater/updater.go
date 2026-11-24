@@ -1,9 +1,9 @@
-// Package updater 通过 GitHub Releases API 查询最新正式发布。
+// Package updater 通过 GitHub Releases API 查询最新正式发布
 //
-// 它只发一次 GET，不重试、不下载任何内容、不保存任何状态；
-// 更新动作由用户点击后在系统浏览器里完成。失败按 entity 的哨兵错误分类：
-// ErrNetwork（网络/超时/5xx）、ErrReleaseUnavailable（404）、
-// ErrReleaseRateLimited（403/429）、ErrReleaseInvalid（响应或 tag 无法解析）
+// 实现只发一次 GET，更新动作由用户点击后在系统浏览器里完成
+// 失败按 entity 的哨兵错误分类：ErrNetwork（网络/超时/5xx）、
+// ErrReleaseUnavailable（404/410/401）、ErrReleaseRateLimited（403/429）、
+// ErrReleaseInvalid（响应或 tag 解析失败）
 package updater
 
 import (
@@ -28,13 +28,14 @@ const (
 	// DefaultOwner 与 DefaultRepo 指向本项目的发布仓库
 	DefaultOwner = "jiajia-jun"
 	DefaultRepo  = "catcher"
-	// DefaultTimeout 是单次查询的总超时。这只是可选检查，宁可早失败也不拖住界面
+	// DefaultTimeout 是单次查询的总超时
+	// 更新检查属于可选项，超时后立即返回，避免拖住界面
 	DefaultTimeout = 5 * time.Second
 	// maxResponseBytes 限制响应体大小，防止异常响应拖爆内存
 	maxResponseBytes = 1 << 20
 )
 
-// Options 配置 Checker。Owner、Repo、Current 由装配方提供
+// Options 配置 Checker，Owner、Repo、Current 由装配方提供
 type Options struct {
 	BaseURL string
 	Owner   string
@@ -94,8 +95,8 @@ type releasePayload struct {
 	PublishedAt time.Time `json:"published_at"`
 }
 
-// LatestRelease 返回仓库最新一次正式发布。
-// GitHub 的 /releases/latest 本身会跳过草稿与预发布，客户端不再过滤
+// LatestRelease 返回仓库最新一次正式发布
+// GitHub 的 /releases/latest 只返回正式发布，客户端按原样接收
 func (c *Checker) LatestRelease(ctx context.Context) (entity.ReleaseInfo, error) {
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/releases/latest", c.baseURL, c.owner, c.repo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

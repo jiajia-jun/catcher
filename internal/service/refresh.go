@@ -37,7 +37,7 @@ func (s *Service) StartRefresh(ctx context.Context, platforms []entity.Platform)
 	if len(s.fetchers) == 0 {
 		return nil, fmt.Errorf("没有可用的平台适配器")
 	}
-	// 「全部刷新」只包含已接入适配器的平台，未实现平台不制造失败记录
+	// 「全部刷新」只包含已接入适配器的平台，其余平台跳过
 	if len(platforms) == 0 {
 		for _, p := range entity.AllPlatforms() {
 			if _, ok := s.fetchers[p]; ok {
@@ -253,7 +253,8 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 		return s.finishWithError(ctx, run, jobID, p, err)
 	}
 
-	// 列表没抓全才算部分失败；平台本来就只给这么多（PartialByDesign）不算
+	// 部分失败以列表完整性为准
+	// PartialByDesign 属于平台限制，按成功处理
 	incomplete := !result.Complete && !result.PartialByDesign
 	status := entity.RunSuccess
 	if incomplete || len(result.Warnings) > 0 {

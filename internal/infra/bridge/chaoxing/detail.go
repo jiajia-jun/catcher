@@ -19,8 +19,8 @@ var (
 	detailH4Pattern = regexp.MustCompile(`截止时间[：:]\s*(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})`)
 )
 
-// deadlineTolerance 是「剩余时间推算」与「详情页截止时刻」允许的偏差。
-// 剩余时间只到分钟，且以页面渲染时刻为基准，秒级到分钟级误差是正常的
+// deadlineTolerance 是「剩余时间推算」与「详情页截止时刻」允许的偏差
+// 剩余时间精确到分钟，并以页面渲染时刻为基准，秒级误差属于正常范围
 const deadlineTolerance = 10 * time.Minute
 
 var shanghai = func() *time.Location {
@@ -31,7 +31,7 @@ var shanghai = func() *time.Location {
 	return loc
 }()
 
-// detailDeadline 是详情页的月-日时分；没有年份，需要结合列表页剩余时间补全
+// detailDeadline 是详情页的月-日时分，年份需要结合列表页剩余时间补全
 type detailDeadline struct {
 	Raw    string
 	Month  int
@@ -41,14 +41,14 @@ type detailDeadline struct {
 	Second int
 }
 
-// fetchDetail 取一条作业的详情页。data URL 已经是完整地址，参数全都在里面
+// fetchDetail 取一条作业的详情页，data URL 是完整地址，参数全在 URL 里
 func (c *Client) fetchDetail(ctx context.Context, item workItem, jar *cookieJar) (string, error) {
 	rawURL := item.DetailURL
 	if u, err := url.Parse(rawURL); err == nil && !u.IsAbs() {
 		base, _ := url.Parse(c.baseURL)
 		rawURL = base.ResolveReference(u).String()
 	}
-	// Android 接口路径会 302 到 H5 详情页，必须跟过去再解析
+	// Android 接口路径会 302 到 H5 详情页，需要跟随后再解析
 	resp, err := c.getFollowing(ctx, rawURL, jar)
 	if err != nil {
 		return "", err
@@ -88,9 +88,9 @@ func parseDetailDeadline(body string) *detailDeadline {
 	return nil
 }
 
-// resolveDeadline 按接口文档的年份补全规则算出绝对时刻。
+// resolveDeadline 按年份补全规则算出绝对时刻
 //
-// 进行中：now + 剩余时间（唯一带绝对信息的源），再用详情页月-日交叉校验；
+// 进行中：now + 剩余时间（唯一带绝对信息的来源），再用详情页月-日交叉校验
 // 已截止：详情页月-日，月-日 > 今天归去年，否则归今年
 func resolveDeadline(item workItem, detail *detailDeadline, now time.Time) (*time.Time, entity.DeadlineSource, string, []entity.FetchIssue) {
 	now = now.In(shanghai)
@@ -103,9 +103,9 @@ func resolveDeadline(item workItem, detail *detailDeadline, now time.Time) (*tim
 		if detail != nil {
 			raw = detail.Raw
 			d := derived.In(shanghai)
-			// 详情页的月日时分秒是服务端写死的截止时刻，年份从剩余时间推算；
-			// 列表的剩余时间只到分钟且以页面渲染时刻为基准，差几十秒是正常的，
-			// 落在容差内就用详情页的精确值
+			// 详情页的月日时分秒是服务端写死的截止时刻，年份从剩余时间推算
+			// 列表的剩余时间精确到分钟且以页面渲染时刻为基准，几十秒偏差属于正常范围
+			// 偏差落在容差内时采用详情页的精确值
 			exact := time.Date(d.Year(), time.Month(detail.Month), detail.Day,
 				detail.Hour, detail.Minute, detail.Second, 0, shanghai)
 			if diff := exact.Sub(d); diff <= deadlineTolerance && diff >= -deadlineTolerance {

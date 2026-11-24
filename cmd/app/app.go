@@ -1,8 +1,8 @@
 // Package app 负责装配：数据目录 → 配置 → logger → sqlite → repository
-// → service → handle → wails.Run。
+// → service → handle → wails.Run
 //
-// 它不是 main 包：Wails v2 要求入口位于仓库根目录，以便 //go:embed 能
-// 引用 frontend/dist；根 main.go 只做 embed 并调用本包
+// 本包由根 main.go 调用
+// Wails v2 要求入口位于仓库根目录，根 main.go 在那里完成 frontend/dist 的 embed
 package app
 
 import (
@@ -41,7 +41,7 @@ import (
 // Version 是构建版本，预发布期间写死，后续改为 ldflags 注入
 const Version = "1.5.0"
 
-// Run 启动 Wails 应用，阻塞到窗口关闭。
+// Run 启动 Wails 应用，阻塞到窗口关闭
 func Run(assets fs.FS) error {
 	ctx := context.Background()
 	dataDirOpts := config.DefaultDataDirOptions()
@@ -153,7 +153,7 @@ func Run(assets fs.FS) error {
 		Now:    time.Now,
 	})
 
-	// 更新检查只读 GitHub Releases 的版本信息，不下载任何内容
+	// 更新检查只读取 GitHub Releases 的版本信息
 	releases := updater.New(updater.Options{
 		BaseURL: updater.DefaultBaseURL,
 		Owner:   updater.DefaultOwner,

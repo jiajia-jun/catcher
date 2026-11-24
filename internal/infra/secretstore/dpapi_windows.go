@@ -14,7 +14,7 @@ func (c *Cipher) Encrypt(plaintext []byte) ([]byte, error) {
 	return transform(true, plaintext)
 }
 
-// Decrypt 解密 Encrypt 产出的密文。密文损坏或换了用户时返回错误
+// Decrypt 解密 Encrypt 产出的密文，密文损坏或换了用户时返回错误
 func (c *Cipher) Decrypt(ciphertext []byte) ([]byte, error) {
 	return transform(false, ciphertext)
 }

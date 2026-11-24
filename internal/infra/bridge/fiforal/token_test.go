@@ -95,7 +95,7 @@ func TestRemintTokenForcesNetwork(t *testing.T) {
 			"Location": {"https://static.fifedu.com/x#/?token=" + newJWT},
 		}), nil
 	})
-	// 缓存还有效，但 remint 必须忽略它
+	// 缓存仍有效，remint 强制忽略缓存
 	c.cacheToken(&h5Token{
 		Value:     "old",
 		UserID:    "user-1",

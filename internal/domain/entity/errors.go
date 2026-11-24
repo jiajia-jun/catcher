@@ -2,12 +2,12 @@ package entity
 
 import "errors"
 
-// ErrNotFound 表示记录不存在。仓储实现必须返回它，方便上层用 errors.Is 判断。
+// ErrNotFound 表示记录不存在，仓储实现返回它，上层用 errors.Is 判断
 var ErrNotFound = errors.New("记录不存在")
 
 // 错误分类
 var (
-	// ErrAuthRequired 表示尚未登录，不能发起抓取
+	// ErrAuthRequired 表示尚未登录，需要先完成登录
 	ErrAuthRequired = errors.New("该平台尚未登录")
 
 	// ErrAuthExpired 表示会话失效，需要续期或重新登录
@@ -16,10 +16,10 @@ var (
 	// ErrAuthFailed 表示登录流程本身失败（扫码确认、换取会话等）
 	ErrAuthFailed = errors.New("登录失败")
 
-	// ErrPlatformChanged 表示响应结构无法按文档解析
+	// ErrPlatformChanged 表示响应结构与预期不符
 	ErrPlatformChanged = errors.New("平台返回格式变化")
 
-	// ErrBusiness 表示平台明确拒绝（权限不足、参数被拒等），不是会话失效
+	// ErrBusiness 表示平台明确拒绝（权限不足、参数被拒等），会话保持有效
 	ErrBusiness = errors.New("平台拒绝请求")
 
 	// ErrNetwork 表示连接、DNS、TLS 或超时
@@ -28,14 +28,14 @@ var (
 	// ErrCanceled 表示用户取消
 	ErrCanceled = errors.New("已取消")
 
-	//==========================我是分割线==================================
+	// 更新检查相关错误
 
-	// ErrReleaseUnavailable 表示发布仓库不可访问：不存在、未公开或没有发布
+	// ErrReleaseUnavailable 表示发布仓库查询返回 404、410 或 401，覆盖仓库缺失、私有或尚无发布
 	ErrReleaseUnavailable = errors.New("发布仓库不可访问")
 
 	// ErrReleaseRateLimited 表示更新查询被 GitHub 限流
 	ErrReleaseRateLimited = errors.New("更新查询被限流")
 
-	// ErrReleaseInvalid 表示发布信息无法解析
+	// ErrReleaseInvalid 表示发布信息解析失败
 	ErrReleaseInvalid = errors.New("发布信息格式不正确")
 )

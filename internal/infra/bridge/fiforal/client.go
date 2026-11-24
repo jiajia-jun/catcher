@@ -1,16 +1,4 @@
 // Package fiforal 实现 FiF 口语的微信扫码登录与任务抓取
-//
-// 几条刻意保留的陷阱：
-//   - 登录不是一次 302：回调页返回 200 HTML，里面有一次性的账号密码，
-//     客户端要自己复现两步 CAS
-//   - logincallback 的 token 就是新的 prod-token，要写回 .fifedu.com 的 cookie
-//   - 落地链首次约 9 跳，会经过 moral.fifedu.com/kyxl-auth；302 一律手工跟，
-//     包括 /cas-server/ 那一跳
-//   - 登录态跨 6 个主机，cookie 必须按 domain/path 存
-//   - H5 token 在 URL fragment 里，只放内存；日志与错误串要剥掉
-//   - H5 token 120 分钟过期，用已存 cookie 重走 oral 入口换新 token
-//   - 任务列表 status == -1 是未登录（HTTP 仍 200）；status 与 complete 是两件事
-//   - 一页 10 条，翻到空页为止；不要照抄 H5 只增不减的 page 计数
 package fiforal
 
 import (
@@ -54,23 +42,23 @@ const (
 	// defaultSource 是 H5 的 source，fragment 缺失时使用
 	defaultSource = "10003"
 
-	// userAgent 伪装成桌面浏览器。FiF 是否拦截 Go 默认 UA 未验证，
-	// 按其它平台惯例统一带上
+	// userAgent 是请求使用的桌面浏览器 UA 标识
+	// FiF 是否拦截 Go 默认 UA 尚未验证，按其他平台的惯例统一带上
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 
 	// qrDefaultTTL 是二维码的展示有效期，页面按 5 分钟倒计时
 	qrDefaultTTL = 5 * time.Minute
-	// pollTimeout 要长于微信长轮询约 15 秒的阻塞
+	// pollTimeout 长于微信长轮询约 15 秒的阻塞
 	pollTimeout = 35 * time.Second
 	// maxLoginHops 是取码链路手工跟随 302 的上限
 	maxLoginHops = 10
-	// maxLandingHops 是落地链的上限。首次约 9 跳，留足余量
+	// maxLandingHops 是落地链的上限，首次约 9 跳，留足余量
 	maxLandingHops = 20
 	// tokenRefreshMargin 是提前换 token 的余量
 	tokenRefreshMargin = 5 * time.Minute
 )
 
-// Options 构造 FiF 口语适配器。Sender 由 cmd/app 注入，单独限速
+// Options 是 FiF 口语适配器的构造参数，Sender 由 cmd/app 注入并单独限速
 type Options struct {
 	OralURL         string
 	LoginPageURL    string
@@ -86,8 +74,8 @@ type Options struct {
 	Now             func() time.Time
 }
 
-// Client 同时实现 domain.QRLogin 与 domain.Fetcher。
-// H5 token 只放内存，进程重启后用已存 cookie 重新换
+// Client 同时实现 domain.QRLogin 与 domain.Fetcher
+// H5 token 只放内存，进程重启后用已存 cookie 重新换取
 type Client struct {
 	oralURL         string
 	loginPageURL    string
@@ -126,7 +114,7 @@ func New(opts Options) *Client {
 		now:             opts.Now,
 		qrSessions:      make(map[string]*qrSession),
 	}
-	// 入口 URL 自带路径，不能去掉末尾斜杠之外的任何部分
+	// 入口 URL 自带路径，构造时只去掉末尾斜杠
 	if opts.OralURL == "" {
 		c.oralURL = DefaultOralURL
 	}
@@ -177,7 +165,7 @@ func (c *Client) doRaw(ctx context.Context, method, rawURL string, jar *cookieJa
 
 func (c *Client) do(ctx context.Context, method, rawURL string, jar *cookieJar,
 	body []byte, timeout time.Duration, headers map[string]string) (*sender.Response, error) {
-	// fragment 里可能是 H5 token，请求不能带出去
+	// fragment 里可能是 H5 token，请求发出前剥离
 	target := stripFragment(rawURL)
 	header := map[string]string{
 		"Accept":     "application/json, text/plain, */*",
@@ -206,7 +194,7 @@ func (c *Client) do(ctx context.Context, method, rawURL string, jar *cookieJar,
 	return resp, err
 }
 
-// safeRequestError 把带凭据的登录链请求失败收敛成不含 URL 的错误。
+// safeRequestError 把带凭据的登录链请求失败收敛成不含 URL 的错误
 // CAS 的查询串里有 username 与 Base64 密码，transport 错误串会原样回显整个 URL
 func safeRequestError(action string, err error) error {
 	var canceled *sender.CanceledError
@@ -250,7 +238,7 @@ func classifySendError(err error) error {
 	var status *sender.StatusError
 	if errors.As(err, &status) {
 		switch {
-		// sender 不跟随重定向；数据接口被 3xx 带走说明会话失效
+		// sender 将重定向作为状态码返回，数据接口被 3xx 带走时按会话失效处理
 		case status.Code >= 300 && status.Code < 400:
 			return fmt.Errorf("%w: 请求被重定向（HTTP %d）", entity.ErrAuthExpired, status.Code)
 		case status.Code == 401 || status.Code == 403:
@@ -359,7 +347,8 @@ func stripFragment(raw string) string {
 	return u.String()
 }
 
-// sniffImageMime 按文件头判断图片类型，二维码接口的 Content-Type 不可信
+// sniffImageMime 按文件头判断图片类型
+// 二维码接口的 Content-Type 与实际内容可能不一致
 func sniffImageMime(raw []byte) string {
 	switch {
 	case bytes.HasPrefix(raw, []byte("\x89PNG\r\n\x1a\n")):

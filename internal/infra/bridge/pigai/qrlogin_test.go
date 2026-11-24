@@ -103,7 +103,7 @@ func (f *fakePigai) handler() http.Handler {
 				w.WriteHeader(http.StatusFound)
 				return
 			}
-			// 真实站点：带 state 时返回 200 + JS 跳到去掉 state 的自身
+			// 带 state 时返回 200 + JS 跳到去掉 state 的自身
 			if code := r.URL.Query().Get("code"); code != "" && r.URL.Query().Get("state") != "" {
 				target := "/d3/weixin/login.php?code=" + code
 				f.mu.Lock()
@@ -191,7 +191,7 @@ func TestBeginQR(t *testing.T) {
 	}
 }
 
-// 微信域名下发的 cookie 不能进持久化会话，只有站点自己的 cookie 才保存
+// 持久化会话只保存站点自己的 cookie，微信域名的 cookie 留在临时袋
 func TestFinishDropsWeixinCookies(t *testing.T) {
 	c := newTestClient(t, newFake())
 
@@ -201,7 +201,7 @@ func TestFinishDropsWeixinCookies(t *testing.T) {
 	}
 	qs, _ := c.lookupQR(challenge.ID)
 
-	// 微信域名的 cookie 被写进临时袋，站点袋不应出现
+	// 微信域名的 cookie 位于临时袋，站点袋只含自身 cookie
 	qs.wxJar.add([]string{"wx_cookie=1"})
 	if qs.jar.get("wx_cookie") != "" {
 		t.Fatal("微信 cookie 不应进入站点 cookie 袋")
@@ -269,7 +269,8 @@ func TestPollQRStates(t *testing.T) {
 	}
 }
 
-// 404 之后必须带 last=404，否则微信侧会重复返回同一状态
+// 404 之后的请求带上 last=404
+// 缺少 last 时微信侧会重复返回同一状态
 func TestPollQRPassesLastAfterScanned(t *testing.T) {
 	f := newFake()
 	f.errcodes = []int{wxErrcodeScanned, wxErrcodeWaiting, wxErrcodeScanned}
@@ -335,7 +336,7 @@ func TestPollQRSucceedsAndBuildsSession(t *testing.T) {
 	}
 }
 
-// 换号链路跳到站外说明链路异常，不能把 cookie 带过去
+// 换号链路跳到站外时按链路异常处理，cookie 留在本站
 func TestFinishRejectsForeignRedirect(t *testing.T) {
 	f := newFake()
 	f.errcodes = []int{wxErrcodeConfirmed}
@@ -356,7 +357,7 @@ func TestFinishRejectsForeignRedirect(t *testing.T) {
 	}
 }
 
-// 首跳的 200 页面把跳转写在 JS 里，跨站时同样不能跟过去
+// 首跳的 200 页面把跳转写在 JS 里，跨站目标同样按异常处理
 func TestFinishRejectsForeignScriptRedirect(t *testing.T) {
 	f := newFake()
 	f.errcodes = []int{wxErrcodeConfirmed}
@@ -377,7 +378,7 @@ func TestFinishRejectsForeignScriptRedirect(t *testing.T) {
 	}
 }
 
-// 首跳必须跟着 JS 跳转再走一遍，否则会在 200 处停下拿不到 _JUKU_USER
+// 首跳需要跟随 JS 跳转，200 页面处继续走才能拿到 _JUKU_USER
 func TestFinishFollowsScriptRedirect(t *testing.T) {
 	f := newFake()
 	f.errcodes = []int{wxErrcodeConfirmed}
@@ -424,8 +425,8 @@ func TestExtractScriptRedirect(t *testing.T) {
 	}
 }
 
-// 换码时站点不可达：给出可读提示，且错误串里不能带 OAuth code。
-// net/http 的错误串会回显完整 URL，直接抛到界面等于把 code 展示出去
+// 换码时站点不可达：给出可读提示，错误串只保留脱敏内容
+// net/http 的错误串会回显完整 URL，直接抛到界面会展示 OAuth code
 func TestLoginChainNetworkErrorIsFriendly(t *testing.T) {
 	f := newFake()
 	f.errcodes = []int{wxErrcodeConfirmed}
@@ -455,7 +456,7 @@ func TestLoginChainNetworkErrorIsFriendly(t *testing.T) {
 	}
 }
 
-// 换号后 c=write 仍返回 error=302，说明没有真正登录
+// 换号后 c=write 仍返回 error=302，登录未完成
 func TestFinishFailsWhenVerifyNotLoggedIn(t *testing.T) {
 	f := newFake()
 	f.errcodes = []int{wxErrcodeConfirmed}

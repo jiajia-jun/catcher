@@ -112,7 +112,8 @@ func toAssignmentView(a entity.Assignment, now time.Time) dto.AssignmentView {
 	return view
 }
 
-// safeDetailURL 只放行绝对 http/https 地址；平台 HTML 里的链接不能直接信
+// safeDetailURL 只放行绝对 http/https 地址
+// 平台 HTML 里的链接按不可信输入处理
 func safeDetailURL(raw string) string {
 	if raw == "" {
 		return ""

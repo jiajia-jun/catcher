@@ -17,12 +17,12 @@ type UpdateCheck struct {
 	ReleaseURL  string
 	HasUpdate   bool
 	CheckedAt   time.Time
-	// Skipped 表示开发模式下跳过了自动检查，不代表已是最新
+	// Skipped 表示开发模式下跳过了自动检查，结果状态保持未知
 	Skipped bool
 }
 
-// CheckUpdate 查询最新正式发布并与当前版本比较。
-// manual 为 false 且处于开发模式时直接跳过，不发起任何请求
+// CheckUpdate 查询最新正式发布并与当前版本比较
+// manual 为 false 且处于开发模式时直接跳过
 func (s *Service) CheckUpdate(ctx context.Context, manual bool) (UpdateCheck, error) {
 	out := UpdateCheck{Current: s.version}
 	if s.releases == nil {

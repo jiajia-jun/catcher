@@ -15,8 +15,8 @@ import (
 
 // SessionRepo 把 entity.Session 的秘密 JSON 经 DPAPI 加密后存入 sessions 表
 //
-// 明文只在进程内存在：读出时解密，写入时加密。解密失败按「登录态不可用」处理，
-// 由上层要求重新登录，绝不回退明文或返回旧值
+// 明文只在进程内存在，读出时解密，写入时加密
+// 解密失败按「登录态不可用」处理，由上层要求重新登录
 type SessionRepo struct {
 	db     *DB
 	cipher domain.SecretCipher
@@ -26,7 +26,7 @@ func NewSessionRepo(db *DB, cipher domain.SecretCipher) *SessionRepo {
 	return &SessionRepo{db: db, cipher: cipher}
 }
 
-// Get 读取并解密会话。没有会话时返回 entity.ErrNotFound
+// Get 读取并解密会话，未保存时返回 entity.ErrNotFound
 func (r *SessionRepo) Get(ctx context.Context, accountID int64) (*entity.Session, error) {
 	var row sessionRow
 	err := r.db.SQL().GetContext(ctx, &row, `

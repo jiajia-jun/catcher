@@ -96,9 +96,9 @@ export interface SettingsView {
   version: string
   // 「刷新全部」勾选的平台，服务端已归一为至少一个
   enabledPlatforms: string[]
-  // 已读更新日志的版本号，空串表示还没记录
+  // 已读更新日志的版本号，空串表示尚无记录
   changelogSeenVersion: string
-  // 首次安装：更新日志只记录，不弹窗
+  // 首次安装：更新日志只记录已读状态
   firstRun: boolean
 }
 

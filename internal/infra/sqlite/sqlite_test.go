@@ -22,7 +22,7 @@ func openTestDB(t *testing.T) *DB {
 	return db
 }
 
-// 只有 001 的旧库升级到 002 时，原有作业行和状态必须保留
+// 只有 001 的旧库升级到 002 时，原有作业行和状态保留
 func TestMigrateUpgradesExistingAssignments(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, filepath.Join(t.TempDir(), "catcher.db"))
@@ -93,7 +93,7 @@ func TestMigrateAndSeed(t *testing.T) {
 		t.Fatalf("foreign_keys = %d, want 1（DSN pragma 未生效）", foreignKeys)
 	}
 
-	// 迁移可重复执行。
+	// 迁移可重复执行
 	if err := db.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 	}
 
 	var courseID int64
-	// 直接使用 SQL 插入，避免为 M0 引入写仓储。
+	// 直接使用 SQL 插入，避免为 M0 引入写仓储
 	courseRes, err := db.SQL().ExecContext(ctx, `
 		INSERT INTO courses (account_id, platform, external_id, classroom_id, name,
 			semester_key, active, first_seen_at, last_seen_at)
@@ -187,7 +187,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 		}
 	}
 
-	// 默认隐藏已提交。
+	// 默认隐藏已提交
 	items, err := repo.ListAssignments(ctx, entity.AssignmentFilter{})
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 		t.Fatalf("默认应返回 2 条，实际 %d", len(items))
 	}
 
-	// 显示已提交。
+	// 显示已提交
 	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
 	if err != nil {
 		t.Fatal(err)
@@ -205,7 +205,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 		t.Fatalf("显示已提交应返回 3 条，实际 %d", len(items))
 	}
 
-	// 平台筛选。
+	// 平台筛选
 	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{
 		Platforms:     []entity.Platform{entity.PlatformYuketang},
 		ShowSubmitted: true,
@@ -217,7 +217,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 		t.Fatalf("平台筛选失败: %#v", items)
 	}
 
-	// 状态筛选。
+	// 状态筛选
 	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{
 		Statuses:      []entity.SubmissionStatus{entity.StatusSubmitted},
 		ShowSubmitted: true,
@@ -229,7 +229,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 		t.Fatalf("状态筛选失败: %#v", items)
 	}
 
-	// 关键字。
+	// 关键字
 	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{Keyword: "第一次"})
 	if err != nil {
 		t.Fatal(err)
@@ -238,7 +238,7 @@ func TestListAssignmentsFilters(t *testing.T) {
 		t.Fatalf("关键字筛选失败: %#v", items)
 	}
 
-	// 截止时间未知的排在最后。
+	// 截止时间未知的排在最后
 	items, err = repo.ListAssignments(ctx, entity.AssignmentFilter{ShowSubmitted: true})
 	if err != nil {
 		t.Fatal(err)

@@ -16,26 +16,26 @@ import (
 	"catcher/pkg/logger"
 )
 
-// Request / Response 是 sender 对外暴露的报文类型。
-// 具体字段定义在 model 子包，保持报文与传输逻辑分离。
+// Request / Response 是 sender 对外暴露的报文类型
+// 具体字段定义在 model 子包，报文与传输逻辑分离
 type Request = model.Request
 type Response = model.Response
 
 const (
-	// defaultTimeout 是单次请求的默认超时。
+	// defaultTimeout 是单次请求的默认超时
 	defaultTimeout = 30 * time.Second
 
-	// defaultMaxBodyBytes 是响应体的大小上限。
+	// defaultMaxBodyBytes 是响应体的大小上限
 	defaultMaxBodyBytes = 8 << 20 // 8MB
 )
 
-// Sender 是向平台发请求的发送器，可并发使用。
+// Sender 是向平台发请求的发送器，可并发使用
 //
-// 除限速状态外没有任何可变状态：不持有 cookie、不缓存会话。
+// 可变状态仅有限速记录，cookie 与会话由调用方持有
 //
-// 限速按实例生效，所以每个平台适配器应各持一个实例
-// （学习通 250ms 与雨课堂 300ms 互不干扰）；多个实例可以共享同一个
-// Config.Transport 以复用连接池。
+// 限速按实例生效，每个平台适配器各持一个实例
+// （学习通 250ms 与雨课堂 300ms 互不干扰），多个实例可以共享同一个
+// Config.Transport 以复用连接池
 type Sender struct {
 	transport      http.RoundTripper
 	client         *http.Client
@@ -43,26 +43,26 @@ type Sender struct {
 	maxBody        int64
 	logger         logger.Logger
 
-	// mu 保护下面的限速状态。
+	// mu 保护下面的限速状态
 	//
-	// 它同时承担两件事：保证并发安全，以及把并发调用摊平成符合
-	// MinInterval 的节奏 —— 两者是同一个机制，不需要分开设计。
+	// 同一把锁同时提供并发安全与 MinInterval 节奏控制，
+	// 两个目标由同一个机制完成
 	mu          sync.Mutex
 	minInterval time.Duration
 	lastSent    time.Time
 }
 
-// Config 用于配置 Sender。零值可用，字段为 0 / nil 时将在 New 中使用默认值。
+// Config 用于配置 Sender，零值可用，字段为 0 或 nil 时在 New 中使用默认值
 type Config struct {
 	Transport      http.RoundTripper
 	DefaultTimeout time.Duration
 	MaxBodyBytes   int64
 	MinInterval    time.Duration
-	// Logger 可为 nil；nil 时不输出日志。
+	// Logger 可为 nil，nil 时使用 Discard
 	Logger logger.Logger
 }
 
-// New 构造一个 Sender。Config 的零值可用，各项留 0 / nil 时取默认值。
+// New 构造一个 Sender，Config 的零值可用，各项留 0 或 nil 时取默认值
 func New(cfg Config) *Sender {
 	s := &Sender{
 		transport:      cfg.Transport,
@@ -87,8 +87,8 @@ func New(cfg Config) *Sender {
 
 	s.client = &http.Client{
 		Transport: s.transport,
-		// 恒不跟随重定向：学习通需要逐跳读取 Set-Cookie，
-		// 自动跟随会丢掉中间跳的响应头。
+		// 重定向以状态码返回：学习通需要逐跳读取 Set-Cookie，
+		// 自动跟随会丢掉中间跳的响应头
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -97,12 +97,12 @@ func New(cfg Config) *Sender {
 	return s
 }
 
-// Do 发送一次请求，并把原始响应交回调用方。
+// Do 发送一次请求，并把原始响应交回调用方
 //
 // 行为约定：
-//   - 非 2xx 返回 *StatusError，同时 Response 非 nil；
-//   - 超时 / 取消 / 传输失败 / 响应体超限各有独立错误类型；
-//   - 不自动重试、不跟随重定向、不解析 body、不处理 cookie。
+//   - 非 2xx 返回 *StatusError，同时 Response 非 nil
+//   - 超时 / 取消 / 传输失败 / 响应体超限各有独立错误类型
+//   - 重试、重定向跟随、body 解析与 cookie 处理由调用方负责
 func (s *Sender) Do(ctx context.Context, r *Request) (*Response, error) {
 	if r == nil {
 		return nil, fmt.Errorf("请求不能为空")
@@ -185,7 +185,7 @@ func (s *Sender) Do(ctx context.Context, r *Request) (*Response, error) {
 	return out, nil
 }
 
-// wait 在实例级最小间隔内等待。并发调用会被这把锁自然摊平。
+// wait 在实例级最小间隔内等待，并发调用由这把锁串行化
 func (s *Sender) wait(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -211,7 +211,7 @@ func (s *Sender) wait(ctx context.Context) error {
 func (s *Sender) logRequest(method, rawURL string, status int, bodyBytes int64, header http.Header, err error, elapsed time.Duration) {
 	errText := ""
 	if err != nil {
-		// 传输错误串里会回显完整 URL，必须和 url 字段一样打码
+		// 传输错误串里会回显完整 URL，与 url 字段一样打码
 		errText = logger.RedactText(err.Error())
 	}
 	s.logger.Debug("http",
@@ -225,7 +225,7 @@ func (s *Sender) logRequest(method, rawURL string, status int, bodyBytes int64, 
 	)
 }
 
-// classifyError 把 net/http 与 context 的错误收敛成调用方可分辨的类型。
+// classifyError 把 net/http 与 context 的错误收敛成调用方可分辨的类型
 func classifyError(ctx context.Context, err error, op string) error {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		if errors.Is(ctxErr, context.Canceled) {

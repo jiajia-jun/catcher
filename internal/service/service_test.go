@@ -528,7 +528,8 @@ func TestChaoxingLoginPersistsSession(t *testing.T) {
 	}
 }
 
-// 换一张必须在等待扫码期间就生效：旧实现只在 3 次自动换码用尽后才读 refresh 信号
+// 换一张需要在等待扫码期间立即生效
+// 旧实现要等 3 次自动换码用尽后才读取 refresh 信号
 func TestManualRefreshInterruptsWaitingPoll(t *testing.T) {
 	h := newHarness(t)
 	secret := mustSecret(t, "sid-refresh")
@@ -659,7 +660,8 @@ func TestRefreshPartialKeepsOldDataAndRecordsIssues(t *testing.T) {
 	}
 }
 
-// 平台只给得了部分数据（PartialByDesign）不是本次失败，但仍不能软删除
+// 平台只提供部分数据（PartialByDesign），本次按成功处理
+// 软删除仍按 Complete 的完整标记执行
 func TestRefreshPartialByDesignRecordsSuccess(t *testing.T) {
 	h := newHarness(t)
 	h.fetcher.steps = []fetchStep{{result: &entity.FetchResult{
@@ -944,7 +946,7 @@ func TestTermOnlyResolvesSemesterStart(t *testing.T) {
 		t.Fatalf("DeadlineFrom = %s, want %s", f.DeadlineFrom, want)
 	}
 
-	// 平台卡统计与列表必须同口径
+	// 平台卡统计与列表使用同一口径
 	if _, err := h.svc.Bootstrap(ctx, true); err != nil {
 		t.Fatal(err)
 	}

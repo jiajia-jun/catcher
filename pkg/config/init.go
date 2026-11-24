@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	// FileName 是数据目录内的配置文件名。
+	// FileName 是数据目录内的配置文件名
 	FileName = "catcher"
-	// FileExt 是配置文件类型。
+	// FileExt 是配置文件类型
 	FileExt = "yaml"
 )
 
-// New 读取指定路径下的配置。缺失的配置项会使用默认值。
+// New 读取指定路径下的配置，缺失的配置项使用默认值
 func New(path string, name string, ext string) (*App, error) {
 	v := viper.New()
 	v.AddConfigPath(path)
@@ -36,7 +36,7 @@ func New(path string, name string, ext string) (*App, error) {
 	return &app, nil
 }
 
-// LoadOrCreate 从数据目录读取 catcher.yaml；不存在时用默认值创建。
+// LoadOrCreate 从数据目录读取 catcher.yaml，不存在时用默认值创建
 func LoadOrCreate(dir string) (*App, error) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("创建数据目录失败: %w", err)
@@ -68,7 +68,7 @@ func LoadOrCreate(dir string) (*App, error) {
 	return &app, nil
 }
 
-// Save 把配置写到指定文件路径。
+// Save 把配置写到指定文件路径
 func (a *App) Save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("创建配置目录失败: %w", err)
