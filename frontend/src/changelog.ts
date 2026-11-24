@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.5.1',
+    date: '2026-11-24',
+    items: [
+      '学习通按作业编号识别任务，同课程同标题的作业不再互相合并',
+      '已提交作业的截止时间在刷新后保留，不再被清空',
+      '设置里的主题选项现在生效，深色主题启用新配色，窗口标题栏与启动底色跟随主题',
+      '抓取历史口径由「仅当前学期」改为「当前学年」',
+      'FiF 口语登录等待时间缩短',
+    ],
+  },
+  {
     version: '1.5.0',
     date: '2026-11-17',
     items: [
