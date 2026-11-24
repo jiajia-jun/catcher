@@ -11,12 +11,12 @@ import (
 
 const courseListPath = "/mycourse/backclazzdata?view=json&rss=1"
 
-// courseEntry 的 id 用 json.Number 保留原始字面量。
+// courseEntry 的 id 用 json.Number 保留原始字面量
 // 一旦过 float64，214986481 会变成 "2.14986481e+08"，课程名补全静默失效
 type courseEntry struct {
 	ID   json.Number `json:"id"`
 	Name string      `json:"name"`
-	// ClassID 与 CPI 挂在 channel 的 content 上，不在 course.data 里，
+	// ClassID 与 CPI 位于 channel 的 content 字段，course.data 中只有课程本身，
 	// 解析后由 fetchCourseList 补到每条课程上，用于拼课程主页地址
 	ClassID string `json:"-"`
 	CPI     string `json:"-"`
@@ -36,8 +36,8 @@ type courseListResp struct {
 	} `json:"channelList"`
 }
 
-// fetchCourseList 读取课程列表。它同时承担登录态判定：
-// result=1 已登录，result=0 会话失效；绝不能拿 HTTP 200 或课程数当判据
+// fetchCourseList 读取课程列表，同时承担登录态判定
+// result=1 表示已登录，result=0 表示会话失效
 func (c *Client) fetchCourseList(ctx context.Context, jar *cookieJar) ([]courseEntry, error) {
 	resp, err := c.get(ctx, c.baseURL+courseListPath, jar)
 	if err != nil {
@@ -46,7 +46,7 @@ func (c *Client) fetchCourseList(ctx context.Context, jar *cookieJar) ([]courseE
 
 	trimmed := strings.TrimSpace(string(resp.Raw))
 	if strings.HasPrefix(trimmed, "<") {
-		// 会话失效的真实形态之一：200 + 登录页 HTML
+		// 会话失效时可能返回 200 + 登录页 HTML
 		return nil, fmt.Errorf("%w: 课程列表返回登录页", entity.ErrAuthExpired)
 	}
 
@@ -82,8 +82,8 @@ func (c *Client) fetchCourseList(ctx context.Context, jar *cookieJar) ([]courseE
 	return entries, nil
 }
 
-// numberLiteral 取 JSON 数字的原始字面量，顺带把服务端的「空」统一成空串。
-// 这些 id 都不能过 float64
+// numberLiteral 取 JSON 数字的原始字面量，服务端的「空」统一成空串
+// 这些 id 经 float64 会丢失精度
 func numberLiteral(n json.Number) string {
 	raw := strings.TrimSpace(n.String())
 	if raw == "0" {
@@ -92,7 +92,7 @@ func numberLiteral(n json.Number) string {
 	return raw
 }
 
-// courseNameMap 建立 courseId 字面量 → 完整课程名。
+// courseNameMap 建立 courseId 字面量 → 完整课程名
 // 列表页的课程名被截断，这里补全
 func courseNameMap(entries []courseEntry) map[string]string {
 	out := make(map[string]string, len(entries))
@@ -106,7 +106,7 @@ func courseNameMap(entries []courseEntry) map[string]string {
 	return out
 }
 
-// toCourses 把课程列表转成领域课程；学习通没有学期概念，semester_key 留空
+// toCourses 把课程列表转成领域课程，学习通按全局课程组织，semester_key 留空
 func toCourses(entries []courseEntry) []entity.Course {
 	seen := make(map[string]struct{}, len(entries))
 	out := make([]entity.Course, 0, len(entries))

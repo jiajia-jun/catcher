@@ -14,7 +14,7 @@ var assets embed.FS
 
 func main() {
 	if err := app.Run(assets); err != nil {
-		// 发布版没有控制台时，这个错误会丢失；M4 会补原生错误对话框。
+		// 发布版无控制台，启动错误只写入 stderr
 		fmt.Fprintf(os.Stderr, "Catcher 启动失败: %v\n", err)
 		os.Exit(1)
 	}

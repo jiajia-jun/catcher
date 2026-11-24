@@ -17,13 +17,14 @@ const (
 	learningListPath  = "/v/course_meta/learning_list/"
 	classroomLogsPath = "/v/course_meta/classroom_logs"
 
-	// activityTypeQuiz 是已确认网页路由的习题类型；19 与视频 15/17 暂不拼链接
+	// activityTypeQuiz 是已确认网页路由的习题类型
+	// type 19 与视频 15/17 的链接规则尚未确认
 	activityTypeQuiz = 20
 )
 
 // Fetch 抓取当前学期的课程与作业
 //
-// 提交状态平台没有暴露，全部是 unknown；绝不推断成已交
+// 平台只提供活动数据，提交状态统一记为 unknown
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
 	secret, err := decodeSecret(session.Secret)
@@ -46,7 +47,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 
 	selected, semesterKey, warnings, complete := selectCurrentSemester(items, now)
 	if semesterKey == "" {
-		// 连一个学期前缀都读不到时不做软删除，避免把旧数据清空
+		// 学期前缀全部缺失时保留旧数据，跳过软删除
 		complete = false
 	}
 
@@ -65,7 +66,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 
 		logs, err := c.classroomLogs(ctx, item, secret.SessionID)
 		if err != nil {
-			// 认证失效/取消立即中止，本次结果不落库
+			// 认证失效或取消时立即中止，本次结果丢弃
 			if errors.Is(err, entity.ErrAuthExpired) || errors.Is(err, entity.ErrCanceled) {
 				return nil, err
 			}
@@ -121,11 +122,11 @@ func (c *Client) learningList(ctx context.Context, sessionID string) ([]courseIt
 	if err := json.Unmarshal(resp.Raw, &out); err != nil {
 		return nil, fmt.Errorf("%w: 课程列表不是 JSON: %v", entity.ErrPlatformChanged, err)
 	}
-	// 登录态只看响应体，不看 HTTP 200
+	// 登录态以响应体的 op 字段为准
 	if out.Op == "web_redirect" {
 		return nil, fmt.Errorf("%w: 课程列表被重定向到登录页", entity.ErrAuthExpired)
 	}
-	// 实测 2026-10 课程列表没有 success 字段，不能把「缺失」当成 false
+	// 课程列表可能缺少 success 字段，「缺失」按成功处理
 	if out.Success != nil && !*out.Success {
 		return nil, fmt.Errorf("%w: 课程列表 success=false msg=%s", entity.ErrPlatformChanged, out.Msg)
 	}
@@ -157,7 +158,7 @@ func (c *Client) classroomLogs(ctx context.Context, item courseItem, sessionID s
 }
 
 // selectCurrentSemester 只保留当前学期课程
-// 找不到目标学期时退化为列表中最新的学期前缀，并记 warning
+// 目标学期缺失时退化为列表中最新的学期前缀，并记 warning
 func selectCurrentSemester(items []courseItem, now time.Time) ([]courseItem, string, []entity.FetchIssue, bool) {
 	target := currentSemester(now)
 	matched := filterBySemester(items, target)
@@ -199,7 +200,7 @@ func filterBySemester(items []courseItem, target semester) []courseItem {
 }
 
 // parseClassroomLogs 摊平嵌套 activities 并转成领域对象
-// 返回的 ok 表示本次是否正确解析了全部条目；false 时调用方不做软删除
+// ok 表示本次全部条目解析成功，false 时调用方跳过软删除
 func parseClassroomLogs(baseURL string, item courseItem, logs *classroomLogsResp) (entity.Course, []entity.Assignment, []entity.FetchIssue, bool) {
 	course := entity.Course{
 		Platform:    entity.PlatformYuketang,
@@ -214,7 +215,7 @@ func parseClassroomLogs(baseURL string, item courseItem, logs *classroomLogsResp
 	var warnings []entity.FetchIssue
 	ok := true
 
-	// 不摊平会稳定拿到空列表：这是文档实测复现过的静默失败
+	// activities 是嵌套数组，摊平后才能取到条目
 	for _, group := range logs.Data.Activities {
 		for _, act := range group {
 			assignment, warns, valid := toAssignment(item, act)
@@ -223,7 +224,7 @@ func parseClassroomLogs(baseURL string, item courseItem, logs *classroomLogsResp
 				ok = false
 			}
 			if assignment != nil {
-				// 只有 type 20 与真实网页路由对上了；19 与视频类型没有样本
+				// type 20 的网页路由已验证，其他类型保留空链接
 				if act.Type == activityTypeQuiz && act.Content != nil {
 					assignment.DetailURL = quizDetailURL(
 						baseURL, item.ClassroomID.String(), act.Content.LeafID.String())
@@ -246,9 +247,8 @@ func quizDetailURL(baseURL, classroomID, leafID string) string {
 
 // 活动类型有两套编码，同一账号的课程里并存
 //
-// 旧课用 20（作业）/15（视频）；2026-10-25 用户账号「计算机组成原理A」实测新课
-// 用 19（习题/练习/作业）和 17（视频），整门课没有一条 20/15。标题能一一对上，
-// 所以 19 按作业类、17 按视频类处理，不能再当未知类型
+// 旧课使用 20（作业）与 15（视频），新课使用 19（习题/练习/作业）与 17（视频）
+// 标题能一一对应，19 按作业类、17 按视频类处理
 func isExerciseType(t int) bool { return t == 19 || t == 20 }
 
 func isKnownActivityType(t int) bool {
@@ -259,7 +259,7 @@ func isKnownActivityType(t int) bool {
 	return false
 }
 
-// toAssignment 把一条活动转成作业；nil 表示不是作业
+// toAssignment 把一条活动转成作业，nil 表示无需落库的活动
 func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.FetchIssue, bool) {
 	warn := func(msg string) entity.FetchIssue {
 		return entity.FetchIssue{
@@ -272,15 +272,15 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 
 	if act.Content == nil {
 		if isExerciseType(act.Type) {
-			// 作业类活动与 content 100% 重合；缺 content 说明结构变了
+			// 作业类活动都带 content，content 缺失说明响应结构变化
 			return nil, []entity.FetchIssue{warn(fmt.Sprintf("作业活动 %s 缺少 content", act.ID.String()))}, false
 		}
 		return nil, nil, true
 	}
 
 	var warnings []entity.FetchIssue
-	// 视频类（15/17）也是带期限的学习任务，保留且不算未知类型。
-	// 2026-10-23 实测 type=15 的 content.score_d 等于课堂 class_end，不是作业截止时间
+	// 视频类（15/17）是带期限的学习任务，保留且计入已知类型
+	// type=15 的 content.score_d 是课堂 class_end，与作业截止时间无关
 	if !isKnownActivityType(act.Type) {
 		warnings = append(warnings,
 			warn(fmt.Sprintf("未知活动类型 type=%d 带 content，请核对是否为作业", act.Type)))
@@ -289,7 +289,7 @@ func toAssignment(item courseItem, act activity) (*entity.Assignment, []entity.F
 	scoreRaw := act.Content.ScoreD.String()
 	if scoreRaw == "" {
 		if !isExerciseType(act.Type) {
-			// 带 content 的非作业类型（如授课记录）不落库
+			// 带 content 的非作业类型（如授课记录）跳过落库
 			return nil, warnings, true
 		}
 		warnings = append(warnings, warn(fmt.Sprintf("作业活动 %s 缺少 score_d", act.ID.String())))
@@ -329,7 +329,7 @@ func buildAssignment(item courseItem, act activity, deadline *time.Time,
 		ExternalID:       activityID,
 		DedupKey:         entity.YuketangDedupKey(courseID, classroomID, activityID),
 		Title:            entity.NormalizeTitle(act.Title),
-		// 平台没有提交状态字段；未知就是未知
+		// 平台提供活动数据，提交状态统一记为 unknown
 		Status:         entity.StatusUnknown,
 		Deadline:       deadline,
 		DeadlineSource: source,
@@ -351,7 +351,7 @@ func semesterKeyOf(classroomName string) string {
 	return ""
 }
 
-// parseMilliseconds 断言 13 位，拿错会得到 1970 年
+// parseMilliseconds 断言 13 位，位数不符会解出 1970 年
 func parseMilliseconds(n num) (time.Time, bool) {
 	raw := n.String()
 	if len(raw) != 13 {

@@ -9,10 +9,10 @@ import (
 	"catcher/internal/domain/entity"
 )
 
-// LoginChaoxing 用手机号+密码登录学习通，并保存会话。
+// LoginChaoxing 用手机号+密码登录学习通，并保存会话
 //
-// remember 为 true 时同时保存 DPAPI 加密的密码，供会话失效后自动重登一次；
-// 为 false 时明确删除旧密码，避免「取消记住」后仍能自动重登
+// remember 为 true 时同时保存 DPAPI 加密的密码，供会话失效后自动重登一次
+// remember 为 false 时删除旧密码，与「取消记住」的选择保持一致
 func (s *Service) LoginChaoxing(ctx context.Context, creds entity.PasswordCredential, remember bool) error {
 	auth, ok := s.authenticators[entity.PlatformChaoxing]
 	if !ok {
@@ -40,7 +40,7 @@ func (s *Service) LoginChaoxing(ctx context.Context, creds entity.PasswordCreden
 		if s.credentials == nil {
 			s.logger.Warn("未接入凭据仓储，密码不会被保存")
 		} else if err := s.credentials.Save(ctx, account.ID, creds, s.now()); err != nil {
-			// 登录已经成功，不能因为保存密码失败把用户挡在门外
+			// 登录已经成功，保存密码失败只记录告警
 			s.logger.Warn("保存学习通密码失败", "error", err)
 		}
 	} else if s.credentials != nil {
@@ -57,10 +57,9 @@ func (s *Service) LoginChaoxing(ctx context.Context, creds entity.PasswordCreden
 	return nil
 }
 
-// renew 在抓取遇到 ErrAuthExpired 时续期一次。
+// renew 在抓取遇到 ErrAuthExpired 时续期一次
 //
-// 雨课堂用保存的 Auth 重放；学习通没有可复用的凭据，只能拿 DPAPI 里的
-// 手机号+密码重新登录
+// 雨课堂用保存的 Auth 重放，学习通用 DPAPI 里的手机号+密码重新登录
 func (s *Service) renew(ctx context.Context, account entity.Account, session entity.Session) (*entity.Session, error) {
 	if renewer, ok := s.renewers[account.Platform]; ok {
 		return renewer.Renew(ctx, session)

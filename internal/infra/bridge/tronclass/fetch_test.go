@@ -145,7 +145,7 @@ func TestFetchEndToEnd(t *testing.T) {
 	if first.CourseExternalID != "101" || first.CourseName != "离散数学B" {
 		t.Fatalf("课程归属 = %q %q", first.CourseExternalID, first.CourseName)
 	}
-	// 作业网页地址用课程 id + 活动 id 拼，不带 ?view=scores
+	// 作业网页地址由课程 id 与活动 id 拼成
 	if first.DetailURL != server.URL+"/course/101/learning-activity#/549652" {
 		t.Fatalf("详情地址 = %q", first.DetailURL)
 	}
@@ -159,7 +159,7 @@ func TestFetchEndToEnd(t *testing.T) {
 		t.Fatalf("第二条 = %#v", second)
 	}
 
-	// submitted 缺失与截止时间非法都必须显式暴露
+	// submitted 缺失与截止时间非法都写入 warning
 	if third.Status != entity.StatusUnknown || third.Deadline != nil {
 		t.Fatalf("第三条 = %#v", third)
 	}

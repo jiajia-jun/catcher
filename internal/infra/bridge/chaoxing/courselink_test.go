@@ -24,7 +24,7 @@ func TestCourseHomeURL(t *testing.T) {
 		t.Fatalf("课程主页 = %q, want %q", got, want)
 	}
 
-	// 缺 clazzId 或 cpi 都组不出有效地址
+	// clazzId 与 cpi 齐全时才组得出有效地址
 	for _, entry := range []courseEntry{
 		{ID: "1", ClassID: "2"},
 		{ID: "1", CPI: "3"},
@@ -36,8 +36,8 @@ func TestCourseHomeURL(t *testing.T) {
 	}
 }
 
-// 有 clazzId/cpi 的课程跳到课程主页；缺 cpi 的课程保留手机版详情链接。
-// 两种情况下截止时间都仍然从手机版详情页取
+// 有 clazzId/cpi 的课程跳到课程主页，缺 cpi 的课程保留手机版详情链接
+// 两种情况下截止时间都从手机版详情页取
 func TestFetchUsesCourseHomeURL(t *testing.T) {
 	var detailHits atomic.Int32
 
@@ -91,7 +91,7 @@ func TestFetchUsesCourseHomeURL(t *testing.T) {
 	if got := result.Assignments[0].DetailURL; got != home {
 		t.Fatalf("detail_url = %q, want 课程主页 %q", got, home)
 	}
-	// 缺 cpi 的课程组不出课程主页，退回 ③ 给的详情链接
+	// 缺 cpi 的课程退回手机版详情链接
 	if got := result.Assignments[1].DetailURL; !strings.Contains(got, "mtaskmsgspecial?taskrefId=57939575") {
 		t.Fatalf("detail_url = %q, want 手机版详情链接", got)
 	}

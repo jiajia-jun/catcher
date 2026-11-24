@@ -15,7 +15,7 @@ import (
 
 const workListPath = "/work/stu-work?ut=s"
 
-// 文档给出的条目正则：data 是完整详情 URL，后面是该条目的 HTML 片段
+// 条目正则：data 是完整详情 URL，后面是该条目的 HTML 片段
 var workItemPattern = regexp.MustCompile(`(?s)<li onclick="goTask\(this\);" data="([^"]+)">(.*?)</li>`)
 
 var (
@@ -24,7 +24,8 @@ var (
 	remainingPattern = regexp.MustCompile(`(\d+)\s*(天|小时|分钟)`)
 )
 
-// workItem 是作业列表里的一条。死线时间要结合详情页再补
+// workItem 是作业列表里的一条，截止时间结合详情页补全
+// 标题中的日期属于标题内容，不参与截止时间计算
 type workItem struct {
 	DetailURL    string
 	Title        string
@@ -45,7 +46,8 @@ type worklistPage struct {
 	Complete bool
 }
 
-// fetchWorkList 请求并解析作业列表。失败必须显式返回，绝不返回空列表冒充成功
+// fetchWorkList 请求并解析作业列表
+// 失败时返回错误，与「没有作业」区分
 func (c *Client) fetchWorkList(ctx context.Context, jar *cookieJar) (*worklistPage, error) {
 	resp, err := c.get(ctx, c.baseURL+workListPath, jar)
 	if err != nil {
@@ -71,7 +73,7 @@ func parseWorkList(body string) *worklistPage {
 			Message: "作业列表未找到 haveMore，本次不做软删除",
 		})
 	} else if haveMore != "0" {
-		// 翻页参数未知，v1 不猜；非 0 只标 partial，不软删除
+		// 翻页参数尚未验证，haveMore 非 0 时标记 partial 并跳过软删除
 		page.Complete = false
 		page.Warnings = append(page.Warnings, entity.FetchIssue{
 			Scope:   entity.ScopePlatform,
@@ -82,7 +84,7 @@ func parseWorkList(body string) *worklistPage {
 
 	matches := workItemPattern.FindAllStringSubmatch(body, -1)
 	if len(matches) == 0 && strings.Contains(body, "goTask") {
-		// 页面结构变了，但 haveMore 还在；不能因此把旧作业全部软删除
+		// 页面结构变化但 haveMore 仍存在时，保留旧作业，跳过软删除
 		page.Complete = false
 		page.Warnings = append(page.Warnings, entity.FetchIssue{
 			Scope:   entity.ScopePlatform,
@@ -94,7 +96,7 @@ func parseWorkList(body string) *worklistPage {
 		item, warnings, ok := parseWorkItem(match[1], match[2])
 		page.Warnings = append(page.Warnings, warnings...)
 		if !ok {
-			// 有一条解析不了就无法断言完整枚举，保守地不软删除
+			// 任意一条解析失败都会让完整枚举失去保证，本次跳过软删除
 			page.Complete = false
 			continue
 		}
@@ -171,11 +173,11 @@ func parseWorkItem(rawData, inner string) (workItem, []entity.FetchIssue, bool) 
 	case "已完成":
 		item.Status = entity.StatusSubmitted
 	case "待批阅":
-		// 待批阅 = 已交、老师还没批改；真实环境里大量出现，接口文档没写。
-		// 它是已提交，不能当未提交（会误报），也不能当未知（会漏掉详情跳过）
+		// 待批阅表示已交、老师尚未批改
+		// 按已提交处理：归入未提交会误报，归入未知会跳过详情抓取
 		item.Status = entity.StatusSubmitted
 	default:
-		// 认不出的状态显式暴露，绝不默认成已完成
+		// 未知状态标记为 unknown 并记录告警
 		item.Status = entity.StatusUnknown
 		warn(fmt.Sprintf("作业 %q 的状态无法识别：%s", item.Title, truncate(statusText, 40)))
 	}
@@ -184,7 +186,8 @@ func parseWorkItem(rawData, inner string) (workItem, []entity.FetchIssue, bool) 
 		if duration, ok := parseRemaining(remainingRaw); ok {
 			item.Remaining = duration
 		} else {
-			// 有「剩余时间」段但读不出来，按没有处理；年份补全不能再依赖它
+			// 有「剩余时间」段但解析失败时按无剩余时间处理
+			// 年份补全改走详情页月-日
 			item.HasRemaining = false
 			warn(fmt.Sprintf("作业 %q 的剩余时间无法解析：%s", item.Title, truncate(remainingRaw, 40)))
 		}
@@ -209,10 +212,10 @@ func pickAriaLabel(inner, prefix string) string {
 	return ""
 }
 
-// parseAriaLabel 按「作业名称<标题>作业状态<状态>所属课程<课程>剩余时间<剩余>」拆解。
+// parseAriaLabel 按「作业名称<标题>作业状态<状态>所属课程<课程>剩余时间<剩余>」拆解
 //
 // 三个定界符都从右往左找：标题是自由文本，可能自带日期、括号、空格，
-// 理论上也可能自带同名字样；真正的定界符一定在标题之后
+// 也可能自带同名字样，真正的定界符位于标题之后
 func parseAriaLabel(aria string) (title, statusText, courseName, remainingRaw string, hasRemaining, ok bool) {
 	end := len(aria)
 
@@ -243,8 +246,8 @@ func parseAriaLabel(aria string) (title, statusText, courseName, remainingRaw st
 	return title, statusText, courseName, strings.TrimSpace(remainingRaw), hasRemaining, true
 }
 
-// parseRemaining 把「312小时55分钟」这类相对时间累加。
-// 剩余时间是相对值，必须在抓取当场换算成绝对时刻
+// parseRemaining 把「312小时55分钟」这类相对时间累加
+// 剩余时间是相对值，在抓取当场换算成绝对时刻
 func parseRemaining(raw string) (time.Duration, bool) {
 	matches := remainingPattern.FindAllStringSubmatch(raw, -1)
 	if len(matches) == 0 {
@@ -268,8 +271,8 @@ func parseRemaining(raw string) (time.Duration, bool) {
 	return total, true
 }
 
-// parseStatusIcon 读图标文件名判断作业是否还在进行。
-// 不能用 redPoint：那是未读标记，会随阅读清除
+// parseStatusIcon 读图标文件名判断作业是否还在进行
+// redPoint 是未读标记，会随阅读清除，这里以图标文件名为准
 func parseStatusIcon(inner string) (ended, known bool) {
 	switch {
 	case strings.Contains(inner, "task-work-gray"):
@@ -281,7 +284,7 @@ func parseStatusIcon(inner string) (ended, known bool) {
 	}
 }
 
-// courseIDFromURL 用 net/url 取查询参数，不做字符串切割
+// courseIDFromURL 用 net/url 解析并读取查询参数
 func courseIDFromURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {

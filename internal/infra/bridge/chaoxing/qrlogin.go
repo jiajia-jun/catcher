@@ -34,8 +34,8 @@ const (
 	qrDefaultRefer = "https://v1.chaoxing.com/backSchool/toLogin?source=num8"
 )
 
-// qrSession 是一张二维码在服务端的上下文。
-// uuid / enc 由扫码页的隐藏 input 下发，cookie 袋必须与取图、轮询共用
+// qrSession 是一张二维码在服务端的上下文
+// uuid / enc 由扫码页的隐藏 input 下发，cookie 袋在取图与轮询之间共用
 type qrSession struct {
 	uuid      string
 	enc       string
@@ -45,7 +45,7 @@ type qrSession struct {
 	polls     int
 }
 
-// qrStatusResp 是 /getauthstatus 的响应。
+// qrStatusResp 是 /getauthstatus 的响应
 // type 是字符串：3 等待、4 已扫待确认、2 失效、6 取消、1 参数校验失败
 type qrStatusResp struct {
 	Status bool   `json:"status"`
@@ -53,9 +53,9 @@ type qrStatusResp struct {
 	Mes    string `json:"mes"`
 }
 
-// BeginQR 打开扫码页并取回二维码图片。
+// BeginQR 打开扫码页并取回二维码图片
 //
-// 学习通的二维码不是前端算出来的，而是服务端按 uuid 生成的 PNG：
+// 学习通的二维码由服务端按 uuid 生成 PNG
 // 先用页面给的 JSESSIONID 打开 /cloudscanlogin 拿 uuid / enc，
 // 再用同一个 cookie 袋请求 /createqr 取图
 func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
@@ -122,7 +122,7 @@ func (c *Client) BeginQR(ctx context.Context) (*entity.QRChallenge, error) {
 	}, nil
 }
 
-// PollQR 查询一次扫码状态。第一次立即查，之后每次先等 3 秒
+// PollQR 查询一次扫码状态，第一次立即查询，之后每次先等 3 秒
 func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (entity.QRState, *entity.Session, error) {
 	if challenge == nil || challenge.ID == "" {
 		return entity.QRFailed, nil, fmt.Errorf("%w: 缺少二维码 id", entity.ErrAuthFailed)
@@ -155,7 +155,7 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 	form := url.Values{"enc": {qs.enc}, "uuid": {qs.uuid}}
 	resp, err := c.doForm(ctx, c.qrBaseURL+qrStatusPath, form, qs.jar)
 	if err != nil {
-		// 超时与 5xx 都是「继续等」，页面自己也是这么做的
+		// 超时与 5xx 按「继续等」处理，与页面轮询行为一致
 		if isTransientPollError(err) {
 			return entity.QRWaiting, nil, nil
 		}
@@ -180,7 +180,7 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 		c.dropQR(challenge.ID)
 		return entity.QRExpired, nil, nil
 	case "6":
-		// 用户在手机上取消了登录，不是链路故障，给出明确提示
+		// 用户在手机上取消登录，给出明确提示
 		c.dropQR(challenge.ID)
 		return entity.QRFailed, nil, fmt.Errorf("%w: 已在手机上取消登录", entity.ErrAuthFailed)
 	case "1":
@@ -196,8 +196,8 @@ func (c *Client) PollQR(ctx context.Context, challenge *entity.QRChallenge) (ent
 	}
 }
 
-// completeQR 在确认登录后跟随 pcrefer 收全 cookie，并用课程列表验证登录态。
-// 未确认成功响应本身是否下发 cookie，所以 pcrefer 这一跳必须走
+// completeQR 在确认登录后跟随 pcrefer 收全 cookie，并用课程列表验证登录态
+// 成功响应是否下发 cookie 尚未确认，pcrefer 这一跳需要走完
 func (c *Client) completeQR(ctx context.Context, id string, qs *qrSession) (entity.QRState, *entity.Session, error) {
 	c.dropQR(id)
 
@@ -218,8 +218,8 @@ func (c *Client) completeQR(ctx context.Context, id string, qs *qrSession) (enti
 	return entity.QRSucceeded, session, nil
 }
 
-// followToRefer 逐跳跟随登录后的落地页，每跳都累积 Set-Cookie。
-// sender 不跟随重定向，这里必须手工走完
+// followToRefer 逐跳跟随登录后的落地页，每跳都累积 Set-Cookie
+// sender 将重定向作为状态码返回，这里手工走完跳转链
 func (c *Client) followToRefer(ctx context.Context, rawURL string, jar *cookieJar) error {
 	for hop := 0; hop < maxLoginRedirects; hop++ {
 		// 用原始错误判断 3xx：do 会把 StatusError 折成 ErrAuthExpired
@@ -244,8 +244,8 @@ func (c *Client) followToRefer(ctx context.Context, rawURL string, jar *cookieJa
 	return fmt.Errorf("%w: 扫码后跳转超过 %d 跳", entity.ErrPlatformChanged, maxLoginRedirects)
 }
 
-// doForm 发送扫码轮询需要的表单 POST。
-// 响应声明是 text/html，正文却是 JSON，这里不做内容类型判断
+// doForm 发送扫码轮询需要的表单 POST
+// 响应声明是 text/html，正文是 JSON，这里按正文直接解析
 func (c *Client) doForm(ctx context.Context, rawURL string, form url.Values, jar *cookieJar) (*sender.Response, error) {
 	header := map[string]string{
 		"Accept":           "application/json, text/plain, */*",
@@ -318,7 +318,7 @@ func newQRID() (string, error) {
 	return hex.EncodeToString(buf[:]), nil
 }
 
-// hiddenInputValue 读取 <input id="..." value="...">，属性顺序两种都吃
+// hiddenInputValue 读取 <input id="..." value="...">，支持两种属性顺序
 func hiddenInputValue(html, id string) string {
 	quoted := regexp.QuoteMeta(id)
 	patterns := []*regexp.Regexp{
@@ -333,7 +333,8 @@ func hiddenInputValue(html, id string) string {
 	return ""
 }
 
-// sniffImageMime 按文件头判断图片类型。/createqr 的 Content-Type 不可信
+// sniffImageMime 按文件头判断图片类型
+// /createqr 的 Content-Type 与实际内容可能不一致
 func sniffImageMime(raw []byte) string {
 	switch {
 	case bytes.HasPrefix(raw, []byte("\x89PNG\r\n\x1a\n")):

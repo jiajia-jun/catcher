@@ -13,8 +13,8 @@ import (
 // SaveSnapshot 在一个事务内写入课程与作业
 //
 // 软删除顺序是「先全部置 active=0，再 upsert 回 active=1」，
-// 这样不必拼一个可能超过 SQLite 参数上限的 NOT IN 列表；
-// 事务隔离保证读连接看不到中间状态。
+// 以此避开可能超过 SQLite 参数上限的 NOT IN 列表
+// 事务隔离保证读连接看不到中间状态
 // 课程列表完整但部分课程作业失败时，失败课程下的旧作业保持 active
 func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, error) {
 	if in.AccountID <= 0 {
@@ -180,9 +180,9 @@ func upsertAssignment(ctx context.Context, tx *sqlx.Tx, in entity.PersistInput,
 		deadline = formatTime(*item.Deadline)
 	}
 
-	// 截止时间读不到时保留库中旧值：学习通等平台对已提交作业不再提供截止时间，
-	// 用 NULL 覆盖等于每次刷新都擦掉一次已知数据
-	// 三列以 excluded.deadline_at 为唯一开关，要么整体保留，要么整体覆盖
+	// 截止时间读不到时保留库中旧值
+	// 学习通等平台对已提交作业不再提供截止时间，用 NULL 覆盖会擦掉已知数据
+	// 三列以 excluded.deadline_at 为唯一开关，整体保留或整体覆盖
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO assignments (account_id, platform, course_id, course_external_id,
 			course_name, external_id, dedup_key, title, status, deadline_at,

@@ -47,7 +47,7 @@ func TestRedactHeaders(t *testing.T) {
 	if got["Content-Type"][0] != "application/json" {
 		t.Fatalf("Content-Type 不应被打码: %q", got["Content-Type"][0])
 	}
-	// 原 header 不能被修改。
+	// 原 header 保持原样
 	if h["Cookie"][0] != "sessionid=abc" {
 		t.Fatalf("RedactHeaders 修改了原 header")
 	}

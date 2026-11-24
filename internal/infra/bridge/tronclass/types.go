@@ -13,7 +13,7 @@ type semester struct {
 	IsActive bool   `json:"is_active"`
 }
 
-// semesterRef 是课程对象里的学期引用，id 与学年 id 不是同一实体
+// semesterRef 是课程对象里的学期引用，与学年 id 分属不同实体
 type semesterRef struct {
 	ID   int64  `json:"id"`
 	Code string `json:"code"`
@@ -65,7 +65,7 @@ type homeworkActivity struct {
 
 // submittedFlag 区分「明确给了布尔值」与「缺失或类型错误」
 //
-// 后者必须落到 unknown 并写 warning，绝不能默认成未提交
+// 缺失或类型错误时 Set 为 false，由调用方记为 unknown 并写 warning
 type submittedFlag struct {
 	Set   bool
 	Value bool

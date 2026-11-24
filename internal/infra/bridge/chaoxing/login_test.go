@@ -56,12 +56,12 @@ func TestLoginFollowsRedirectsAndCollectsCookies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 学习通拦截 Go 默认 UA，必须带浏览器标识
+	// 学习通拦截 Go 默认 UA，请求需要带浏览器标识
 	if !strings.Contains(gotUA, "Mozilla/5.0") {
 		t.Fatalf("登录请求缺少浏览器 UA: %q", gotUA)
 	}
 
-	// uname 必须是 AES 加密后的值，不能是手机号明文
+	// uname 为 AES 加密后的值
 	if gotUsername == "13800138000" || gotUsername == "" {
 		t.Fatalf("uname 未加密: %q", gotUsername)
 	}

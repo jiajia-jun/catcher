@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// 学期前缀只挂在 classroom_name 上，course_name 不带学期
+// 学期前缀位于 classroom_name 上，course_name 是纯课程名
 var semesterRe = regexp.MustCompile(`^(\d{4})(春|夏|秋)-`)
 
 // semester 是客户端从 classroom_name 推断出的学期
-// 这是本地推断，不是平台 API 保证，必须随 warning 写进日志
+// 平台 API 只提供 classroom_name，学期由本地推断，调用方随 warning 写入日志
 type semester struct {
 	Year   int
 	Season string

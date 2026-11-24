@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	// fiforalCourseID 是合成课程的固定 ExternalID。平台没有课程概念
+	// fiforalCourseID 是合成课程的固定 ExternalID
+	// 平台按任务组织内容，课程由客户端合成
 	fiforalCourseID   = "fiforal:oral"
 	fiforalCourseName = "FiF 口语"
 
@@ -36,8 +37,9 @@ type fetchRun struct {
 
 // Fetch 抓取进行中与已结束两个任务列表
 //
-// 完整性只在两个列表都翻到空页时成立；进行中列表失败整次失败，
-// 已结束列表失败降级成警告，避免把「没抓到」表现成「没有作业」
+// 完整性只在两个列表都翻到空页时成立
+// 进行中列表失败时整次失败，已结束列表失败降级成警告
+// 「没抓到」与「没有作业」在结果上保持区分
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
 	_ = account
@@ -71,7 +73,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	progress(entity.Progress{Platform: entity.PlatformFiforal, Phase: "courses", Message: "读取进行中任务"})
 	inProgress, complete1, err := c.fetchList(ctx, jar, statusInProgress, run, persist)
 	if err != nil {
-		// 进行中列表失败就整次失败，不能返回空列表冒充「没有作业」
+		// 进行中列表失败时整次按失败处理，空列表保留给「没有作业」
 		return nil, err
 	}
 	if err := c.persistCookies(jar, token.UserID, opts); err != nil {
@@ -118,7 +120,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 		Platform:   entity.PlatformFiforal,
 		ExternalID: fiforalCourseID,
 		Name:       fiforalCourseName,
-		// 平台没有学期字段；两个列表全抓回来，由界面的「只看本学期」过滤
+		// 平台按任务组织数据，两个列表全部抓回，由界面的「只看本学期」过滤
 		SemesterKey: "",
 	}}
 	complete := complete1 && complete2
@@ -136,7 +138,8 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	return run.result, nil
 }
 
-// fetchList 从 page=1 翻到第一个空页。H5 自己只增不减的计数器不能照抄
+// fetchList 从 page=1 翻到第一个空页
+// H5 的 page 计数器只增不减，翻页以数据为空作为终止条件
 func (c *Client) fetchList(ctx context.Context, jar *cookieJar,
 	status int, run *fetchRun, persist func() error) ([]taskItem, bool, error) {
 	out := make([]taskItem, 0, 16)
@@ -265,7 +268,8 @@ func mergeTasks(inProgress, finished []taskItem, run *fetchRun) []taskItem {
 	return items
 }
 
-// toAssignment 把一条任务映射成实体。字段异常只告警，不影响列表完整性
+// toAssignment 把一条任务映射成实体
+// 字段异常只告警，列表完整性保持独立
 func (r *fetchRun) toAssignment(item taskItem) entity.Assignment {
 	id := item.taskID()
 	title := taskTitle(item)
@@ -299,7 +303,7 @@ func taskTitle(item taskItem) string {
 	return "任务 " + item.taskID()
 }
 
-// descriptionOf 只放教师与说明，不拼 token 或其它字段
+// descriptionOf 只放教师与说明
 func descriptionOf(item taskItem) string {
 	parts := make([]string, 0, 2)
 	if teacher := strings.TrimSpace(item.TeaName); teacher != "" {
@@ -314,7 +318,7 @@ func descriptionOf(item taskItem) string {
 func (r *fetchRun) statusOf(item taskItem, id string) entity.SubmissionStatus {
 	complete, ok := item.complete()
 	if !ok {
-		// 缺失、null 或类型漂移都按未知处理，绝不能落到「未提交」
+		// 缺失、null 或类型漂移都按未知处理
 		return entity.StatusUnknown
 	}
 	switch complete {
@@ -329,8 +333,8 @@ func (r *fetchRun) statusOf(item taskItem, id string) entity.SubmissionStatus {
 	}
 }
 
-// deadlineOf 选择截止时间。isDelay==1 才看 delayTime：
-// 实测 isDelay==0 时 delayTime 也可能非空且等于 endTime
+// deadlineOf 选择截止时间，isDelay==1 时使用 delayTime
+// isDelay==0 时 delayTime 可能非空且等于 endTime，因此以 isDelay 为准
 func (r *fetchRun) deadlineOf(item taskItem, id string) (string, *time.Time) {
 	raw := strings.TrimSpace(item.EndTime)
 	if delayed, ok := item.isDelay(); ok && delayed == 1 {

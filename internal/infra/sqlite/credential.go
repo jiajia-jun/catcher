@@ -16,8 +16,8 @@ import (
 
 // CredentialRepo 把密码凭据经 DPAPI 加密后写入 accounts.credential_blob
 //
-// 学习通没有可长期复用的登录态 cookie，会话失效后要用保存的手机号+密码重登
-// 一次。解密失败按「没有凭据」处理，绝不回退明文
+// 学习通的登录态 cookie 有效期短，会话失效后要用保存的手机号+密码重登一次
+// 解密失败按「没有凭据」处理
 type CredentialRepo struct {
 	db     *DB
 	cipher domain.SecretCipher
@@ -27,7 +27,7 @@ func NewCredentialRepo(db *DB, cipher domain.SecretCipher) *CredentialRepo {
 	return &CredentialRepo{db: db, cipher: cipher}
 }
 
-// Get 读取并解密凭据。没有保存时返回 entity.ErrNotFound
+// Get 读取并解密凭据，未保存时返回 entity.ErrNotFound
 func (r *CredentialRepo) Get(ctx context.Context, accountID int64) (*entity.PasswordCredential, error) {
 	var blob []byte
 	err := r.db.SQL().GetContext(ctx, &blob,

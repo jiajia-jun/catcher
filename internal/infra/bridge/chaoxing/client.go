@@ -1,14 +1,4 @@
 // Package chaoxing 实现学习通的密码登录、会话续期与作业抓取
-//
-// 接口依据 docs/接口文档/学习通.md。几条刻意保留的陷阱：
-//   - 登录在 passport2.xuexitong.com，数据在 mooc1-api.chaoxing.com，域名分裂
-//   - sender 不跟随重定向，登录必须手工跟随 ≤10 跳并逐跳累积 Set-Cookie
-//   - cookie 表不按 host 过滤、不硬编码名字；JSESSIONID 是 host-only
-//   - 登录态只看课程列表的 result，不看 HTTP 状态码；失效时可能是 200 + 登录页 HTML
-//   - 状态与剩余时间只从 aria-label 取，三个定界符从右往左找
-//   - redPoint 是未读标记，不是未交
-//   - 课程 id 必须按原始字面量取，不能过 float64
-//   - 标题里的日期不是截止时间；剩余时间要当场换算成绝对时刻
 package chaoxing
 
 import (
@@ -34,7 +24,7 @@ const (
 	DefaultDesktopBaseURL = "https://mooc1.chaoxing.com"
 	// DefaultLoginBaseURL 是密码登录接口的域名
 	DefaultLoginBaseURL = "https://passport2.xuexitong.com"
-	// DefaultQRBaseURL 是扫码登录接口的域名。它和密码登录不是同一个站点
+	// DefaultQRBaseURL 是扫码登录接口的域名，与密码登录站点不同
 	DefaultQRBaseURL = "https://passport2.chaoxing.com"
 
 	// maxLoginRedirects 是手工跟随 302 的上限
@@ -42,13 +32,13 @@ const (
 	// maxDetailRedirects 是详情页跟随跳转的上限（Android 接口 → H5 页面）
 	maxDetailRedirects = 5
 
-	// userAgent 伪装成桌面浏览器。
-	// 学习通会拦截 Go 默认的 "Go-http-client/1.1"：登录直接 302 到
-	// passport2-api.chaoxing.com/views/error/passport404.html，表现为「登录返回页面而不是 JSON」
+	// userAgent 是请求使用的桌面浏览器 UA 标识
+	// 学习通会拦截 Go 默认的 "Go-http-client/1.1" 并 302 到
+	// passport2-api.chaoxing.com/views/error/passport404.html
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 )
 
-// Options 构造学习通适配器。Sender 由 cmd/app 注入，单独限速 250ms
+// Options 是学习通适配器的构造参数，Sender 由 cmd/app 注入并单独限速 250ms
 type Options struct {
 	BaseURL        string
 	DesktopBaseURL string
@@ -72,8 +62,8 @@ type Client struct {
 	logger         logger.Logger
 	now            func() time.Time
 
-	// qrSessions 保存每张二维码的 uuid / enc 与同一个 cookie 袋。
-	// 轮询必须复用 BeginQR 时拿到的 JSESSIONID，丢了服务端会返回 type=2
+	// qrSessions 保存每张二维码的 uuid / enc 与共用的 cookie 袋
+	// 轮询复用 BeginQR 时拿到的 JSESSIONID，缺失时服务端返回 type=2
 	qrMu       sync.Mutex
 	qrSessions map[string]*qrSession
 }
@@ -117,10 +107,10 @@ func New(opts Options) *Client {
 // Platform 返回平台标识
 func (c *Client) Platform() entity.Platform { return entity.PlatformChaoxing }
 
-// cookieJar 是平台内全局 cookie 袋。
+// cookieJar 是平台内全局 cookie 袋
 //
-// 刻意不做 host / path 过滤：登录链会跨 passport2 与 mooc1-api 两个域名，
-// cookiejar 会按 host-only 规则丢掉 JSESSIONID 这类凭据
+// 登录链会跨 passport2 与 mooc1-api 两个域名，cookie 表按跨域共用设计，
+// cookiejar 的 host-only 规则会丢弃 JSESSIONID 这类凭据
 type cookieJar struct {
 	order   []string
 	values  map[string]string
@@ -139,7 +129,8 @@ func newCookieJar(cookies []entity.Cookie) *cookieJar {
 	return jar
 }
 
-// add 累积原始 Set-Cookie 行。只取第一段 name=value，不解析 Domain/Path/过期
+// add 累积原始 Set-Cookie 行，仅保留第一段 name=value
+// Domain / Path / 过期时间字段在此处忽略
 func (j *cookieJar) add(lines []string) {
 	for _, line := range lines {
 		name, value, ok := strings.Cut(line, "=")
@@ -233,7 +224,7 @@ func (c *Client) persistCookies(jar *cookieJar, opts entity.FetchOptions) error 
 	return nil
 }
 
-// get 发送带全量 cookie 的 GET。学习通数据接口都走这里
+// get 发送带全量 cookie 的 GET，学习通数据接口统一走这里
 func (c *Client) get(ctx context.Context, rawURL string, jar *cookieJar) (*sender.Response, error) {
 	return c.do(ctx, http.MethodGet, rawURL, nil, jar)
 }
@@ -246,9 +237,9 @@ func (c *Client) do(ctx context.Context, method, rawURL string, body []byte, jar
 	return resp, nil
 }
 
-// doRaw 与 do 相同，但把 sender 的原始错误原样返回。
-// 需要区分 302 跳转与真正失败的地方用它：classifySendError 会把
-// sender.StatusError 折成领域错误，之后 errors.As 就找不到状态码了
+// doRaw 与 do 相同，sender 的原始错误原样返回
+// 需要区分 302 跳转与真正失败时用它：classifySendError 会把
+// sender.StatusError 折成领域错误，此后 errors.As 取不到状态码
 func (c *Client) doRaw(ctx context.Context, method, rawURL string, body []byte, jar *cookieJar) (*sender.Response, error) {
 	header := map[string]string{
 		"Accept":     "text/html,application/json;q=0.9,*/*;q=0.8",
@@ -269,11 +260,11 @@ func (c *Client) doRaw(ctx context.Context, method, rawURL string, body []byte, 
 	return resp, err
 }
 
-// getFollowing 用 GET 跟随重定向，专供详情页。
+// getFollowing 用 GET 跟随重定向，用于详情页
 //
-// 作业列表给的详情链接是 Android 接口路径 mtaskmsgspecial，服务器会 302 到
-// H5 页面 /mooc-ans/work/phone/task-work —— 这是正常跳转，不是登录失效。
-// 只有跳到 passport 登录页才算会话失效
+// 作业列表给出的详情链接是 Android 接口路径 mtaskmsgspecial，服务器会 302 到
+// H5 页面 /mooc-ans/work/phone/task-work
+// 跳转到 passport 登录页时按会话失效处理
 func (c *Client) getFollowing(ctx context.Context, rawURL string, jar *cookieJar) (*sender.Response, error) {
 	for hop := 0; hop <= maxDetailRedirects; hop++ {
 		resp, err := c.get(ctx, rawURL, jar)
@@ -296,7 +287,7 @@ func (c *Client) getFollowing(ctx context.Context, rawURL string, jar *cookieJar
 	return nil, fmt.Errorf("%w: 详情页重定向超过 %d 跳", entity.ErrPlatformChanged, maxDetailRedirects)
 }
 
-// isLoginURL 判断重定向目标是不是登录页
+// isLoginURL 判断重定向目标是否为登录页
 func isLoginURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -323,7 +314,7 @@ func classifySendError(err error) error {
 	var status *sender.StatusError
 	if errors.As(err, &status) {
 		switch {
-		// sender 不跟随重定向；数据接口被 3xx 带去登录页说明会话失效
+		// sender 将重定向作为状态码返回，数据接口被 3xx 带去登录页时按会话失效处理
 		case status.Code >= 300 && status.Code < 400:
 			return fmt.Errorf("%w: 请求被重定向（HTTP %d）", entity.ErrAuthExpired, status.Code)
 		case status.Code == 401 || status.Code == 403:

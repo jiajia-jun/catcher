@@ -27,7 +27,7 @@ const (
 
 // Fetch 抓取当前学期的课程与逐课作业
 //
-// 学期 id 来自 my-semesters 的 is_active；课程与作业都按 pages 终止，
+// 学期 id 来自 my-semesters 的 is_active，课程与作业都按 pages 终止
 // 单课失败记 warning 后继续，认证失效与取消立即中止
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
@@ -72,7 +72,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 
 		items, warns, err := state.listAssignments(ctx, course)
 		if err != nil {
-			// 认证失效、取消是整次抓取的问题，本次结果不落库
+			// 认证失效或取消时立即中止，本次结果丢弃
 			if errors.Is(err, entity.ErrAuthExpired) || errors.Is(err, entity.ErrCanceled) {
 				return nil, err
 			}
@@ -97,7 +97,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 		FailedCourses:      failed,
 	}
 	if !courseListComplete {
-		// nil 表示课程列表不完整，落库时不做任何软删除
+		// nil 表示课程列表不完整，落库时跳过全部软删除
 		result.FailedCourses = nil
 	}
 	result.Complete = courseListComplete && len(result.FailedCourses) == 0
@@ -114,7 +114,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 
 // fetchState 维护单次抓取内轮换后的 session
 //
-// 学在重邮每个 200 都可能下发新 session；只持久化成功响应里的值
+// 学在重邮每个 200 都可能下发新 session，这里只持久化成功响应里的值
 type fetchState struct {
 	client  *Client
 	session string
@@ -245,7 +245,7 @@ func (s *fetchState) listCourses(ctx context.Context, semesterID int64) (
 			})
 		}
 
-		// 空课程列表返回 pages=0；越界页会重复最后一页，不能用空列表终止
+		// 空课程列表返回 pages=0，越界页会重复最后一页，终止条件以 pages 为准
 		if page >= data.Pages {
 			break
 		}
@@ -253,7 +253,8 @@ func (s *fetchState) listCourses(ctx context.Context, semesterID int64) (
 	return courses, complete, warnings, nil
 }
 
-// listAssignments 枚举一门课的作业；页数超限按失败处理
+// listAssignments 枚举一门课的作业，页数超限按失败处理
+// 作业项不含 course_id，课程归属由调用方传入的 course 决定
 func (s *fetchState) listAssignments(ctx context.Context, course entity.Course) (
 	[]entity.Assignment, []entity.FetchIssue, error) {
 	assignments := make([]entity.Assignment, 0)
@@ -296,7 +297,8 @@ func detailURL(baseURL, courseID, activityID string) string {
 		"/learning-activity#/" + activityID
 }
 
-// parseActivity 把一条作业映射成领域对象；无法落库的条目跳过并写 warning
+// parseActivity 把一条作业映射成领域对象，解析失败的条目跳过并写 warning
+// 提交状态取自 submitted 字段，截止时间取自 deadline 字段
 func parseActivity(course entity.Course, activity homeworkActivity) (
 	entity.Assignment, []entity.FetchIssue, bool) {
 	if activity.ID <= 0 {

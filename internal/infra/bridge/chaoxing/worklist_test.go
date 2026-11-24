@@ -70,7 +70,7 @@ func TestParseWorkList(t *testing.T) {
 }
 
 func TestParseAriaLabelRightToLeft(t *testing.T) {
-	// 标题里故意塞入两个定界符，必须从右往左锚到真正的定界符
+	// 标题里放入两个定界符，从右往左锚定到真正的定界符
 	aria := "作业名称章节作业状态说明所属课程测试作业状态未提交所属课程高等数学剩余时间1天2小时3分钟"
 	title, status, course, remaining, has, ok := parseAriaLabel(aria)
 	if !ok {
@@ -131,7 +131,7 @@ func TestParseWorkListUnknownStatusIsNotSubmitted(t *testing.T) {
 	}
 }
 
-// 真实环境里「待批阅」大量出现：它是已提交，不能当未知、更不能当未提交
+// 「待批阅」表示已交待批改，按已提交处理
 func TestParseWorkListAwaitingGradeIsSubmitted(t *testing.T) {
 	body := strings.Replace(worklistFixture, "作业状态已完成", "作业状态待批阅", 1)
 	page := parseWorkList(body)
@@ -148,7 +148,7 @@ func TestParseWorkListAwaitingGradeIsSubmitted(t *testing.T) {
 
 func TestParseWorkListStructureDrift(t *testing.T) {
 	body := strings.ReplaceAll(worklistFixture, `<li onclick="goTask(this);"`, `<li class="changed"`)
-	// 页面结构变了但脚本里仍会提到 goTask，此时必须靠「匹配数为 0」判定不完整
+	// 页面结构变化但脚本仍提到 goTask 时，以「匹配数为 0」判定不完整
 	body = strings.Replace(body, "</body>", `<script>function goTask(el){}</script></body>`, 1)
 	page := parseWorkList(body)
 	if page.Complete {

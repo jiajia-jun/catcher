@@ -20,7 +20,7 @@ const theme = computed(() => (isDark.value ? darkTheme : null))
 // 浅色继续用 Naive UI 默认主题，只有深色换成 GitHub 配色
 const themeOverrides = computed(() => (isDark.value ? githubDarkOverrides : undefined))
 
-// Naive UI 不往根元素写变量，自定义样式靠 data-theme 取对应的一组
+// Naive UI 的变量挂在组件内部，自定义样式靠 data-theme 取对应的一组
 watchEffect(() => {
   document.documentElement.dataset.theme = isDark.value ? 'dark' : 'light'
 })

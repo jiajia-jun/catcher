@@ -83,7 +83,7 @@ export const useAppStore = defineStore('app', () => {
   const showSubmitted = ref(false)
   const termOnly = ref(true)
   const keyword = ref('')
-  // 点击平台卡后只显示该平台的作业，空串表示不筛选
+  // 点击平台卡后只显示该平台的作业，空串表示全部平台
   const selectedPlatform = ref('')
   // 「刷新全部」勾选的平台，至少一个；由后端归一后落盘
   const enabledPlatforms = ref<string[]>([...PLATFORM_ORDER])
@@ -200,7 +200,7 @@ export const useAppStore = defineStore('app', () => {
     return PLATFORM_ORDER.filter((p) => valid.has(p))
   }
 
-  // 首次安装只记下当前版本，不弹窗；从旧版本升级时弹一次
+  // 首次安装记录当前版本并跳过弹窗，从旧版本升级时弹一次
   function syncChangelog(current: string, seen: string, firstRun: boolean) {
     if (!firstRun && seen !== current) {
       changelogShow.value = true
@@ -212,7 +212,7 @@ export const useAppStore = defineStore('app', () => {
           if (settings.value) settings.value.changelogSeenVersion = current
         })
         .catch(() => {
-          // 记录失败不影响首次使用，下次启动再记
+          // 记录失败时下次启动再记
         })
     }
   }
@@ -229,7 +229,7 @@ export const useAppStore = defineStore('app', () => {
         settings.value.changelogSeenVersion = bootstrap.value.version
       }
     } catch {
-      // 记录失败不打断当前会话
+      // 记录失败时当前会话继续
     }
   }
 
@@ -256,7 +256,7 @@ export const useAppStore = defineStore('app', () => {
     } finally {
       loading.value = false
     }
-    // 首屏就绪后再查更新，失败静默，不拖慢启动
+    // 首屏就绪后再查更新，失败静默处理
     void runUpdateCheck(false)
   }
 
@@ -327,7 +327,7 @@ export const useAppStore = defineStore('app', () => {
     await loadList(false)
   }
 
-  // 手动改状态后静默同步列表与统计，不弹整页 loading
+  // 手动改状态后静默同步列表与统计
   async function reloadQuiet() {
     try {
       bootstrap.value = await loadBootstrap(termOnly.value)
@@ -348,7 +348,7 @@ export const useAppStore = defineStore('app', () => {
     await refreshList()
   }
 
-  // 学期口径同时影响平台卡统计与列表，必须一起刷新
+  // 学期口径同时影响平台卡统计与列表，两者一起刷新
   async function setTermOnly(value: boolean) {
     termOnly.value = value
     await reloadAll()
@@ -383,7 +383,7 @@ export const useAppStore = defineStore('app', () => {
     await persistEnabledPlatforms(PLATFORM_ORDER.filter((p) => raw.includes(p)))
   }
 
-  // 一键勾选全部平台；已经全选时不重复写盘
+  // 一键勾选全部平台；已经全选时跳过写盘
   async function selectAllPlatforms() {
     if (enabledPlatforms.value.length >= PLATFORM_ORDER.length) return
     await persistEnabledPlatforms([...PLATFORM_ORDER])
@@ -439,7 +439,7 @@ export const useAppStore = defineStore('app', () => {
       try {
         await cancelQRLogin('chaoxing', jobId)
       } catch {
-        // 任务可能已自然结束，取消失败无需打扰用户
+        // 任务可能已自然结束，取消失败静默处理
       }
     }
   }
@@ -533,7 +533,7 @@ export const useAppStore = defineStore('app', () => {
       try {
         await cancelQRLogin(platform, jobId)
       } catch {
-        // 任务可能已自然结束，取消失败无需打扰用户
+        // 任务可能已自然结束，取消失败静默处理
       }
     }
   }
@@ -541,7 +541,7 @@ export const useAppStore = defineStore('app', () => {
   async function renewQR() {
     const platform = login.platform
     if (!login.jobId || !isQRPlatform(platform)) return
-    // 先提示再请求：新码事件可能比 RPC 返回还早，晚写会把「等待扫码」覆盖掉
+    // 先提示再请求：新码事件可能早于 RPC 返回，提前写入能保留「等待扫码」状态
     login.message = '正在获取新的二维码…'
     await refreshQRLogin(platform, login.jobId)
   }

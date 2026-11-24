@@ -15,7 +15,7 @@ var ErrRefreshRunning = errors.New("该平台正在刷新")
 
 // ImportTronclassSession 验证并保存浏览器里的 session，返回用于展示的标识
 //
-// 导入只做验证与保存，不自动抓取；失败时不动已保存的会话与登录态
+// 导入只做验证与保存，抓取由刷新任务触发；失败时保留已保存的会话与登录态
 func (s *Service) ImportTronclassSession(ctx context.Context, raw string) (string, error) {
 	if s.importer == nil {
 		return "", fmt.Errorf("学在重邮会话导入尚未接入")

@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// 所有 id 与时间戳都用 json.Number / num 承接，避免经 float64 丢精度
-// UserID 文档明确是数字；course_id / classroom_id / activity id 同理
+// 所有 id 与时间戳都用 json.Number 或 num 承接，避免经 float64 丢精度
+// UserID、course_id、classroom_id 与 activity id 都是数字
 
 type preInfoResp struct {
 	Code int    `json:"code"`
@@ -34,7 +34,7 @@ type errorResp struct {
 	Msg  string `json:"msg"`
 }
 
-// 课程列表实测不返回 success 字段，只有 data；指针用于区分「缺失」与「显式 false」
+// 课程列表可能缺少 success 字段，指针用于区分「缺失」与「显式 false」
 type courseListResp struct {
 	Success *bool        `json:"success"`
 	Op      string       `json:"op"`
@@ -77,9 +77,9 @@ type activityContent struct {
 
 // num 承接作业列表里的数字字段
 //
-// 平台会把数字字段写成空字符串或带引号的数字（2026-10-25 用户账号实测：
-// score_d 为 "" 让整段响应解码失败，整门课的作业全丢）。空值统一解成零值，
-// 交给逐条校验降级成 warning，不要用 json.Number 让整门课一起失败
+// 平台会把数字字段写成空字符串或带引号的数字，score_d 为 "" 时
+// json.Number 会让整段响应解码失败，整门课的作业一起丢失
+// 空值统一解成零值，交给逐条校验降级成 warning
 type num string
 
 func (n *num) UnmarshalJSON(data []byte) error {

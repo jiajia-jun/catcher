@@ -1,6 +1,6 @@
 // Package handle 是 Wails 绑定层：参数校验、错误翻译、DTO 转换
 //
-// 它不直接访问数据库或 HTTP；所有用例都经过 service
+// 数据访问与网络请求全部经过 service
 package handle
 
 import (
@@ -11,7 +11,7 @@ import (
 	"catcher/internal/service"
 )
 
-// App 是 Wails 绑定的接收者。前端通过 window.go.handle.App 调用这些方法
+// App 是 Wails 绑定的接收者，前端通过 window.go.handle.App 调用这些方法
 type App struct {
 	svc *service.Service
 	ctx context.Context

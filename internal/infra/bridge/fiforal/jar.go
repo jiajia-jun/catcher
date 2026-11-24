@@ -10,12 +10,11 @@ import (
 	"catcher/internal/domain/entity"
 )
 
-// cookieJar 是一个最小的 domain/path cookie 袋。
+// cookieJar 是一个最小的 domain/path cookie 袋
 //
-// FiF 的登录态跨 www / pass / cycore / oral / moral / static 多个主机：
-// prod-token 是 .fifedu.com 的域 cookie，CASTGC / JSESSIONID 又只属于
-// cycore.fifedu.com。平铺的 name/value 表会把它们发给错误主机，
-// 所以这里按 RFC 6265 的 domain/path 规则存取
+// FiF 的登录态跨 www / pass / cycore / oral / moral / static 多个主机
+// prod-token 是 .fifedu.com 的域 cookie，CASTGC / JSESSIONID 属于 cycore.fifedu.com
+// 平铺的 name/value 表会把 cookie 发给错误主机，这里按 RFC 6265 的 domain/path 规则存取
 type cookieJar struct {
 	cookies []storedCookie
 	changed bool
@@ -47,7 +46,7 @@ func newCookieJar(cookies []entity.FiforalCookie, now func() time.Time) *cookieJ
 
 func (j *cookieJar) isEmpty() bool { return len(j.cookies) == 0 }
 
-// add 解析响应的 Set-Cookie 行。requestURL 用来确定 host-only 与默认 path
+// add 解析响应的 Set-Cookie 行，requestURL 用来确定 host-only 与默认 path
 func (j *cookieJar) add(requestURL string, lines []string) {
 	if len(lines) == 0 {
 		return
@@ -92,7 +91,7 @@ func (j *cookieJar) add(requestURL string, lines []string) {
 		} else {
 			domain = strings.TrimPrefix(domain, ".")
 			if !domainMatch(host, domain) {
-				// 别的域写进来的 cookie，不接收
+				// 其他域写入的 cookie 在此跳过
 				continue
 			}
 		}
@@ -129,7 +128,7 @@ func (j *cookieJar) add(requestURL string, lines []string) {
 			HostOnly: hostOnly,
 			Secure:   c.Secure,
 		})
-		// set 只是写入值，过期时间单独回填；没有过期时间时清掉旧值
+		// set 只写入值，过期时间单独回填，无过期时间时清空旧值
 		for i := range j.cookies {
 			got := &j.cookies[i]
 			if got.value.Name == c.Name && got.value.Domain == domain && got.value.Path == path {
@@ -140,7 +139,7 @@ func (j *cookieJar) add(requestURL string, lines []string) {
 	}
 }
 
-// setCookie 用于 CAS 返回的 prod-token：它只出现在 JSON 里，不一定有 Set-Cookie
+// setCookie 用于 CAS 返回的 prod-token，它出现在 JSON 里，可能伴随 Set-Cookie
 func (j *cookieJar) setCookie(cookie entity.FiforalCookie) {
 	j.set(cookie)
 }
@@ -227,7 +226,8 @@ func (j *cookieJar) header(rawURL string) string {
 	return strings.Join(parts, "; ")
 }
 
-// toEntities 只导出 fifedu 域的 cookie。微信域名的临时袋不落库
+// toEntities 只导出 fifedu 域的 cookie
+// 微信域名的临时袋保留在内存
 func (j *cookieJar) toEntities() []entity.FiforalCookie {
 	out := make([]entity.FiforalCookie, 0, len(j.cookies))
 	for _, cookie := range j.cookies {

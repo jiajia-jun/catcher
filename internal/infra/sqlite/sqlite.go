@@ -1,7 +1,7 @@
-// Package sqlite 提供 sqlite 连接、迁移与仓储实现。
+// Package sqlite 提供 sqlite 连接、迁移与仓储实现
 //
-// 所有写操作经过 DB.WithTx 的单一写锁串行化；读可以直接使用 SQL()，
-// 在 WAL 模式下读写互不阻塞。
+// 所有写操作经过 DB.WithTx 的单一写锁串行化，读直接使用 SQL()
+// 在 WAL 模式下读写互不阻塞
 package sqlite
 
 import (
@@ -26,14 +26,14 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// DB 包装 sqlx.DB，并持有一把写锁。
+// DB 包装 sqlx.DB，并持有一把写锁
 type DB struct {
 	db      *sqlx.DB
 	path    string
 	writeMu sync.Mutex
 }
 
-// Open 打开数据库并验证连接。调用方负责 Close。
+// Open 打开数据库并验证连接，调用方负责 Close
 func Open(ctx context.Context, path string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, fmt.Errorf("创建数据库目录失败: %w", err)
@@ -54,12 +54,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	return &DB{db: db, path: path}, nil
 }
 
-// SQL 暴露底层连接，供仓储读取使用。
+// SQL 暴露底层连接，供仓储读取使用
 func (d *DB) SQL() *sqlx.DB {
 	return d.db
 }
 
-// WithTx 在写锁内执行一个事务。任何错误都会回滚。
+// WithTx 在写锁内执行一个事务，任何错误都会回滚
 func (d *DB) WithTx(ctx context.Context, fn func(*sqlx.Tx) error) error {
 	d.writeMu.Lock()
 	defer d.writeMu.Unlock()
@@ -78,7 +78,7 @@ func (d *DB) WithTx(ctx context.Context, fn func(*sqlx.Tx) error) error {
 	return nil
 }
 
-// Close 关闭数据库连接。
+// Close 关闭数据库连接
 func (d *DB) Close() error {
 	if d == nil || d.db == nil {
 		return nil
@@ -86,7 +86,7 @@ func (d *DB) Close() error {
 	return d.db.Close()
 }
 
-// Migrate 按 schema_migrations.version 顺序执行嵌入的迁移，只前进不回滚。
+// Migrate 按 schema_migrations.version 顺序执行嵌入的迁移，版本单向前进
 func (d *DB) Migrate(ctx context.Context) error {
 	if _, err := d.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -132,7 +132,7 @@ func (d *DB) Migrate(ctx context.Context) error {
 	if len(pending) == 0 {
 		return nil
 	}
-	// 只在已有结构上升级时留底；全新库第一次建表没有可回滚的数据
+	// 只在已有结构上升级时留底，全新库第一次建表跳过备份
 	if current > 0 {
 		if err := d.backup(ctx); err != nil {
 			return err
@@ -151,8 +151,8 @@ func (d *DB) Migrate(ctx context.Context) error {
 	return nil
 }
 
-// backup 把当前数据库复制为 catcher.db.bak。
-// 先把 WAL 落进主库，否则复制出来的文件可能缺少未提交的页。
+// backup 把当前数据库复制为 catcher.db.bak
+// 先把 WAL 落进主库，复制文件才能包含全部已提交页
 func (d *DB) backup(ctx context.Context) error {
 	if d.path == "" {
 		return nil
@@ -171,11 +171,11 @@ func (d *DB) backup(ctx context.Context) error {
 	return nil
 }
 
-// applyMigration 执行单个迁移并记录版本。
+// applyMigration 执行单个迁移并记录版本
 //
 // 迁移文件首行写成 `-- catcher:foreign_keys=off` 时，改用独立连接先关闭外键再执行，
-// 因为重建表需要对被引用表执行 DROP TABLE。WithTx 里改不了外键：
-// PRAGMA foreign_keys 在事务内是空操作，且连接池中的其他连接仍处于开启状态。
+// 因为重建表需要对被引用表执行 DROP TABLE
+// WithTx 内 PRAGMA foreign_keys 是空操作，连接池中的其他连接仍保持外键开启
 func (d *DB) applyMigration(ctx context.Context, version int, name, body string) error {
 	if !needsForeignKeysOff(body) {
 		return d.WithTx(ctx, func(tx *sqlx.Tx) error {
@@ -201,8 +201,8 @@ func (d *DB) applyMigration(ctx context.Context, version int, name, body string)
 	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 		return fmt.Errorf("迁移 %s 关闭外键失败: %w", name, err)
 	}
-	// 恢复外键必须无条件执行，且不能受 ctx 取消影响，
-	// 否则这条连接带着关闭状态回到连接池，后续写入全部失去外键保护
+	// 恢复外键无条件执行，独立于 ctx 取消
+	// 连接带着关闭状态回到连接池时，后续写入会失去外键保护
 	defer func() {
 		_, _ = conn.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`)
 	}()
@@ -225,7 +225,7 @@ func (d *DB) applyMigration(ctx context.Context, version int, name, body string)
 		return fmt.Errorf("提交迁移 %s 失败: %w", name, err)
 	}
 
-	// 外键关闭期间写坏的关系不会报错，提交后必须主动查一遍
+	// 外键关闭期间写坏的关系不会报错，提交后主动执行一次 foreign_key_check
 	var table string
 	err = conn.GetContext(ctx, &table, `SELECT "table" FROM pragma_foreign_key_check LIMIT 1`)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -255,8 +255,8 @@ func migrationVersion(name string) (int, error) {
 	return v, nil
 }
 
-// dsn 把 Windows / POSIX 路径转成 modernc sqlite 的 file: URL，
-// 并通过 _pragma 让每个新连接都带上必要设置。
+// dsn 把 Windows / POSIX 路径转成 modernc sqlite 的 file: URL
+// 并通过 _pragma 让每个新连接都带上必要设置
 func dsn(path string) string {
 	abs, err := filepath.Abs(path)
 	if err != nil {

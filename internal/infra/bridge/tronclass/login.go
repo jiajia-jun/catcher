@@ -15,8 +15,8 @@ const todosPath = "/api/todos"
 
 // ImportSession 验证浏览器里的 session 并打包成会话
 //
-// 验证接口是 /api/todos：200 + JSON 才算登录有效。
-// 只有 200 响应里的轮换值可以覆盖输入；401/302 的匿名 session 一律丢弃
+// 验证接口是 /api/todos，200 + JSON 表示登录有效
+// 200 响应里的轮换值覆盖输入，401/302 下发的匿名 session 丢弃
 func (c *Client) ImportSession(ctx context.Context, raw string) (*entity.Session, error) {
 	value := normalizeSessionValue(raw)
 	if value == "" {
@@ -51,7 +51,7 @@ func normalizeSessionValue(raw string) string {
 	return value
 }
 
-// parseUID 从 session 第二段解出 uid；失败只影响显示名，不阻断导入
+// parseUID 从 session 第二段解出 uid，失败时显示名留空，导入继续
 func parseUID(session string) string {
 	parts := strings.Split(session, ".")
 	if len(parts) < 2 {

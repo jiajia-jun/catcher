@@ -72,7 +72,7 @@ func TestToAssignmentViewSanitizesDetailURL(t *testing.T) {
 	}
 }
 
-// 没有手动值时，有效状态必须等于平台状态
+// 手动值为空时，有效状态与平台状态一致
 func TestToAssignmentViewWithoutManualStatus(t *testing.T) {
 	item := entity.Assignment{
 		Platform: entity.PlatformChaoxing,

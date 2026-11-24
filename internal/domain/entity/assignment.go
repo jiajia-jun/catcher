@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Phase 由截止时间和当前时间即时计算，不落库。
+// Phase 由截止时间和当前时间即时计算
 type Phase string
 
 const (
@@ -14,7 +14,7 @@ const (
 	PhaseUnknown Phase = "unknown"
 )
 
-// PhaseOf 根据截止时间判断作业阶段。
+// PhaseOf 根据截止时间判断作业阶段
 func PhaseOf(deadline *time.Time, now time.Time) Phase {
 	if deadline == nil {
 		return PhaseUnknown
@@ -25,7 +25,7 @@ func PhaseOf(deadline *time.Time, now time.Time) Phase {
 	return PhaseClosed
 }
 
-// Course 是一门课程。雨课堂用 (ExternalID, ClassroomID) 作为复合身份。
+// Course 是一门课程，雨课堂用 (ExternalID, ClassroomID) 作为复合身份
 type Course struct {
 	ID          int64
 	AccountID   int64
@@ -39,7 +39,7 @@ type Course struct {
 	LastSeenAt  time.Time
 }
 
-// Assignment 是一条作业。
+// Assignment 是一条作业
 type Assignment struct {
 	ID               int64
 	AccountID        int64
@@ -52,7 +52,7 @@ type Assignment struct {
 	DedupKey         string
 	Title            string
 	Status           SubmissionStatus // 平台给出的状态
-	// ManualStatus 是用户手动标记的状态；nil 表示没有手动覆盖
+	// ManualStatus 是用户手动标记的状态，nil 表示沿用平台值
 	ManualStatus   *SubmissionStatus
 	ManualStatusAt *time.Time
 	Deadline       *time.Time
@@ -74,8 +74,8 @@ func (a Assignment) EffectiveStatus() SubmissionStatus {
 	return a.Status
 }
 
-// AssignmentFilter 是查询作业的条件。零值表示默认视图：
-// 只返回 active 记录，并隐藏已提交作业。
+// AssignmentFilter 是查询作业的条件，零值表示默认视图：
+// 只返回 active 记录，并隐藏已提交作业
 type AssignmentFilter struct {
 	Platforms     []Platform
 	CourseIDs     []int64
@@ -88,33 +88,33 @@ type AssignmentFilter struct {
 	DeadlineFrom *time.Time
 }
 
-// NormalizeTitle 只做 TrimSpace + 连续空白折叠。
-// 不要删除日期、括号、全角字符：它们是标题的一部分，也是去重键的一部分。
+// NormalizeTitle 只做 TrimSpace 与连续空白折叠
+// 日期、括号、全角字符属于标题的一部分，也是去重键的一部分
 func NormalizeTitle(s string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
 }
 
-// ChaoxingDedupKey 对应「用户 + 平台 + 课程 + 标题」，deadline 不参与。
+// ChaoxingDedupKey 由「用户 + 平台 + 课程 + 标题」组成，deadline 变化时保持不变
 func ChaoxingDedupKey(courseID, title string) string {
 	return "chaoxing:" + courseID + ":" + NormalizeTitle(title)
 }
 
-// YuketangDedupKey 使用稳定的活动 id。
+// YuketangDedupKey 使用稳定的活动 id
 func YuketangDedupKey(courseID, classroomID, activityID string) string {
 	return "yuketang:" + courseID + ":" + classroomID + ":" + activityID
 }
 
-// TronclassDedupKey 使用课程 id + 活动 id；学习通以外的平台活动 id 稳定。
+// TronclassDedupKey 使用课程 id + 活动 id，学习通以外的平台活动 id 稳定
 func TronclassDedupKey(courseID, activityID string) string {
 	return "tronclass:" + courseID + ":" + activityID
 }
 
-// PigaiDedupKey 只用作业 id：换班后同一条作业不应重复入库。
+// PigaiDedupKey 只用作业 id，换班后同一条作业保持同一去重键
 func PigaiDedupKey(requestID string) string {
 	return "pigai:" + requestID
 }
 
-// FiforalDedupKey 只用平台任务 id：两个列表共用同一个 id 空间。
+// FiforalDedupKey 只用平台任务 id，两个列表共用同一个 id 空间
 func FiforalDedupKey(taskID string) string {
 	return "fiforal:" + taskID
 }

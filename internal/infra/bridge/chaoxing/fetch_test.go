@@ -62,7 +62,7 @@ func TestFetchEndToEnd(t *testing.T) {
 		case "1002":
 			_, _ = w.Write([]byte(`<h4>截止时间：06-23 23:00</h4>`))
 		default:
-			// 已完成条目不应请求详情
+			// 已完成条目跳过详情请求
 			t.Errorf("不应请求已完成作业的详情: %s", r.URL)
 			_, _ = w.Write([]byte(`<html></html>`))
 		}
@@ -117,7 +117,7 @@ func TestFetchEndToEnd(t *testing.T) {
 	if open.DedupKey != entity.ChaoxingDedupKey("214986481", "第一次作业") {
 		t.Fatalf("去重键 = %q", open.DedupKey)
 	}
-	// 剩余时间只到分钟；偏差在容差内时采用详情页写死的精确时刻
+	// 剩余时间精确到分钟，偏差在容差内时采用详情页写死的精确时刻
 	wantOpen := time.Date(2026, 11, 4, 12, 55, 18, 0, shanghai).UTC()
 	if open.Deadline == nil || !open.Deadline.Equal(wantOpen) ||
 		open.DeadlineSource != entity.DeadlineDerivedRemaining {
@@ -138,8 +138,8 @@ func TestFetchEndToEnd(t *testing.T) {
 	}
 }
 
-// 真实环境：作业列表给的详情链接是 Android 接口路径，服务器 302 到 H5 页面。
-// 这是正常跳转，不能当登录失效
+// 作业列表给出的详情链接是 Android 接口路径，服务器 302 到 H5 页面
+// 该跳转属于正常流程
 func TestFetchDetailFollowsRedirect(t *testing.T) {
 	mux := http.NewServeMux()
 	var base string
@@ -187,7 +187,7 @@ func TestFetchDetailFollowsRedirect(t *testing.T) {
 	}
 }
 
-// 跳去登录页才是会话失效
+// 跳转到登录页时按会话失效处理
 func TestFetchDetailLoginRedirectIsAuthExpired(t *testing.T) {
 	mux := http.NewServeMux()
 	var base string

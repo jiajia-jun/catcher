@@ -17,7 +17,7 @@ const loginPath = "/fanyalogin"
 
 // LoginWithPassword 用手机号+密码登录，并累积整条 302 链的 Set-Cookie
 //
-// 实测登录通常单跳，但接口文档坚持多跳；两种形态都必须吃得下
+// 登录通常为单跳，跳转链也可能更长，两种形态都要兼容
 func (c *Client) LoginWithPassword(ctx context.Context, creds entity.PasswordCredential) (*entity.Session, error) {
 	creds.Phone = strings.TrimSpace(creds.Phone)
 	if err := validateCredential(creds); err != nil {
@@ -60,9 +60,10 @@ func (c *Client) LoginWithPassword(ctx context.Context, creds entity.PasswordCre
 	return c.newSession(jar)
 }
 
-// followLogin 逐跳跟随登录重定向，每跳都收 Set-Cookie。
+// followLogin 逐跳跟随登录重定向，每跳都收 Set-Cookie
 //
-// sender 恒不跟随重定向，这里必须手工走完；超过 10 跳或缺少 Location 直接报错
+// sender 将重定向作为状态码返回，这里手工走完跳转链
+// 超过 10 跳或缺少 Location 时直接报错
 func (c *Client) followLogin(ctx context.Context, formBody string, jar *cookieJar) (*sender.Response, error) {
 	rawURL := c.loginBaseURL + loginPath
 	method := http.MethodPost
@@ -100,8 +101,8 @@ func (c *Client) followLogin(ctx context.Context, formBody string, jar *cookieJa
 			return nil, classifySendError(err)
 		}
 		if status.Code < 300 || status.Code >= 400 {
-			// 非重定向的失败：登录接口对账号/密码错误返回 200 + status=false，
-			// 其余状态码按领域错误处理
+			// 3xx 以外的状态码按领域错误处理
+			// 登录接口对账号/密码错误返回 200 + status=false
 			return nil, classifySendError(err)
 		}
 		if hop == maxLoginRedirects-1 {

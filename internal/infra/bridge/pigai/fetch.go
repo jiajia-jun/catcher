@@ -49,11 +49,11 @@ type courseRef struct {
 	name string
 }
 
-// Fetch 抓取批改网的班级、未完成作业与已完成作文。
+// Fetch 抓取批改网的班级、未完成作业与已完成作文
 //
-// 分页参数未证实，只抓第一页，所以 Complete 与 CourseListComplete 恒为 false：
-// 不能让不完整的列表触发软删除。这种不完整是平台限制，
-// 用 PartialByDesign 告诉上层「本次不算失败」，真实的告警照旧折成 partial
+// 分页参数未证实，只抓第一页，因此 Complete 与 CourseListComplete 恒为 false
+// 不完整的列表因此跳过软删除，这种不完整属于平台限制
+// PartialByDesign 告诉上层本次按成功处理，真实告警仍折成 partial
 func (c *Client) Fetch(ctx context.Context, account entity.Account, session entity.Session,
 	opts entity.FetchOptions, progress entity.ProgressFunc) (*entity.FetchResult, error) {
 	_ = account
@@ -80,7 +80,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	progress(entity.Progress{Platform: entity.PlatformPigai, Phase: "courses", Message: "读取班级与未完成作业"})
 	pending, err := c.fetchPending(ctx, jar)
 	if err != nil {
-		// 主数据源失败就整次失败，不能返回空列表冒充「没有作业」
+		// 主数据源失败时整次按失败处理，空列表保留给「没有作业」
 		return nil, err
 	}
 	if err := c.persistCookies(jar, opts); err != nil {
@@ -126,7 +126,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 				if errors.Is(err, entity.ErrAuthExpired) || errors.Is(err, entity.ErrCanceled) {
 					return nil, err
 				}
-				// 单条详情失败不拖垮整次刷新，作业保留并退到兜底课程
+				// 单条详情失败时作业仍保留并退到兜底课程，其余条目继续
 				run.warn(entity.ScopeAssignment, entity.PigaiDedupKey(item.requestID), issueKindOf(err),
 					fmt.Sprintf("作业 %q 详情抓取失败: %v", item.title, err))
 				detail = nil
@@ -146,14 +146,14 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			Platform:   entity.PlatformPigai,
 			ExternalID: ref.id,
 			Name:       ref.name,
-			// 平台没有学期字段；从班级名硬推学期没有收益，留空
+			// 平台提供班级名，学期字段留空
 			SemesterKey: "",
 		})
 	}
 	run.result.ServerNow = run.now
 	run.result.Complete = false
 	run.result.CourseListComplete = false
-	// 只抓得到第一页是平台限制而不是本次出错，刷新记录按成功记
+	// 只抓第一页属于平台限制，刷新记录按成功记
 	run.result.PartialByDesign = true
 
 	progress(entity.Progress{
@@ -237,7 +237,7 @@ func (r *fetchRun) toAssignment(item *mergedItem, detail *detailData) entity.Ass
 	}
 }
 
-// parseDeadline 解析截止时间。解析失败只记告警并按未知处理，不猜测
+// parseDeadline 解析截止时间，失败时记告警并按未知处理
 func (r *fetchRun) parseDeadline(raw, ref string) *time.Time {
 	t, err := parseUnixSeconds(raw)
 	if err != nil {
@@ -247,8 +247,8 @@ func (r *fetchRun) parseDeadline(raw, ref string) *time.Time {
 	return t
 }
 
-// isCurrentTerm 判断一条已完成作文是否属于本学期。
-// 平台没有学期字段，按 9 月 1 日划线；时间拿不到的按本学期处理
+// isCurrentTerm 判断一条已完成作文是否属于本学期
+// 平台提供的时间以 9 月 1 日为学期起点，时间缺失时按本学期处理
 func (r *fetchRun) isCurrentTerm(item *mergedItem, start time.Time) bool {
 	raw := item.deadlineRaw
 	if raw == "" || raw == "0" {
@@ -301,7 +301,7 @@ func (r *fetchRun) courseByID(classID, className string) *courseRef {
 	return ref
 }
 
-// courseByName 用班级名配对。已完成列表只有名字，没有 class_id
+// courseByName 用班级名配对，已完成列表只提供名字
 func (r *fetchRun) courseByName(name string) *courseRef {
 	key := entity.NormalizeTitle(name)
 	if key == "" {
@@ -393,7 +393,7 @@ func (c *Client) fetchDetail(ctx context.Context, detailURL string, jar *cookieJ
 	return &data, nil
 }
 
-// decodeEnvelopeData 解析信封里的 data；缺省或 null 都当空结果，不是错误
+// decodeEnvelopeData 解析信封里的 data，缺省或 null 返回空结果
 func decodeEnvelopeData(env *envelope, out any) error {
 	raw := bytes.TrimSpace(env.Data)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
@@ -429,8 +429,8 @@ func (c *Client) mergeItems(pending []requestInfo, completed []essayItem) []*mer
 		items = append(items, item)
 	}
 
-	// 同一个 request 出现多条时取最新一版。返回哪一版没有验证过，
-	// 按提交时间、再按版本号挑选比「取第一条」更保守
+	// 同一个 request 出现多条时取最新一版
+	// 返回哪一版尚未验证，按提交时间、再按版本号挑选
 	best := make(map[string]essayItem, len(completed))
 	for _, e := range completed {
 		if e.RequestID == "" {
@@ -512,7 +512,7 @@ func (c *Client) viewDetailURL(essayID, requestID string) string {
 
 var htmlTagRe = regexp.MustCompile(`(?s)<[^>]*>`)
 
-// stripHTML 把题干 HTML 变成纯文本。正文全文不取，只取题干
+// stripHTML 把题干 HTML 变成纯文本，只保留题干内容
 func stripHTML(s string) string {
 	if s == "" {
 		return ""

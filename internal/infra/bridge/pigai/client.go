@@ -1,13 +1,4 @@
 // Package pigai 实现批改网的微信扫码登录与作业抓取
-//
-// 几条刻意保留的陷阱：
-//   - 接口一律返回 HTTP 200，成败只看 JSON 信封的 error 字段；
-//     error=302 表示未登录，不能当成「今天没作业」
-//   - 所有请求必须带桌面浏览器 User-Agent 和 _display=json
-//   - sender 不跟随重定向，扫码换号必须逐跳读取 Location 并累积 Set-Cookie
-//   - _JUKU_USER 是 URL 编码的 JSON，字段语义未证实，整体当不透明凭据回放
-//   - 详情响应里带老师的密码摘要、邮箱、IP 与 CSRF token，只解析白名单字段
-//   - 截止时间是 10 位 Unix 秒；"0" 表示未设置，不是 1970 年
 package pigai
 
 import (
@@ -41,18 +32,20 @@ const (
 	// weixinState 是回调时校验的 state，批改网固定用域名
 	weixinState = "www.pigai.org"
 
-	// userAgent 伪装成桌面浏览器。批改网会拦截 Go 默认的 "Go-http-client/1.1"
+	// userAgent 是请求使用的桌面浏览器 UA 标识
+	// 批改网会拦截 Go 默认的 "Go-http-client/1.1"
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 
 	// qrDefaultTTL 是二维码的展示有效期，页面按 5 分钟提示
 	qrDefaultTTL = 5 * time.Minute
-	// pollTimeout 要长于微信长轮询的 15 秒阻塞，否则每次都被自己打断
+	// pollTimeout 长于微信长轮询的 15 秒阻塞
+	// 超时短于阻塞时间时请求会被本地提前中断
 	pollTimeout = 35 * time.Second
 	// maxLoginHops 是扫码换号时手工跟随 302 的上限
 	maxLoginHops = 10
 )
 
-// Options 构造批改网适配器。Sender 由 cmd/app 注入，单独限速 250ms
+// Options 是批改网适配器的构造参数，Sender 由 cmd/app 注入并单独限速 250ms
 type Options struct {
 	BaseURL         string
 	WeixinBaseURL   string
@@ -68,14 +61,14 @@ type Client struct {
 	weixinBaseURL   string
 	longPollBaseURL string
 	// loginHosts 是换号跳转允许落在的主机：站点本身与去掉 www. 的主域，
-	// 两者的子域也算。跨出这个集合说明链路异常，不能把 cookie 送出去
+	// 两者的子域也算；跨出这个集合时按链路异常处理，cookie 留在本站
 	loginHosts []string
 	http       *sender.Sender
 	logger     logger.Logger
 	now        func() time.Time
 
-	// qrSessions 保存每张二维码的站点 cookie 袋与上一次 errcode。
-	// 长轮询的 last 参数要用上一次的状态码，站点 cookie 要留到换号链路
+	// qrSessions 保存每张二维码的站点 cookie 袋与上一次 errcode
+	// 长轮询的 last 参数使用上一次的状态码，站点 cookie 留到换号链路
 	qrMu       sync.Mutex
 	qrSessions map[string]*qrSession
 }
@@ -139,11 +132,11 @@ func (c *Client) isLoginHost(host string) bool {
 	return false
 }
 
-// cookieJar 是平台内全局 cookie 袋。
+// cookieJar 是平台内全局 cookie 袋
 //
-// 刻意不做 host / path 过滤，也不解析 _JUKU_USER：换号链路会跨
-// www.pigai.org 与 open.weixin.qq.com，cookiejar 会按 host-only 规则
-// 丢掉 PHPSESSID 这类凭据；_JUKU_USER 的字段语义未证实，原样回放最稳
+// 换号链路会跨 www.pigai.org 与 open.weixin.qq.com，cookie 表按跨域共用设计，
+// cookiejar 的 host-only 规则会丢弃 PHPSESSID 这类凭据
+// _JUKU_USER 的字段语义未证实，原样回放更可靠
 type cookieJar struct {
 	order   []string
 	values  map[string]string
@@ -162,7 +155,8 @@ func newCookieJar(cookies []entity.Cookie) *cookieJar {
 	return jar
 }
 
-// add 累积原始 Set-Cookie 行。只取第一段 name=value，不解析 Domain/Path/过期
+// add 累积原始 Set-Cookie 行，仅保留第一段 name=value
+// Domain / Path / 过期时间字段在此处忽略
 func (j *cookieJar) add(lines []string) {
 	for _, line := range lines {
 		name, value, ok := strings.Cut(line, "=")
@@ -263,9 +257,9 @@ func (c *Client) get(ctx context.Context, rawURL string, jar *cookieJar) (*sende
 	return c.do(ctx, http.MethodGet, rawURL, jar, 0)
 }
 
-// doRaw 与 get 相同，但把 sender 的原始错误原样返回。
-// 需要按状态码区分 302 跳转的地方用它：classifySendError 会把
-// sender.StatusError 折成领域错误，之后 errors.As 就找不到状态码了
+// doRaw 与 get 相同，sender 的原始错误原样返回
+// 需要按状态码区分 302 跳转时用它：classifySendError 会把
+// sender.StatusError 折成领域错误，此后 errors.As 取不到状态码
 func (c *Client) doRaw(ctx context.Context, rawURL string, jar *cookieJar, timeout time.Duration) (*sender.Response, error) {
 	return c.do(ctx, http.MethodGet, rawURL, jar, timeout)
 }
@@ -306,8 +300,9 @@ type envelope struct {
 	ErrorDes string          `json:"error_des"`
 }
 
-// envelopeError 把信封里的 error 折成领域错误。
-// 批改网的 HTTP 状态恒为 200，成败只能看这里
+// envelopeError 把信封里的 error 折成领域错误
+// 批改网的 HTTP 状态恒为 200，成败以这里为准
+// error=302 表示会话失效
 func envelopeError(env *envelope) error {
 	switch env.Error {
 	case 0:
@@ -351,8 +346,8 @@ func (c *Client) apiURL(query url.Values) string {
 	return c.baseURL + "/index.php?" + q.Encode()
 }
 
-// pageURL 拼接用户点开能看的页面地址，不带 _display。
-// 存进作业的详情链接必须是这样的人看的地址，抓取时再用 withJSONDisplay 换回接口
+// pageURL 拼接用户点开能看的页面地址，保留页面视图
+// 作业的详情链接保存这种地址，抓取时再用 withJSONDisplay 换成接口视图
 func (c *Client) pageURL(query url.Values) string {
 	return c.baseURL + "/index.php?" + query.Encode()
 }
@@ -375,9 +370,9 @@ func withJSONDisplay(rawURL string) (string, error) {
 // shanghai 是平台时间字段的时区
 var shanghai = time.FixedZone("CST", 8*60*60)
 
-// parseUnixSeconds 解析 10 位 Unix 秒。
-// "" 与 "0" 表示平台没有设置时间，返回 nil；13 位毫秒或其他长度一律报错，
-// 不能按秒读，否则会得到 1970 年或几万年后的截止时间
+// parseUnixSeconds 解析 10 位 Unix 秒
+// "" 与 "0" 表示平台未设置时间，返回 nil
+// 13 位毫秒或其他长度按错误处理，按秒读取会得到 1970 年或数万年后的截止时间
 func parseUnixSeconds(raw string) (*time.Time, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" || s == "0" {
@@ -414,7 +409,7 @@ func classifySendError(err error) error {
 	var status *sender.StatusError
 	if errors.As(err, &status) {
 		switch {
-		// sender 不跟随重定向；数据接口被 3xx 带走说明会话失效
+		// sender 将重定向作为状态码返回，数据接口被 3xx 带走时按会话失效处理
 		case status.Code >= 300 && status.Code < 400:
 			return fmt.Errorf("%w: 请求被重定向（HTTP %d）", entity.ErrAuthExpired, status.Code)
 		case status.Code == 401 || status.Code == 403:

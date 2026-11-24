@@ -16,7 +16,7 @@ import (
 	"catcher/pkg/logger"
 )
 
-// fakeTransport 按请求返回预置响应，测试不联网，也不受 fifedu 主机限制
+// fakeTransport 按请求返回预置响应，测试全程离线，主机范围不受 fifedu 限制
 type fakeTransport struct {
 	mu      sync.Mutex
 	handler func(*http.Request) (*http.Response, error)

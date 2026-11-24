@@ -34,7 +34,7 @@ func fixture(t *testing.T, name string) []byte {
 	return data
 }
 
-// 2026-10 实测：课程列表响应只有 data，没有 success 字段
+// 课程列表响应只有 data 字段，缺少 success
 func TestLearningListWithoutSuccessField(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"data":[{"course_id":1000001,"classroom_id":20000001,"course_name":"课程","classroom_name":"2026秋-课程-1班"}]}`)
@@ -129,7 +129,7 @@ func TestFetchFlattensAndFiltersSemester(t *testing.T) {
 		t.Fatalf("semester = %q", course.SemesterKey)
 	}
 
-	// 嵌套数组摊平后只取 type=20 的两条；9/14 不是作业
+	// 嵌套数组摊平后只取 type=20 的两条，9/14 属于非作业类型
 	if len(result.Assignments) != 2 {
 		t.Fatalf("作业 = %d 条, want 2（未摊平会得到 0）", len(result.Assignments))
 	}
@@ -213,7 +213,7 @@ func TestQuizDetailURL(t *testing.T) {
 	}
 }
 
-// type 19 没有真实网页路由，不能凭 type 20 的模板猜
+// type 19 的网页路由尚未确认，按 type 20 模板拼接缺少依据
 func TestParseClassroomLogsSkipsQuizURLForType19(t *testing.T) {
 	raw := `{"success":true,"data":{"now_time":1792563600,"activities":[[
 		{"id":1,"type":19,"title":"线下课程9课前预习习题","create_time":1790000000,
@@ -305,8 +305,8 @@ func TestFetchScoreDMustBe13Digits(t *testing.T) {
 	}
 }
 
-// 2026-10-25 用户反馈：某门课的数字字段返回 ""，整段响应解码失败，作业一条都没入库
-// 空字符串要降级成单条 warning，不能连带整门课失败
+// 某门课的数字字段返回 "" 时，整段响应解码失败，作业全部丢失
+// 空字符串降级成单条 warning，其余作业正常入库
 func TestFetchToleratesEmptyNumericFields(t *testing.T) {
 	logs := `{"success":true,"data":{"now_time":1792563600,"activities":[[
 		{"id":11,"type":20,"title":"正常作业","create_time":1790000000,
@@ -375,7 +375,7 @@ func TestNumAcceptsQuotedAndEmptyValues(t *testing.T) {
 		t.Fatalf("a=%q b=%q c=%q", v.A.String(), v.B.String(), v.C.String())
 	}
 
-	// 非数字文本仍然要失败，不能把脏数据当 0
+	// 非数字文本按失败处理，脏数据归为 warning
 	var bad struct {
 		A num `json:"a"`
 	}
@@ -407,8 +407,8 @@ func TestFetchUnknownTypeWithContentWarns(t *testing.T) {
 	}
 }
 
-// 2026-10-23 实测：type=15 是慕课视频学习任务，content.score_d 等于课堂 class_end
-// 它不是作业，但保留为一条带期限的任务，且不应再报「未知活动类型」
+// type=15 是慕课视频学习任务，content.score_d 等于课堂 class_end
+// 按带期限的学习任务保留，并计入已知活动类型
 func TestFetchType15IsKnownTask(t *testing.T) {
 	logs := `{"success":true,"data":{"now_time":1792563600,"activities":[[
 		{"id":8,"type":15,"title":"衔接课视频学习","create_time":1787889149,
@@ -443,8 +443,8 @@ func TestFetchType15IsKnownTask(t *testing.T) {
 	}
 }
 
-// 2026-10-25 用户账号「计算机组成原理A」实测：新课用 19（习题/练习/作业）
-// 与 17（视频），整门课没有 20/15，不能当未知类型刷 warning
+// 新课使用 19（习题/练习/作业）与 17（视频），整门课不含 20/15
+// 两种编码都计入已知类型
 func TestFetchType17And19AreKnownTasks(t *testing.T) {
 	logs := `{"success":true,"data":{"now_time":1792904417,"activities":[[
 		{"id":101,"type":19,"title":"线下课程9课前预习习题","create_time":1792888844,
@@ -478,7 +478,7 @@ func TestFetchType17And19AreKnownTasks(t *testing.T) {
 	}
 }
 
-// type=19 的练习没有截止时间时也要保留：它是作业类，不能按「非作业类型」丢掉
+// type=19 的练习属于作业类，截止时间缺失时仍保留
 func TestFetchType19WithoutDeadlineIsKept(t *testing.T) {
 	logs := `{"success":true,"data":{"now_time":1792904417,"activities":[[
 		{"id":201,"type":19,"title":"线下课程3课堂练习","create_time":1789959009,
@@ -529,7 +529,7 @@ func TestFetchFallsBackToLatestSemester(t *testing.T) {
 		}
 	}), 0)
 
-	// 2027 秋没有课，应退化为列表里最新的 2026秋，并记 warning
+	// 2027 秋无课程时退化为列表里最新的 2026秋，并记 warning
 	now := time.Date(2027, 10, 22, 12, 0, 0, 0, time.UTC)
 	result, err := client.Fetch(context.Background(), entity.Account{}, testSession(t, "sid"),
 		entity.FetchOptions{Now: func() time.Time { return now }}, nil)

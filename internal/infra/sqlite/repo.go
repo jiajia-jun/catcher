@@ -13,7 +13,7 @@ import (
 	"catcher/internal/domain/entity"
 )
 
-// Repo 是 domain 端口在 sqlite 上的实现。
+// Repo 是 domain 端口在 sqlite 上的实现
 type Repo struct {
 	db *DB
 }
@@ -22,7 +22,7 @@ func NewRepo(db *DB) *Repo {
 	return &Repo{db: db}
 }
 
-// EnsurePlatforms 保证每个平台恰好有一行账号，重复调用无副作用。
+// EnsurePlatforms 保证每个平台恰好有一行账号，重复调用无副作用
 func (r *Repo) EnsurePlatforms(ctx context.Context, now time.Time) error {
 	return r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
 		for _, p := range entity.AllPlatforms() {
@@ -136,7 +136,7 @@ const assignmentColumns = `
 	       COALESCE(last_run_id, 0) AS last_run_id
 	FROM assignments`
 
-// ListAssignments 支持平台、课程、状态、关键字筛选；默认隐藏已提交作业。
+// ListAssignments 支持平台、课程、状态、关键字筛选，默认隐藏已提交作业
 // 状态筛选与「显示已提交」都按有效状态计算，手动覆盖优先于平台值
 func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilter) ([]entity.Assignment, error) {
 	query := assignmentColumns + `
@@ -158,7 +158,7 @@ func (r *Repo) ListAssignments(ctx context.Context, filter entity.AssignmentFilt
 		query += ` AND COALESCE(manual_status, status) <> 'submitted'`
 	}
 	if filter.DeadlineFrom != nil {
-		// 截止时间未知的作业要保留：读不到时间不等于不是本学期的作业
+		// 截止时间未知的作业保留：读不到时间不影响本学期归属
 		query += ` AND (deadline_at IS NULL OR deadline_at >= ?)`
 		args = append(args, formatTime(*filter.DeadlineFrom))
 	}

@@ -9,7 +9,8 @@ import (
 	"catcher/internal/service"
 )
 
-// LoginChaoxing 用手机号+密码登录学习通。密码只在本次调用内使用，不回传
+// LoginChaoxing 用手机号+密码登录学习通
+// 密码只在本次调用内使用，响应只返回登录结果
 func (a *App) LoginChaoxing(req dto.PasswordLoginRequest) (res dto.PasswordLoginResult) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -58,7 +59,7 @@ func (a *App) LoginChaoxing(req dto.PasswordLoginRequest) (res dto.PasswordLogin
 }
 
 // ImportTronclassSession 导入浏览器里的学在重邮 session
-// 入参与错误详情都不回显会话值
+// 入参与错误详情中只保留脱敏内容
 func (a *App) ImportTronclassSession(req dto.SessionImportRequest) (res dto.SessionImportResult) {
 	defer func() {
 		if r := recover(); r != nil {

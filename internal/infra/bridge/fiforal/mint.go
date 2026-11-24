@@ -36,8 +36,8 @@ var (
 	scriptRedirectRe   = regexp.MustCompile(`(?:top\.|window\.)?location\.(?:href\s*=\s*|replace\(\s*)['"]([^'"]+)['"]`)
 )
 
-// fetchCallbackPage 用微信授权码换回调页里的账号密码。
-// 回调页返回 200 HTML，成败都不靠 HTTP 状态码
+// fetchCallbackPage 用微信授权码换回调页里的账号密码
+// 回调页返回 200 HTML，正文决定成败
 func (c *Client) fetchCallbackPage(ctx context.Context, jar *cookieJar, code, state string) (*callbackPage, error) {
 	callbackURL := c.passBaseURL + "/iplat-pass/weixin/callback?" + url.Values{
 		"service": {c.oralURL},
@@ -86,8 +86,8 @@ func parseCallbackPage(raw []byte) (*callbackPage, error) {
 	return page, nil
 }
 
-// casLogin 复现页面里的两步 CAS，返回的 token 就是新的 prod-token。
-// 明文密码只在这里短暂使用，不写日志、不进错误串
+// casLogin 复现页面里的两步 CAS，返回的 token 就是新的 prod-token
+// 明文密码只在这里短暂使用，日志与错误串中只保留打码内容
 func (c *Client) casLogin(ctx context.Context, jar *cookieJar, page *callbackPage) (string, error) {
 	ms := strconv.FormatInt(c.now().UnixMilli(), 10)
 
@@ -148,7 +148,7 @@ func (c *Client) casLogin(ctx context.Context, jar *cookieJar, page *callbackPag
 	return token, nil
 }
 
-// parseJSONP 按「第一个 { 到最后一个 }」解析 JSONP 体，不假定回调函数名
+// parseJSONP 按「第一个 { 到最后一个 }」解析 JSONP 体，回调函数名不参与解析
 func parseJSONP(raw []byte, out any) error {
 	start := bytes.IndexByte(raw, '{')
 	end := bytes.LastIndexByte(raw, '}')
@@ -161,8 +161,8 @@ func parseJSONP(raw []byte, out any) error {
 	return nil
 }
 
-// landingToToken 逐跳跟随落地链，从 302 的 Location fragment 里取 H5 token。
-// sender 不跟随重定向，这里必须手工走完，包括 /cas-server/ 那一跳
+// landingToToken 逐跳跟随落地链，从 302 的 Location fragment 里取 H5 token
+// sender 将重定向作为状态码返回，这里手工走完跳转链，包括 /cas-server/ 那一跳
 func (c *Client) landingToToken(ctx context.Context, jar *cookieJar, startURL string) (*h5Token, error) {
 	started := time.Now()
 	hops := 0
@@ -179,7 +179,7 @@ func (c *Client) landingToToken(ctx context.Context, jar *cookieJar, startURL st
 		if err != nil {
 			var status *sender.StatusError
 			if !errors.As(err, &status) || resp == nil {
-				// 落地链的 URL 里可能有 ticket，错误串不能回显完整地址
+				// 落地链的 URL 里可能有 ticket，错误串只保留脱敏内容
 				return nil, safeRequestError("FiF 落地", err)
 			}
 			if status.Code < 300 || status.Code >= 400 {
@@ -222,7 +222,7 @@ func (c *Client) landingToToken(ctx context.Context, jar *cookieJar, startURL st
 				continue
 			}
 		} else if next, ok := extractScriptRedirect(resp.Raw); ok {
-			// 业务页面的脚本跳转不跟，只检查目标里有没有 token
+			// 业务页面的脚本跳转只用于提取 token，页面本身保持不动
 			if resolved, resolveErr := c.resolveLandingURL(current, next); resolveErr == nil {
 				token, tokenErr := tokenFromURL(resolved)
 				if tokenErr != nil {
@@ -267,7 +267,7 @@ func isTransitionPage(rawURL string) bool {
 	return host == "pass.fifedu.com" && strings.HasPrefix(u.Path, "/iplat-pass/")
 }
 
-// landingStopError 判断 200 停在哪种页面：登录页才是真的没登上
+// landingStopError 判断 200 停在哪种页面，停在登录页时按会话失效处理
 func landingStopError(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {

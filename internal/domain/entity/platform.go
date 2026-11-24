@@ -2,7 +2,7 @@ package entity
 
 import "fmt"
 
-// Platform 是抓取目标平台的稳定标识。它以字符串落库，禁止随意改名
+// Platform 是抓取目标平台的稳定标识，以字符串落库，改名会影响历史数据
 type Platform string
 
 const (
@@ -115,7 +115,7 @@ const (
 	IssueInternal IssueKind = "internal"
 )
 
-// SubmissionStatus 只有三态。认不出的状态必须是 unknown，不能推断成已交
+// SubmissionStatus 只有三态，其余状态归入 unknown
 type SubmissionStatus string
 
 const (

@@ -2,16 +2,16 @@ package entity
 
 import "time"
 
-// FetchOptions 是适配器执行一次抓取时可用的选项。
+// FetchOptions 是适配器执行一次抓取时可用的选项
 type FetchOptions struct {
 	Now func() time.Time
-	// OnSessionUpdated 在平台轮换会话/累积 cookie 后立即调用。
-	// 它允许适配器把最新登录态交给上层加密持久化，避免进程崩溃后丢失。
+	// OnSessionUpdated 在平台轮换会话或累积 cookie 后立即调用
+	// 适配器通过它把最新登录态交给上层加密持久化，降低进程崩溃导致登录态丢失的风险
 	OnSessionUpdated func(Session) error
 }
 
-// FetchResult 是一次抓取的结果。Complete 只在平台完整枚举了目标范围时为 true，
-// 也只有此时才允许软删除旧数据。
+// FetchResult 是一次抓取的结果
+// Complete 在平台完整枚举了目标范围时为 true，此时才允许软删除旧数据
 type FetchResult struct {
 	Courses     []Course
 	Assignments []Assignment
@@ -21,20 +21,20 @@ type FetchResult struct {
 	Complete bool
 	// CourseListComplete 表示课程列表本身被完整枚举
 	CourseListComplete bool
-	// PartialByDesign 表示本次没抓全，但原因是平台只暴露这么多数据
-	// （例如批改网只给得到列表第一页），不是本次刷新出错。
+	// PartialByDesign 表示本次未抓全，原因是平台只暴露这么多数据
+	// （例如批改网只提供列表第一页），本次刷新仍按成功处理
 	// 它只影响刷新记录的成功判定，软删除仍按 Complete / CourseListComplete 走
 	PartialByDesign bool
 	// FailedCourses 是本次作业列表抓取失败的课程 external_id
-	// nil 表示课程列表不完整，不能据此清理旧数据
+	// nil 表示课程列表不完整，此时跳过清理
 	FailedCourses []string
 }
 
 // PersistInput 是一次抓取结果落库所需的全部上下文
 //
-// Complete 为 false 时默认只做 upsert，不软删除旧记录；
-// 课程列表完整（CourseListComplete）时可以清理旧课程，
-// 作业则只清理不在 FailedCourses 里的课程
+// Complete 为 false 时只做 upsert，旧记录保留
+// 课程列表完整（CourseListComplete）时清理旧课程
+// 作业只清理不在 FailedCourses 里的课程
 type PersistInput struct {
 	AccountID int64
 	Platform  Platform
@@ -80,7 +80,7 @@ type Progress struct {
 // ProgressFunc 由 service 注入，适配器在每个阶段调用
 type ProgressFunc func(Progress)
 
-// QRState 是雨课堂扫码登录的轮询状态。
+// QRState 是扫码登录的轮询状态
 type QRState string
 
 const (
@@ -91,14 +91,14 @@ const (
 	QRFailed    QRState = "failed"
 )
 
-// QRChallenge 是一张待扫描的二维码。
+// QRChallenge 是一张待扫描的二维码
 type QRChallenge struct {
 	ID        string
 	Content   string
 	ExpiresAt time.Time
 }
 
-// PasswordCredential 是密码登录输入。落库前整体交给 secretstore 加密
+// PasswordCredential 是密码登录输入，落库前整体交给 secretstore 加密
 type PasswordCredential struct {
 	Phone    string `json:"phone"`
 	Password string `json:"password"`

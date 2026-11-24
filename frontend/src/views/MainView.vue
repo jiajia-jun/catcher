@@ -139,7 +139,7 @@ function statusOptions(row: AssignmentView): DropdownOption[] {
 }
 
 async function onSetStatus(row: AssignmentView, key: StatusKey) {
-  // 撤销回到改之前的值；空串表示原本没有手动覆盖
+  // 撤销回到改之前的值；空串表示原本为平台值
   const previous = row.manualStatus ?? ''
   const status = key === 'restore' ? '' : key
   try {
@@ -208,7 +208,7 @@ const columns: DataTableColumns<AssignmentView> = [
     render: (row) => {
       const text = row.title || '（无标题）'
       const url = row.detailUrl
-      // 没有可用地址时保持纯文本，不显示假按钮
+      // 地址为空时保持纯文本
       if (!isHttpURL(url)) return text
       return h(
         'span',
@@ -219,7 +219,7 @@ const columns: DataTableColumns<AssignmentView> = [
           title: text,
           'aria-label': `在浏览器中打开：${text}`,
           onClick: (event: MouseEvent) => {
-            // 当前行没有点击处理器，防止以后加行点击时误触
+            // 阻止点击冒泡，行级点击与行内链接保持独立
             event.stopPropagation()
             BrowserOpenURL(url)
           },
@@ -307,7 +307,7 @@ const columns: DataTableColumns<AssignmentView> = [
 ]
 
 // 平台概览单行横向滚动：卡片固定宽度，悬停时滚轮横移
-// 按行、按页滚动时 deltaY 不是像素，先归一到像素
+// 按行或按页滚动时 deltaY 以行、页为单位，先归一到像素
 function normalizeDelta(e: WheelEvent, width: number): number {
   if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) return e.deltaY * 16
   if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) return e.deltaY * width
@@ -319,7 +319,7 @@ function onWheel(e: WheelEvent) {
   if (!el) return
   // 触控板的横向手势交给原生滚动
   if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
-  // 放得下全部卡片时不劫持滚轮
+  // 全部卡片放得下时，滚轮交给页面
   if (el.scrollWidth <= el.clientWidth) return
 
   const delta = normalizeDelta(e, el.clientWidth)
@@ -336,7 +336,7 @@ function onWheel(e: WheelEvent) {
 
 onMounted(() => {
   void store.init()
-  // 直接用 Wails 事件驱动右下角提示，不依赖通知组件
+  // 右下角提示由 Wails 事件直接驱动
   offRefreshFinished = EventsOn('refresh.finished', showSuccessToast)
 })
 

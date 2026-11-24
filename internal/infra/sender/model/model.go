@@ -12,7 +12,7 @@ type Request struct {
 	URL     string
 	Header  map[string]string
 	Body    []byte
-	Timeout time.Duration // 这个是为雨课堂做准备的（轮询）
+	Timeout time.Duration // 单次请求超时，轮询场景由调用方按需设置
 }
 
 // Response 响应报文
