@@ -2,8 +2,11 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 
@@ -27,6 +30,9 @@ func (r *Repo) SaveSnapshot(ctx context.Context, in entity.PersistInput) (int, e
 	upserted := 0
 	err := r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
 		upserted = 0
+		if err := r.rekeyLegacyAssignments(ctx, tx, in); err != nil {
+			return err
+		}
 		switch {
 		case in.Result.Complete:
 			if _, err := tx.ExecContext(ctx,
@@ -218,6 +224,201 @@ func upsertAssignment(ctx context.Context, tx *sqlx.Tx, in entity.PersistInput,
 		formatTime(in.At), formatTime(in.At), runRef)
 	if err != nil {
 		return fmt.Errorf("写入作业 %s 失败: %w", item.DedupKey, err)
+	}
+	return nil
+}
+
+// legacyRekeyTolerance 是存量作业换键时比较截止时间的容差
+// 列表剩余时间精确到分钟，换算出的绝对时刻允许几十秒偏差
+const legacyRekeyTolerance = 10 * time.Minute
+
+// legacyAssignmentRow 是仍在使用标题去重键的旧行
+type legacyAssignmentRow struct {
+	ID             int64          `db:"id"`
+	DedupKey       string         `db:"dedup_key"`
+	CourseID       string         `db:"course_external_id"`
+	Title          string         `db:"title"`
+	ManualStatus   sql.NullString `db:"manual_status"`
+	ManualStatusAt sql.NullString `db:"manual_status_at"`
+	DeadlineRaw    string         `db:"deadline_raw"`
+	DeadlineAt     sql.NullString `db:"deadline_at"`
+}
+
+// rekeyLegacyAssignments 把仍用标题键的旧行原地换成平台作业 id 键
+// 换键保留行 id、手动状态与首次出现时间，后续 upsert 命中的是同一行
+// 匹配顺序：本次结果已占用旧键 → 同课程同标题且标题唯一 → 截止时间唯一
+// 匹配失败的行保持原样，不把手动标记复制给别的作业
+func (r *Repo) rekeyLegacyAssignments(ctx context.Context, tx *sqlx.Tx, in entity.PersistInput) error {
+	var rows []legacyAssignmentRow
+	if err := tx.SelectContext(ctx, &rows, `
+		SELECT id, dedup_key, course_external_id, title, manual_status, manual_status_at,
+		       deadline_raw, deadline_at
+		FROM assignments
+		WHERE account_id = ? AND platform = ? AND external_id = ''
+		ORDER BY id`, in.AccountID, string(in.Platform)); err != nil {
+		return fmt.Errorf("查询旧去重键作业失败: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	items := in.Result.Assignments
+	legacyKeys := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		legacyKeys[row.DedupKey] = struct{}{}
+	}
+	// 本次结果里已经出现相同旧键时，旧行留给这条作业原地 upsert
+	claimed := make(map[string]struct{})
+	for _, item := range items {
+		if _, ok := legacyKeys[item.DedupKey]; ok {
+			claimed[item.DedupKey] = struct{}{}
+		}
+	}
+
+	byID := make(map[int64]legacyAssignmentRow, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	matched := make(map[int64]int)
+	itemUsed := make([]bool, len(items))
+
+	// 第一轮：同课程同标题，且该标题在本次结果中只有一条
+	type courseTitle struct{ course, title string }
+	byTitle := make(map[courseTitle][]int)
+	for i, item := range items {
+		if item.ExternalID == "" {
+			continue
+		}
+		key := courseTitle{item.CourseExternalID, item.Title}
+		byTitle[key] = append(byTitle[key], i)
+	}
+	for _, row := range rows {
+		if _, ok := claimed[row.DedupKey]; ok {
+			continue
+		}
+		candidates := byTitle[courseTitle{row.CourseID, row.Title}]
+		if len(candidates) != 1 || itemUsed[candidates[0]] {
+			continue
+		}
+		matched[row.ID] = candidates[0]
+		itemUsed[candidates[0]] = true
+	}
+
+	// 第二轮：只剩带手动标记的旧行，先比截止时间原文
+	type courseRaw struct{ course, raw string }
+	legacyByRaw := make(map[courseRaw][]int64)
+	itemByRaw := make(map[courseRaw][]int)
+	for _, row := range rows {
+		if !row.ManualStatus.Valid || strings.TrimSpace(row.DeadlineRaw) == "" {
+			continue
+		}
+		if _, ok := claimed[row.DedupKey]; ok {
+			continue
+		}
+		if _, ok := matched[row.ID]; ok {
+			continue
+		}
+		key := courseRaw{row.CourseID, row.DeadlineRaw}
+		legacyByRaw[key] = append(legacyByRaw[key], row.ID)
+	}
+	for i, item := range items {
+		if item.ExternalID == "" || itemUsed[i] || strings.TrimSpace(item.DeadlineRaw) == "" {
+			continue
+		}
+		key := courseRaw{item.CourseExternalID, item.DeadlineRaw}
+		itemByRaw[key] = append(itemByRaw[key], i)
+	}
+	for key, ids := range legacyByRaw {
+		candidates := itemByRaw[key]
+		if len(ids) != 1 || len(candidates) != 1 || itemUsed[candidates[0]] {
+			continue
+		}
+		matched[ids[0]] = candidates[0]
+		itemUsed[candidates[0]] = true
+	}
+
+	// 第三轮：截止时刻相差不超过容差，且两侧都唯一
+	legacyDeadlines := make(map[int64]time.Time)
+	for _, row := range rows {
+		if !row.ManualStatus.Valid || !row.DeadlineAt.Valid {
+			continue
+		}
+		if _, ok := claimed[row.DedupKey]; ok {
+			continue
+		}
+		if _, ok := matched[row.ID]; ok {
+			continue
+		}
+		deadline, err := parseNullableTime(row.DeadlineAt)
+		if err != nil {
+			return fmt.Errorf("解析旧作业截止时间失败: %w", err)
+		}
+		if deadline != nil {
+			legacyDeadlines[row.ID] = *deadline
+		}
+	}
+	legacyEdges := make(map[int64][]int)
+	itemEdges := make(map[int][]int64)
+	for id, legacyDeadline := range legacyDeadlines {
+		row := byID[id]
+		for i, item := range items {
+			if item.ExternalID == "" || itemUsed[i] || item.Deadline == nil {
+				continue
+			}
+			if item.CourseExternalID != row.CourseID {
+				continue
+			}
+			if diff := legacyDeadline.Sub(*item.Deadline); diff <= legacyRekeyTolerance && diff >= -legacyRekeyTolerance {
+				legacyEdges[id] = append(legacyEdges[id], i)
+				itemEdges[i] = append(itemEdges[i], id)
+			}
+		}
+	}
+	for id, candidates := range legacyEdges {
+		if len(candidates) != 1 || len(itemEdges[candidates[0]]) != 1 {
+			continue
+		}
+		matched[id] = candidates[0]
+		itemUsed[candidates[0]] = true
+	}
+
+	// 执行换键；新键已被占用时把手动状态补到新行
+	for id, index := range matched {
+		row := byID[id]
+		item := items[index]
+		var existingID int64
+		err := tx.GetContext(ctx, &existingID, `
+			SELECT id FROM assignments
+			WHERE account_id = ? AND platform = ? AND dedup_key = ? AND id <> ?`,
+			in.AccountID, string(in.Platform), item.DedupKey, id)
+		switch {
+		case err == nil:
+			if row.ManualStatus.Valid {
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE assignments SET manual_status = ?, manual_status_at = ?
+					WHERE id = ? AND manual_status IS NULL`,
+					row.ManualStatus, row.ManualStatusAt, existingID); err != nil {
+					return fmt.Errorf("迁移手动状态失败: %w", err)
+				}
+			}
+			// 标记旧行已迁移，避免后续刷新重复匹配并把手动值复制回来
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE assignments SET external_id = ? WHERE id = ? AND external_id = ''`,
+				item.ExternalID, id); err != nil {
+				return fmt.Errorf("标记旧作业已迁移失败: %w", err)
+			}
+			continue
+		case !errors.Is(err, sql.ErrNoRows):
+			return fmt.Errorf("检查新去重键失败: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE assignments SET dedup_key = ?, external_id = ?
+			WHERE id = ? AND external_id = ''`,
+			item.DedupKey, item.ExternalID, id); err != nil {
+			return fmt.Errorf("迁移旧去重键失败: %w", err)
+		}
+		r.logger.Info("作业旧去重键迁移",
+			"platform", string(in.Platform), "old", row.DedupKey, "new", item.DedupKey)
 	}
 	return nil
 }

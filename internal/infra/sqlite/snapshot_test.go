@@ -546,6 +546,391 @@ func TestManualStatusSurvivesRefreshAndFilters(t *testing.T) {
 	}
 }
 
+func mustChaoxingAccount(t *testing.T, repo *Repo) entity.Account {
+	t.Helper()
+	ctx := context.Background()
+	if err := repo.EnsurePlatforms(ctx, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	account, err := repo.GetAccount(ctx, entity.PlatformChaoxing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return *account
+}
+
+func chaoxingCourse(courseID string) entity.Course {
+	return entity.Course{
+		Platform:    entity.PlatformChaoxing,
+		ExternalID:  courseID,
+		Name:        "离散数学A&B",
+		SemesterKey: "2026秋",
+		Active:      true,
+	}
+}
+
+// chaoxingLegacyKey 模拟改用 taskrefId 之前的标题去重键
+func chaoxingLegacyKey(courseID, title string) string {
+	return "chaoxing:" + courseID + ":" + entity.NormalizeTitle(title)
+}
+
+func legacyChaoxingAssignment(courseID, title string, deadline *time.Time, raw string) entity.Assignment {
+	return entity.Assignment{
+		Platform:         entity.PlatformChaoxing,
+		CourseExternalID: courseID,
+		CourseName:       "离散数学A&B",
+		DedupKey:         chaoxingLegacyKey(courseID, title),
+		Title:            title,
+		Status:           entity.StatusUnsubmitted,
+		Deadline:         deadline,
+		DeadlineSource:   entity.DeadlineInferredYear,
+		DeadlineRaw:      raw,
+	}
+}
+
+func chaoxingAssignment(courseID, taskrefID, title string, deadline *time.Time, raw string) entity.Assignment {
+	return entity.Assignment{
+		Platform:         entity.PlatformChaoxing,
+		CourseExternalID: courseID,
+		CourseName:       "离散数学A&B",
+		ExternalID:       taskrefID,
+		DedupKey:         entity.ChaoxingDedupKey(courseID, taskrefID),
+		Title:            title,
+		Status:           entity.StatusUnsubmitted,
+		Deadline:         deadline,
+		DeadlineSource:   entity.DeadlineInferredYear,
+		DeadlineRaw:      raw,
+	}
+}
+
+func saveChaoxing(t *testing.T, repo *Repo, account entity.Account, at time.Time,
+	courseID string, assignments []entity.Assignment) {
+	t.Helper()
+	in := entity.PersistInput{
+		AccountID: account.ID,
+		Platform:  entity.PlatformChaoxing,
+		At:        at,
+		Result: entity.FetchResult{
+			Complete:    true,
+			Courses:     []entity.Course{chaoxingCourse(courseID)},
+			Assignments: assignments,
+		},
+	}
+	if _, err := repo.SaveSnapshot(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func listAllChaoxing(t *testing.T, repo *Repo) []entity.Assignment {
+	t.Helper()
+	items, err := repo.ListAssignments(context.Background(),
+		entity.AssignmentFilter{Platforms: []entity.Platform{entity.PlatformChaoxing}, ShowSubmitted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return items
+}
+
+// 同标题的旧标题键行原地换键，行 id 与手动状态不变
+func TestSaveSnapshotRekeysLegacyTitleKey(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustChaoxingAccount(t, repo)
+
+	courseID := "266504745"
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	deadline := time.Date(2026, 11, 17, 15, 55, 50, 0, time.UTC)
+	raw := `aria-label="截止时间11月17日23时55分50秒"`
+
+	saveChaoxing(t, repo, account, at, courseID,
+		[]entity.Assignment{legacyChaoxingAssignment(courseID, "期末补交", &deadline, raw)})
+	items := listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("初始作业 = %d, want 1", len(items))
+	}
+	oldID := items[0].ID
+	submitted := entity.StatusSubmitted
+	if _, err := repo.SetManualStatus(ctx, oldID, &submitted, at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	incoming := chaoxingAssignment(courseID, "5550001", "期末补交", &deadline, raw)
+	saveChaoxing(t, repo, account, at.Add(24*time.Hour), courseID, []entity.Assignment{incoming})
+
+	items = listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("换键后作业 = %d, want 1（不能新建一行）", len(items))
+	}
+	got := items[0]
+	if got.ID != oldID {
+		t.Fatalf("行 id = %d, want %d", got.ID, oldID)
+	}
+	if got.DedupKey != incoming.DedupKey || got.ExternalID != "5550001" {
+		t.Fatalf("键/平台 id = %q / %q", got.DedupKey, got.ExternalID)
+	}
+	if got.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("手动状态 = %s, want submitted", got.EffectiveStatus())
+	}
+	if !got.FirstSeenAt.Equal(at) {
+		t.Fatalf("first_seen_at = %v, want %v", got.FirstSeenAt, at)
+	}
+}
+
+// 老师改名后同标题出现两次：有手动标记的旧行按截止时间原文迁到旧作业那条
+func TestSaveSnapshotRekeysRenamedLegacyByDeadlineRaw(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustChaoxingAccount(t, repo)
+
+	courseID := "266504745"
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	oldDeadline := time.Date(2026, 11, 17, 15, 55, 50, 0, time.UTC)
+	newDeadline := time.Date(2026, 11, 30, 15, 55, 50, 0, time.UTC)
+	oldRaw := `aria-label="截止时间11月17日23时55分50秒"`
+	newRaw := `aria-label="截止时间11月30日23时55分50秒"`
+
+	saveChaoxing(t, repo, account, at, courseID,
+		[]entity.Assignment{legacyChaoxingAssignment(courseID, "课堂作业6 二元关系", &oldDeadline, oldRaw)})
+	items := listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("初始作业 = %d, want 1", len(items))
+	}
+	oldID := items[0].ID
+	submitted := entity.StatusSubmitted
+	if _, err := repo.SetManualStatus(ctx, oldID, &submitted, at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	title := "离散数学课后作业6 二元关系"
+	incomingOld := chaoxingAssignment(courseID, "57939574", title, &oldDeadline, oldRaw)
+	incomingNew := chaoxingAssignment(courseID, "58803396", title, &newDeadline, newRaw)
+	saveChaoxing(t, repo, account, at.Add(24*time.Hour), courseID,
+		[]entity.Assignment{incomingNew, incomingOld})
+
+	items = listAllChaoxing(t, repo)
+	if len(items) != 2 {
+		t.Fatalf("同标题作业 = %d, want 2", len(items))
+	}
+	byKey := make(map[string]entity.Assignment, len(items))
+	for _, item := range items {
+		byKey[item.DedupKey] = item
+	}
+	oldItem, ok := byKey[incomingOld.DedupKey]
+	if !ok {
+		t.Fatalf("缺少旧作业 %q: %#v", incomingOld.DedupKey, byKey)
+	}
+	if oldItem.ID != oldID {
+		t.Fatalf("旧作业行 id = %d, want %d（必须原地换键）", oldItem.ID, oldID)
+	}
+	if oldItem.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("旧作业手动状态 = %s, want submitted", oldItem.EffectiveStatus())
+	}
+	newItem, ok := byKey[incomingNew.DedupKey]
+	if !ok {
+		t.Fatalf("缺少新作业 %q: %#v", incomingNew.DedupKey, byKey)
+	}
+	if newItem.ManualStatus != nil {
+		t.Fatalf("新作业不应继承手动状态: %#v", newItem.ManualStatus)
+	}
+	if newItem.Deadline == nil || !newItem.Deadline.Equal(newDeadline) {
+		t.Fatalf("新作业截止 = %v, want %v", newItem.Deadline, newDeadline)
+	}
+}
+
+// 截止时间原文不同、时刻相差在容差内时也能匹配
+func TestSaveSnapshotRekeysLegacyByDeadlineTolerance(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustChaoxingAccount(t, repo)
+
+	courseID := "266504745"
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	legacyDeadline := time.Date(2026, 11, 17, 15, 55, 50, 0, time.UTC)
+	newDeadline := legacyDeadline.Add(5 * time.Minute)
+
+	saveChaoxing(t, repo, account, at, courseID,
+		[]entity.Assignment{legacyChaoxingAssignment(courseID, "旧标题", &legacyDeadline, "旧原文")})
+	items := listAllChaoxing(t, repo)
+	oldID := items[0].ID
+	submitted := entity.StatusSubmitted
+	if _, err := repo.SetManualStatus(ctx, oldID, &submitted, at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	incoming := chaoxingAssignment(courseID, "5550001", "新标题", &newDeadline, "新原文")
+	saveChaoxing(t, repo, account, at.Add(24*time.Hour), courseID, []entity.Assignment{incoming})
+
+	items = listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("作业数 = %d, want 1", len(items))
+	}
+	got := items[0]
+	if got.ID != oldID || got.DedupKey != incoming.DedupKey {
+		t.Fatalf("未按截止时间容差换键: id=%d key=%q", got.ID, got.DedupKey)
+	}
+	if got.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("手动状态 = %s, want submitted", got.EffectiveStatus())
+	}
+}
+
+// 截止时间无法唯一确定时不换键，手动标记不复制给别的作业
+func TestSaveSnapshotSkipsAmbiguousRekey(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustChaoxingAccount(t, repo)
+
+	courseID := "266504745"
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	deadlineA := time.Date(2026, 11, 17, 15, 55, 0, 0, time.UTC)
+	deadlineB := deadlineA.Add(2 * time.Minute)
+	itemDeadline := deadlineA.Add(time.Minute)
+
+	saveChaoxing(t, repo, account, at, courseID, []entity.Assignment{
+		legacyChaoxingAssignment(courseID, "旧作业A", &deadlineA, "原文A"),
+		legacyChaoxingAssignment(courseID, "旧作业B", &deadlineB, "原文B"),
+	})
+	items := listAllChaoxing(t, repo)
+	if len(items) != 2 {
+		t.Fatalf("初始作业 = %d, want 2", len(items))
+	}
+	submitted := entity.StatusSubmitted
+	for _, item := range items {
+		if _, err := repo.SetManualStatus(ctx, item.ID, &submitted, at.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	incoming := chaoxingAssignment(courseID, "5550001", "新作业", &itemDeadline, "新原文")
+	saveChaoxing(t, repo, account, at.Add(24*time.Hour), courseID, []entity.Assignment{incoming})
+
+	items = listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("active 作业 = %d, want 1", len(items))
+	}
+	if items[0].DedupKey != incoming.DedupKey || items[0].ManualStatus != nil {
+		t.Fatalf("歧义时不应迁移手动状态: %#v", items[0])
+	}
+
+	var legacyKeys int
+	if err := db.SQL().GetContext(ctx, &legacyKeys,
+		`SELECT COUNT(*) FROM assignments WHERE external_id = '' AND manual_status IS NOT NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if legacyKeys != 2 {
+		t.Fatalf("旧行应保持原样，实际 %d 条", legacyKeys)
+	}
+}
+
+// 缺 taskrefId 的兜底条目和旧行同键时，旧行留给它原地 upsert
+func TestSaveSnapshotKeepsLegacyRowForFallbackKey(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustChaoxingAccount(t, repo)
+
+	courseID := "266504745"
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	deadline := time.Date(2026, 11, 17, 15, 55, 50, 0, time.UTC)
+	raw := `aria-label="截止时间11月17日23时55分50秒"`
+
+	saveChaoxing(t, repo, account, at, courseID,
+		[]entity.Assignment{legacyChaoxingAssignment(courseID, "无编号作业", &deadline, raw)})
+	items := listAllChaoxing(t, repo)
+	oldID := items[0].ID
+	submitted := entity.StatusSubmitted
+	if _, err := repo.SetManualStatus(ctx, oldID, &submitted, at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	fallback := legacyChaoxingAssignment(courseID, "无编号作业", &deadline, raw)
+	saveChaoxing(t, repo, account, at.Add(24*time.Hour), courseID, []entity.Assignment{fallback})
+
+	items = listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("作业数 = %d, want 1", len(items))
+	}
+	got := items[0]
+	if got.ID != oldID || got.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("兜底条目应原地更新旧行: %#v", got)
+	}
+	if got.ExternalID != "" {
+		t.Fatalf("external_id = %q, want 空", got.ExternalID)
+	}
+}
+
+// 新键已经存在时不覆盖，把手动状态补到新行
+func TestSaveSnapshotCopiesManualStatusWhenNewKeyExists(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	repo := NewRepo(db)
+	account := mustChaoxingAccount(t, repo)
+
+	courseID := "266504745"
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	deadline := time.Date(2026, 11, 17, 15, 55, 50, 0, time.UTC)
+	raw := `aria-label="截止时间11月17日23时55分50秒"`
+
+	// 先写入新键行
+	incoming := chaoxingAssignment(courseID, "5550001", "期末补交", &deadline, raw)
+	saveChaoxing(t, repo, account, at, courseID, []entity.Assignment{incoming})
+	// 再写入同标题的旧键行并标记手动状态
+	saveChaoxing(t, repo, account, at.Add(time.Hour), courseID,
+		[]entity.Assignment{legacyChaoxingAssignment(courseID, "期末补交", &deadline, raw)})
+	items := listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("第二次刷新后 active 作业 = %d, want 1", len(items))
+	}
+	legacyID := items[0].ID
+	submitted := entity.StatusSubmitted
+	if _, err := repo.SetManualStatus(ctx, legacyID, &submitted, at.Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	saveChaoxing(t, repo, account, at.Add(3*time.Hour), courseID, []entity.Assignment{incoming})
+
+	items = listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("最终 active 作业 = %d, want 1", len(items))
+	}
+	got := items[0]
+	if got.DedupKey != incoming.DedupKey {
+		t.Fatalf("active 键 = %q, want %q", got.DedupKey, incoming.DedupKey)
+	}
+	if got.EffectiveStatus() != entity.StatusSubmitted {
+		t.Fatalf("手动状态未复制到新键行: %s", got.EffectiveStatus())
+	}
+	var legacyRows int
+	if err := db.SQL().GetContext(ctx, &legacyRows,
+		`SELECT COUNT(*) FROM assignments WHERE external_id = '' AND dedup_key = ?`,
+		chaoxingLegacyKey(courseID, "期末补交")); err != nil {
+		t.Fatal(err)
+	}
+	if legacyRows != 0 {
+		t.Fatalf("旧行应标记为已迁移，仍有 %d 条 external_id 为空", legacyRows)
+	}
+
+	// 清除手动值后再刷新，旧行不应把手动值复制回来
+	restored, err := repo.SetManualStatus(ctx, got.ID, nil, at.Add(4*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.ManualStatus != nil {
+		t.Fatalf("恢复平台值失败: %#v", restored.ManualStatus)
+	}
+	saveChaoxing(t, repo, account, at.Add(5*time.Hour), courseID, []entity.Assignment{incoming})
+	items = listAllChaoxing(t, repo)
+	if len(items) != 1 {
+		t.Fatalf("最终 active 作业 = %d, want 1", len(items))
+	}
+	if items[0].ManualStatus != nil {
+		t.Fatalf("已清除的手动值被旧行复制回来: %#v", items[0].ManualStatus)
+	}
+}
+
 func TestSaveSnapshotRejectsBadAssignment(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
