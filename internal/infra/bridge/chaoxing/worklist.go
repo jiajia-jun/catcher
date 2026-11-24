@@ -29,6 +29,7 @@ var (
 type workItem struct {
 	DetailURL    string
 	Title        string
+	TaskRefID    string
 	Status       entity.SubmissionStatus
 	CourseID     string
 	CourseName   string
@@ -119,6 +120,7 @@ func parseWorkItem(rawData, inner string) (workItem, []entity.FetchIssue, bool) 
 	item := workItem{
 		DetailURL: dataURL,
 		CourseID:  courseIDFromURL(dataURL),
+		TaskRefID: taskRefIDFromURL(dataURL),
 	}
 
 	aria := pickAriaLabel(inner, "作业名称")
@@ -286,11 +288,20 @@ func parseStatusIcon(inner string) (ended, known bool) {
 
 // courseIDFromURL 用 net/url 解析并读取查询参数
 func courseIDFromURL(raw string) string {
+	return queryFromURL(raw, "courseId")
+}
+
+// taskRefIDFromURL 读取作业的稳定 id，缺失时返回空串
+func taskRefIDFromURL(raw string) string {
+	return queryFromURL(raw, "taskrefId")
+}
+
+func queryFromURL(raw, name string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(u.Query().Get("courseId"))
+	return strings.TrimSpace(u.Query().Get(name))
 }
 
 func truncate(s string, n int) string {

@@ -89,14 +89,14 @@ type AssignmentFilter struct {
 }
 
 // NormalizeTitle 只做 TrimSpace 与连续空白折叠
-// 日期、括号、全角字符属于标题的一部分，也是去重键的一部分
+// 日期、括号、全角字符属于标题的一部分
 func NormalizeTitle(s string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
 }
 
-// ChaoxingDedupKey 由「用户 + 平台 + 课程 + 标题」组成，deadline 变化时保持不变
-func ChaoxingDedupKey(courseID, title string) string {
-	return "chaoxing:" + courseID + ":" + NormalizeTitle(title)
+// ChaoxingDedupKey 由「平台 + 课程 + 平台作业 id」组成，标题与截止时间变化时保持不变
+func ChaoxingDedupKey(courseID, taskrefID string) string {
+	return "chaoxing:" + courseID + ":" + taskrefID
 }
 
 // YuketangDedupKey 使用稳定的活动 id

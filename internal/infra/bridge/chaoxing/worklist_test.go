@@ -42,6 +42,9 @@ func TestParseWorkList(t *testing.T) {
 	if first.CourseID != "214986481" {
 		t.Fatalf("courseId = %q（不能过 float64）", first.CourseID)
 	}
+	if first.TaskRefID != "1001" {
+		t.Fatalf("taskrefId = %q", first.TaskRefID)
+	}
 	if first.Status != entity.StatusUnsubmitted {
 		t.Fatalf("状态 = %s", first.Status)
 	}

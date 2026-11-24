@@ -114,7 +114,10 @@ func TestFetchEndToEnd(t *testing.T) {
 	if open.CourseExternalID != "214986481" {
 		t.Fatalf("courseId = %q（不能过 float64）", open.CourseExternalID)
 	}
-	if open.DedupKey != entity.ChaoxingDedupKey("214986481", "第一次作业") {
+	if open.ExternalID != "1001" {
+		t.Fatalf("external_id = %q, want taskrefId", open.ExternalID)
+	}
+	if open.DedupKey != entity.ChaoxingDedupKey("214986481", "1001") {
 		t.Fatalf("去重键 = %q", open.DedupKey)
 	}
 	// 剩余时间精确到分钟，偏差在容差内时采用详情页写死的精确时刻
@@ -328,6 +331,126 @@ func TestPersistCookiesOnRotation(t *testing.T) {
 	}
 	if len(secret.Cookies) != 1 || secret.Cookies[0].Value != "new" {
 		t.Fatalf("落盘 cookie = %#v", secret.Cookies)
+	}
+}
+
+// 同课程同标题的两条作业必须保留为两条记录
+func TestFetchKeepsSameTitleAssignments(t *testing.T) {
+	mux := http.NewServeMux()
+	var base string
+	mux.HandleFunc("/mycourse/backclazzdata", func(w http.ResponseWriter, r *http.Request) {
+		base = "http://" + r.Host
+		_, _ = w.Write([]byte(`{"result":1,"channelList":[{"content":{"course":{"data":[
+			{"id":266504745,"name":"离散数学A&B"}]}}}]}`))
+	})
+	mux.HandleFunc("/work/stu-work", func(w http.ResponseWriter, r *http.Request) {
+		html := fmt.Sprintf(`<html><body><ul>
+<li onclick="goTask(this);" data="%s/mooc-ans/android/mtaskmsgspecial?taskrefId=58803396&amp;courseId=266504745&amp;type=work">
+  <i class="task-work"></i>
+  <span aria-label="作业名称离散数学课后作业6 二元关系作业状态未提交所属课程离散数学A...剩余时间149小时27分钟"></span>
+</li>
+<li onclick="goTask(this);" data="%s/mooc-ans/android/mtaskmsgspecial?taskrefId=57939574&amp;courseId=266504745&amp;type=work">
+  <i class="task-work-gray"></i>
+  <span aria-label="作业名称离散数学课后作业6 二元关系作业状态未提交所属课程离散数学A..."></span>
+</li>
+</ul><script>var haveMore = "0";</script></body></html>`, base, base)
+		_, _ = w.Write([]byte(html))
+	})
+	mux.HandleFunc("/mooc-ans/android/mtaskmsgspecial", func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("taskrefId") {
+		case "58803396":
+			_, _ = w.Write([]byte(`<span aria-label="截止时间11月30日23时55分50秒"></span>`))
+		case "57939574":
+			_, _ = w.Write([]byte(`<span aria-label="截止时间11月17日23时55分50秒"></span>`))
+		default:
+			_, _ = w.Write([]byte(`<html></html>`))
+		}
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := New(Options{
+		BaseURL:      server.URL,
+		LoginBaseURL: server.URL,
+		Sender:       sender.New(sender.Config{Logger: logger.Discard()}),
+		Logger:       logger.Discard(),
+	})
+	// now + 149h27m 落在 11-30 23:55，与详情页相差 50 秒，落在容差内
+	now := time.Date(2026, 11, 24, 18, 28, 0, 0, shanghai)
+	result, err := client.Fetch(context.Background(), entity.Account{}, mustSession(t, "UID=u"),
+		entity.FetchOptions{Now: func() time.Time { return now }}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Assignments) != 2 {
+		t.Fatalf("作业数 = %d, want 2（同标题不能合并）", len(result.Assignments))
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("不应有 warning: %#v", result.Warnings)
+	}
+
+	newItem, oldItem := result.Assignments[0], result.Assignments[1]
+	if newItem.DedupKey == oldItem.DedupKey {
+		t.Fatalf("两条同标题作业的去重键相同: %q", newItem.DedupKey)
+	}
+	if newItem.DedupKey != entity.ChaoxingDedupKey("266504745", "58803396") ||
+		oldItem.DedupKey != entity.ChaoxingDedupKey("266504745", "57939574") {
+		t.Fatalf("去重键 = %q / %q", newItem.DedupKey, oldItem.DedupKey)
+	}
+	wantNew := time.Date(2026, 11, 30, 23, 55, 50, 0, shanghai).UTC()
+	wantOld := time.Date(2026, 11, 17, 23, 55, 50, 0, shanghai).UTC()
+	if newItem.Deadline == nil || !newItem.Deadline.Equal(wantNew) {
+		t.Fatalf("新作业截止 = %v, want %v", newItem.Deadline, wantNew)
+	}
+	if oldItem.Deadline == nil || !oldItem.Deadline.Equal(wantOld) {
+		t.Fatalf("旧作业截止 = %v, want %v", oldItem.Deadline, wantOld)
+	}
+}
+
+// data URL 缺少 taskrefId 时退回标题键，作业仍然落库且不产生抓取告警
+func TestFetchFallsBackToTitleWithoutTaskRefID(t *testing.T) {
+	mux := http.NewServeMux()
+	var base string
+	mux.HandleFunc("/mycourse/backclazzdata", func(w http.ResponseWriter, r *http.Request) {
+		base = "http://" + r.Host
+		_, _ = w.Write([]byte(`{"result":1,"channelList":[{"content":{"course":{"data":[
+			{"id":214986481,"name":"大学物理ABC（上）"}]}}}]}`))
+	})
+	mux.HandleFunc("/work/stu-work", func(w http.ResponseWriter, r *http.Request) {
+		html := fmt.Sprintf(`<html><body><ul>
+<li onclick="goTask(this);" data="%s/mooc-ans/android/mtaskmsgspecial?courseId=214986481&amp;type=work">
+  <i class="task-work-gray"></i>
+  <span aria-label="作业名称无编号作业作业状态已完成所属课程大学物理AB..."></span>
+</li>
+</ul><script>var haveMore = "0";</script></body></html>`, base)
+		_, _ = w.Write([]byte(html))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := New(Options{
+		BaseURL:      server.URL,
+		LoginBaseURL: server.URL,
+		Sender:       sender.New(sender.Config{Logger: logger.Discard()}),
+		Logger:       logger.Discard(),
+	})
+	result, err := client.Fetch(context.Background(), entity.Account{}, mustSession(t, "UID=u"),
+		entity.FetchOptions{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Assignments) != 1 {
+		t.Fatalf("作业数 = %d, want 1", len(result.Assignments))
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("缺 taskrefId 只记日志，不应产生抓取告警: %#v", result.Warnings)
+	}
+	got := result.Assignments[0]
+	if got.ExternalID != "" {
+		t.Fatalf("external_id = %q, want 空", got.ExternalID)
+	}
+	if want := "chaoxing:214986481:无编号作业"; got.DedupKey != want {
+		t.Fatalf("去重键 = %q, want %q", got.DedupKey, want)
 	}
 }
 
