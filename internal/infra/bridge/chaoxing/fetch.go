@@ -61,6 +61,7 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 	result.Complete = result.Complete && page.Complete
 	result.Warnings = append(result.Warnings, page.Warnings...)
 
+	seenKeys := make(map[string]string, len(page.Items))
 	for i, item := range page.Items {
 		progress(entity.Progress{
 			Platform: entity.PlatformChaoxing,
@@ -69,6 +70,20 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			Total:    len(page.Items),
 			Message:  item.Title,
 		})
+
+		dedupKey := entity.ChaoxingDedupKey(item.CourseID, item.TaskRefID)
+		if item.TaskRefID == "" {
+			// 平台容器里没有作业 id 时退回标题键，保证作业仍然落库
+			dedupKey = entity.ChaoxingDedupKey(item.CourseID, item.Title)
+			c.logger.Warn("学习通作业缺少 taskrefId，按标题去重",
+				"course_id", item.CourseID, "title", item.Title)
+		}
+		if prev, ok := seenKeys[dedupKey]; ok {
+			c.logger.Warn("学习通作业去重键重复",
+				"dedup_key", dedupKey, "title", item.Title, "previous_title", prev)
+		} else {
+			seenKeys[dedupKey] = item.Title
+		}
 
 		var detail *detailDeadline
 		if item.Status != entity.StatusSubmitted {
@@ -135,7 +150,8 @@ func (c *Client) Fetch(ctx context.Context, account entity.Account, session enti
 			Platform:         entity.PlatformChaoxing,
 			CourseExternalID: item.CourseID,
 			CourseName:       courseName,
-			DedupKey:         entity.ChaoxingDedupKey(item.CourseID, item.Title),
+			ExternalID:       item.TaskRefID,
+			DedupKey:         dedupKey,
 			Title:            item.Title,
 			Status:           item.Status,
 			Deadline:         deadline,
