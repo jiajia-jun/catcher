@@ -123,6 +123,23 @@ export const useAppStore = defineStore('app', () => {
 
   let eventsBound = false
 
+  // CLI 刷新后桌面版手里的数据是旧的：窗口重新获得焦点时静默回读
+  // Wails 窗口切换不触发 visibilitychange，只能用 focus
+  let focusTimer: number | undefined
+  let focusReady = false
+  let focusReadyAt = 0
+
+  function onWindowFocus() {
+    if (!focusReady || Date.now() < focusReadyAt) return
+    if (refreshing.value) return
+    window.clearTimeout(focusTimer)
+    // 首次加载会连续触发两次 focus，防抖后只回读一次
+    focusTimer = window.setTimeout(() => {
+      if (refreshing.value) return
+      void reloadAll()
+    }, 300)
+  }
+
   // 各扫码平台的扫码事件结构一致，处理逻辑共用一份
   function bindQREvents(platform: QRPlatform) {
     const hint = qrHint(platform)
@@ -156,6 +173,8 @@ export const useAppStore = defineStore('app', () => {
   function bindEvents() {
     if (eventsBound) return
     eventsBound = true
+
+    window.addEventListener('focus', onWindowFocus)
 
     EventsOn('refresh.progress', (ev: RefreshProgressEvent) => {
       const text = ev.message || (ev.total > 0 ? `${ev.current}/${ev.total}` : ev.phase)
@@ -255,6 +274,9 @@ export const useAppStore = defineStore('app', () => {
       error.value = toErrorText(err)
     } finally {
       loading.value = false
+      // 页面加载完成时 focus 会连续触发，首屏就绪后 1 秒内忽略
+      focusReady = true
+      focusReadyAt = Date.now() + 1000
     }
     // 首屏就绪后再查更新，失败静默处理
     void runUpdateCheck(false)
