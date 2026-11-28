@@ -18,6 +18,18 @@ type RefreshStart struct {
 	AlreadyRunning bool
 }
 
+// PlatformResult 是单平台刷新的完整结果
+// 事件与同步刷新共用同一份数据，保证两条路径的状态一致
+type PlatformResult struct {
+	Platform entity.Platform
+	Status   entity.RunStatus
+	Run      entity.FetchRun
+	Issues   []entity.FetchIssue
+	Error    *ErrorEvent
+	// SkipReason 在 Status 为 skipped 时说明原因，目前只有 not_logged_in
+	SkipReason string
+}
+
 type refreshJob struct {
 	id        string
 	platforms []entity.Platform
@@ -115,19 +127,15 @@ func (s *Service) CancelAll() {
 }
 
 func (s *Service) runRefreshJob(ctx context.Context, job *refreshJob) {
+	results := make([]PlatformResult, len(job.platforms))
 	var wg sync.WaitGroup
-	var mu sync.Mutex
-	statuses := make(map[string]string, len(job.platforms))
 
-	for _, p := range job.platforms {
-		p := p
+	for i, p := range job.platforms {
+		i, p := i, p
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			status := s.refreshPlatform(ctx, job.id, p)
-			mu.Lock()
-			statuses[string(p)] = string(status)
-			mu.Unlock()
+			results[i] = s.refreshPlatform(ctx, job.id, p)
 		}()
 	}
 	wg.Wait()
@@ -141,6 +149,12 @@ func (s *Service) runRefreshJob(ctx context.Context, job *refreshJob) {
 	delete(s.refreshJobs, job.id)
 	s.jobsMu.Unlock()
 
+	statuses := make(map[string]string, len(results))
+	for _, result := range results {
+		statuses[string(result.Platform)] = string(result.Status)
+		s.emitRefreshFinished(job.id, result)
+	}
+
 	job.cancel()
 	s.emitEvent("refresh.all-finished", map[string]any{
 		"jobId":    job.id,
@@ -148,37 +162,126 @@ func (s *Service) runRefreshJob(ctx context.Context, job *refreshJob) {
 	})
 }
 
-// refreshPlatform 执行单平台刷新，返回终态并发出事件
-func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Platform) entity.RunStatus {
+// RefreshSync 同步刷新给定平台并等待全部结束，供命令行使用
+// platforms 为空时使用「参与刷新」勾选的平台；从未登录的平台标 skipped
+func (s *Service) RefreshSync(ctx context.Context, platforms []entity.Platform) []PlatformResult {
+	if len(platforms) == 0 {
+		platforms = s.EnabledPlatforms()
+	}
+
+	seen := make(map[entity.Platform]struct{}, len(platforms))
+	list := make([]entity.Platform, 0, len(platforms))
+	for _, p := range platforms {
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		list = append(list, p)
+	}
+
+	states, err := s.loginStates(ctx)
+	if err != nil {
+		results := make([]PlatformResult, len(list))
+		for i, p := range list {
+			results[i] = PlatformResult{
+				Platform: p,
+				Status:   entity.RunFailed,
+				Error:    &ErrorEvent{Code: "STORAGE", Message: "读取账号状态失败: " + err.Error()},
+			}
+		}
+		return results
+	}
+
+	results := make([]PlatformResult, len(list))
+	var wg sync.WaitGroup
+	for i, p := range list {
+		i, p := i, p
+		if states[p] == entity.LoginDisconnected {
+			results[i] = PlatformResult{
+				Platform:   p,
+				Status:     entity.RunSkipped,
+				SkipReason: "not_logged_in",
+			}
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i] = s.refreshPlatform(ctx, "refresh-sync", p)
+		}()
+	}
+	wg.Wait()
+	return results
+}
+
+func (s *Service) loginStates(ctx context.Context) (map[entity.Platform]entity.LoginState, error) {
+	accounts, err := s.accounts.ListAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	states := make(map[entity.Platform]entity.LoginState, len(accounts))
+	for _, account := range accounts {
+		states[account.Platform] = account.LoginState
+	}
+	return states, nil
+}
+
+// tryLockPlatform 尝试拿平台锁；没有配置 Locker 时视为总是成功
+func (s *Service) tryLockPlatform(p entity.Platform) (release func(), ok bool, err error) {
+	if s.locker == nil {
+		return nil, true, nil
+	}
+	return s.locker.TryLock(p)
+}
+
+// refreshPlatform 执行单平台刷新并返回完整结果
+// 事件由调用方按结果发出，命令行与桌面版共用这一条路径
+func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Platform) PlatformResult {
+	release, locked, err := s.tryLockPlatform(p)
+	if err != nil {
+		return PlatformResult{Platform: p, Status: entity.RunFailed,
+			Error: &ErrorEvent{Code: "STORAGE", Message: "获取平台锁失败: " + err.Error()}}
+	}
+	if !locked {
+		return PlatformResult{Platform: p, Status: entity.RunBusy,
+			Error: &ErrorEvent{Code: "PLATFORM_BUSY", Message: "该平台正在被其他进程刷新"}}
+	}
+	if release != nil {
+		defer release()
+	}
+	if err := ctx.Err(); err != nil {
+		return PlatformResult{Platform: p, Status: entity.RunCanceled,
+			Error: &ErrorEvent{Code: "CANCELED", Message: entity.ErrCanceled.Error()}}
+	}
+
 	fetcher, ok := s.fetchers[p]
 	if !ok {
-		s.emitRefreshFinished(jobID, p, entity.RunFailed, entity.FetchRun{}, nil,
-			&ErrorEvent{Code: "INTERNAL", Message: "该平台适配器尚未实现"})
-		return entity.RunFailed
+		return PlatformResult{Platform: p, Status: entity.RunFailed,
+			Error: &ErrorEvent{Code: "INTERNAL", Message: "该平台适配器尚未实现"}}
 	}
 
 	account, err := s.accounts.GetAccount(ctx, p)
 	if err != nil {
-		s.emitRefreshFinished(jobID, p, entity.RunFailed, entity.FetchRun{}, nil, errorEvent(err))
-		return entity.RunFailed
+		return PlatformResult{Platform: p, Status: entity.RunFailed, Error: errorEvent(err)}
 	}
 
 	session, err := s.sessions.Get(ctx, account.ID)
 	if err != nil {
-		status := entity.RunFailed
 		if errors.Is(err, entity.ErrNotFound) {
 			s.setLoginState(ctx, p, entity.LoginDisconnected, nil)
-			s.emitRefreshFinished(jobID, p, status, entity.FetchRun{}, []IssueEvent{{
-				Scope: string(entity.ScopePlatform), Kind: string(entity.IssueAuth), Message: "尚未登录",
-			}}, &ErrorEvent{Code: "AUTH_REQUIRED", Message: entity.ErrAuthRequired.Error()})
-			return status
+			return PlatformResult{Platform: p, Status: entity.RunFailed,
+				Issues: []entity.FetchIssue{{
+					Scope: entity.ScopePlatform, Kind: entity.IssueAuth, Message: "尚未登录",
+				}},
+				Error: &ErrorEvent{Code: "AUTH_REQUIRED", Message: entity.ErrAuthRequired.Error()}}
 		}
 		// 解密失败视为登录态不可用，要求重新登录
 		s.setLoginState(ctx, p, entity.LoginNeedsLogin, err)
-		s.emitRefreshFinished(jobID, p, status, entity.FetchRun{}, []IssueEvent{{
-			Scope: string(entity.ScopePlatform), Kind: string(entity.IssueAuth), Message: "读取会话失败，请重新登录",
-		}}, &ErrorEvent{Code: "AUTH_EXPIRED", Message: entity.ErrAuthExpired.Error()})
-		return status
+		return PlatformResult{Platform: p, Status: entity.RunFailed,
+			Issues: []entity.FetchIssue{{
+				Scope: entity.ScopePlatform, Kind: entity.IssueAuth, Message: "读取会话失败，请重新登录",
+			}},
+			Error: &ErrorEvent{Code: "AUTH_EXPIRED", Message: entity.ErrAuthExpired.Error()}}
 	}
 
 	run := &entity.FetchRun{
@@ -190,8 +293,7 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 	if s.runs != nil {
 		if err := s.runs.Create(ctx, run); err != nil {
 			s.logger.Error("创建刷新记录失败", "platform", p, "error", err)
-			s.emitRefreshFinished(jobID, p, entity.RunFailed, *run, nil, errorEvent(err))
-			return entity.RunFailed
+			return PlatformResult{Platform: p, Status: entity.RunFailed, Run: *run, Error: errorEvent(err)}
 		}
 	}
 
@@ -238,7 +340,7 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 	}
 
 	if err != nil {
-		return s.finishWithError(ctx, run, jobID, p, err)
+		return s.finishWithError(ctx, run, p, err)
 	}
 
 	persist := entity.PersistInput{
@@ -250,7 +352,7 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 	}
 	upserted, err := s.assignments.SaveSnapshot(ctx, persist)
 	if err != nil {
-		return s.finishWithError(ctx, run, jobID, p, err)
+		return s.finishWithError(ctx, run, p, err)
 	}
 
 	// 部分失败以列表完整性为准
@@ -276,12 +378,11 @@ func (s *Service) refreshPlatform(ctx context.Context, jobID string, p entity.Pl
 		}
 	}
 	s.setLoginState(ctx, p, entity.LoginConnected, nil)
-	s.emitRefreshFinished(jobID, p, status, *run, issueEvents(result.Warnings), nil)
-	return status
+	return PlatformResult{Platform: p, Status: status, Run: *run, Issues: result.Warnings}
 }
 
-func (s *Service) finishWithError(ctx context.Context, run *entity.FetchRun, jobID string,
-	p entity.Platform, err error) entity.RunStatus {
+func (s *Service) finishWithError(ctx context.Context, run *entity.FetchRun,
+	p entity.Platform, err error) PlatformResult {
 	status := entity.RunFailed
 	kind := entity.IssueInternal
 	switch {
@@ -316,8 +417,7 @@ func (s *Service) finishWithError(ctx context.Context, run *entity.FetchRun, job
 			s.logger.Error("写入刷新失败记录失败", "platform", p, "error", finishErr)
 		}
 	}
-	s.emitRefreshFinished(jobID, p, status, *run, issueEvents(issues), errorEvent(err))
-	return status
+	return PlatformResult{Platform: p, Status: status, Run: *run, Issues: issues, Error: errorEvent(err)}
 }
 
 func (s *Service) setLoginState(ctx context.Context, p entity.Platform, state entity.LoginState, cause error) {
@@ -335,21 +435,20 @@ func (s *Service) setLoginState(ctx context.Context, p entity.Platform, state en
 	s.emitEvent("account.state", payload)
 }
 
-func (s *Service) emitRefreshFinished(jobID string, p entity.Platform, status entity.RunStatus,
-	run entity.FetchRun, warnings []IssueEvent, apiErr *ErrorEvent) {
+func (s *Service) emitRefreshFinished(jobID string, result PlatformResult) {
 	s.emitEvent("refresh.finished", FinishedEvent{
 		JobID:    jobID,
-		Platform: string(p),
-		Status:   string(status),
+		Platform: string(result.Platform),
+		Status:   string(result.Status),
 		Counts: CountsEvent{
-			CoursesTotal:  run.CoursesTotal,
-			CoursesOK:     run.CoursesOK,
-			ItemsSeen:     run.ItemsSeen,
-			ItemsUpserted: run.ItemsUpserted,
-			WarningCount:  run.WarningCount,
+			CoursesTotal:  result.Run.CoursesTotal,
+			CoursesOK:     result.Run.CoursesOK,
+			ItemsSeen:     result.Run.ItemsSeen,
+			ItemsUpserted: result.Run.ItemsUpserted,
+			WarningCount:  result.Run.WarningCount,
 		},
-		Warnings: warnings,
-		Error:    apiErr,
+		Warnings: issueEvents(result.Issues),
+		Error:    result.Error,
 	})
 }
 

@@ -35,6 +35,12 @@ type Bootstrap struct {
 	Version  string
 }
 
+// PlatformLocker 是平台维度的跨进程互斥
+// TryLock 拿不到锁时返回 ok=false；实现为 nil 时退化为不加锁
+type PlatformLocker interface {
+	TryLock(platform entity.Platform) (release func(), ok bool, err error)
+}
+
 // Deps 是 Service 的依赖集合，由 cmd/app 装配
 type Deps struct {
 	Accounts    domain.AccountRepository
@@ -42,6 +48,7 @@ type Deps struct {
 	Credentials domain.CredentialRepository
 	Assignments domain.AssignmentRepository
 	Runs        domain.FetchRunRepository
+	Locker      PlatformLocker
 
 	Fetchers       map[entity.Platform]domain.Fetcher
 	Renewers       map[entity.Platform]domain.SessionRenewer
@@ -66,6 +73,7 @@ type Service struct {
 	credentials domain.CredentialRepository
 	assignments domain.AssignmentRepository
 	runs        domain.FetchRunRepository
+	locker      PlatformLocker
 
 	fetchers       map[entity.Platform]domain.Fetcher
 	renewers       map[entity.Platform]domain.SessionRenewer
@@ -99,6 +107,7 @@ func New(d Deps) *Service {
 		credentials:    d.Credentials,
 		assignments:    d.Assignments,
 		runs:           d.Runs,
+		locker:         d.Locker,
 		fetchers:       d.Fetchers,
 		renewers:       d.Renewers,
 		authenticators: d.Authenticators,
@@ -212,6 +221,11 @@ func addCount(c *Counts, item entity.Assignment, now time.Time) {
 	default:
 		c.Unknown++
 	}
+}
+
+// Accounts 返回每个平台一行账号，供命令行判断从未登录的平台
+func (s *Service) Accounts(ctx context.Context) ([]entity.Account, error) {
+	return s.accounts.ListAccounts(ctx)
 }
 
 // ListAssignments 返回符合筛选条件的作业

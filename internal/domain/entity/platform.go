@@ -92,6 +92,10 @@ const (
 	RunPartial  RunStatus = "partial"
 	RunFailed   RunStatus = "failed"
 	RunCanceled RunStatus = "canceled"
+
+	// 以下两态只用于同步刷新的返回值，不写入 fetch_runs
+	RunSkipped RunStatus = "skipped" // 平台从未登录，本次不发起请求
+	RunBusy    RunStatus = "busy"    // 平台正被其他进程刷新
 )
 
 // IssueScope 标记问题影响的范围

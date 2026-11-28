@@ -31,7 +31,7 @@ func (f *fakeAccounts) EnsurePlatforms(context.Context, time.Time) error { retur
 func (f *fakeAccounts) ListAccounts(context.Context) ([]entity.Account, error) {
 	out := make([]entity.Account, 0, len(entity.AllPlatforms()))
 	for i, p := range entity.AllPlatforms() {
-		out = append(out, entity.Account{ID: int64(i + 1), Platform: p})
+		out = append(out, entity.Account{ID: int64(i + 1), Platform: p, LoginState: f.state(p)})
 	}
 	return out, nil
 }
