@@ -225,7 +225,7 @@ func (r *Repo) SetManualStatus(ctx context.Context, id int64, status *entity.Sub
 		}
 
 		res, err := tx.ExecContext(ctx,
-			`UPDATE assignments SET manual_status = ?, manual_status_at = ? WHERE id = ?`,
+			`UPDATE assignments SET manual_status = ?, manual_status_at = ? WHERE id = ? AND active = 1`,
 			value, markedAt, id)
 		if err != nil {
 			return fmt.Errorf("更新手动状态失败: %w", err)
