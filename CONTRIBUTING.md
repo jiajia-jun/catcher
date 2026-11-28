@@ -141,8 +141,6 @@ internal/infra -> internal/domain
 - 时间字段按对应平台文档处理，不要套统一规则；**失败必须显式**，登录失效不能表现成「今天没作业」
 - 注释和文档用中文
 
-新增依赖前先说明理由，能用标准库就不要引第三方包。
-
 ## 数据与安全
 
 - **不要提交真实凭据**。`data/`、`catcher.json`、`draft/`、`CLAUDE.md` 已在 `.gitignore` 里

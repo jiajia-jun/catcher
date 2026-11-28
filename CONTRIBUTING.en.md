@@ -141,8 +141,6 @@ See [docs/架构.md](docs/架构.md) for layer responsibilities and `pkg` constr
 - Handle time fields according to each platform's doc; do not apply one universal rule. **Failures must be explicit**: an expired login must not look like "no assignments today"
 - Comments and docs are written in Chinese
 
-Explain the reason before adding a dependency; prefer the standard library.
-
 ## Data and security
 
 - **Do not commit real credentials**. `data/`, `catcher.json`, `draft/`, and `CLAUDE.md` are in `.gitignore`
