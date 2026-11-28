@@ -266,6 +266,7 @@ func openWith(opts config.DataDirOptions, logFile string, console bool) (*Runtim
 
 // RunCLI 装配数据、执行子命令并返回退出码
 func RunCLI(args []string) int {
+	attachParentConsole()
 	dirArgs, err := extractDataDirArgs(args)
 	if err != nil {
 		return cli.UsageError(os.Stderr, err.Error())
@@ -295,6 +296,7 @@ func RunCLI(args []string) int {
 
 // UsageError 输出用法错误并以 2 退出
 func UsageError(args []string) int {
+	attachParentConsole()
 	if len(args) == 0 {
 		return cli.UsageError(os.Stderr, "missing command")
 	}
