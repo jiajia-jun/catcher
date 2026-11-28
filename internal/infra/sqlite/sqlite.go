@@ -21,6 +21,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
+
+	"catcher/pkg/lockfile"
 )
 
 //go:embed migrations/*.sql
@@ -87,7 +89,15 @@ func (d *DB) Close() error {
 }
 
 // Migrate 按 schema_migrations.version 顺序执行嵌入的迁移，版本单向前进
+//
+// 整段迁移由跨进程锁保护，桌面版与命令行同时启动时只有一个进程执行
 func (d *DB) Migrate(ctx context.Context) error {
+	release, err := lockfile.Lock(filepath.Join(filepath.Dir(d.path), "locks", "migrate.lock"), 30*time.Second)
+	if err != nil {
+		return fmt.Errorf("另一个 Catcher 正在初始化数据库: %w", err)
+	}
+	defer release()
+
 	if _, err := d.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    INTEGER PRIMARY KEY,
