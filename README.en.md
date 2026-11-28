@@ -45,6 +45,8 @@ Download from the [Releases](https://github.com/jiajia-jun/catcher/releases/late
 - **Installer** (x64 only): `Catcher-<version>-amd64-installer.exe`, installs to the current user's directory by default, **no administrator rights required**; you can pick any directory writable by the current user (including D:, E:, and other non-system drives)
 - **Portable**: `Catcher-windows-amd64.zip` (x64) or `Catcher-windows-arm64.zip` (ARM64); extract to any writable directory and run `Catcher.exe`
 
+> The install directory includes `AGENTS.md`, ready to hand to a local-command-capable AI agent so it can manage assignments through Catcher.
+>
 > The install directory must be writable by the current user. Directories such as `Program Files` are not writable for normal users; the installer blocks them and asks for another location.
 
 ### Uninstall and update

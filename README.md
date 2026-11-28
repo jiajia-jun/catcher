@@ -45,6 +45,8 @@
 - **安装器**（仅 x64）：`Catcher-<版本>-amd64-installer.exe`，默认装到当前用户目录，**不需要管理员权限**，也可以在安装页改成任意当前用户可写的目录（包括 D:、E: 等非系统盘）
 - **便携版**：`Catcher-windows-amd64.zip`（x64）或 `Catcher-windows-arm64.zip`（ARM64），解压到任意可写目录，运行 `Catcher.exe`
 
+> 安装目录附带 `AGENTS.md`，可以直接交给支持本地命令的 AI Agent，让它调用 Catcher 管理作业
+>
 > 安装目录必须对当前用户可写。`Program Files` 这类目录普通用户无法写入，安装器会拦下来并提示换一个位置
 
 ### 卸载与更新

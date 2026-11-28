@@ -71,6 +71,7 @@ ManifestDPIAware true
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE ValidateInstallDir
 !insertmacro MUI_PAGE_DIRECTORY # In which folder install page.
 !insertmacro MUI_PAGE_INSTFILES # Installing page.
+!define MUI_FINISHPAGE_TEXT "Catcher 已安装$\r$\n$\r$\n安装目录中的 AGENTS.md 可以交给 AI Agent，让它调用 Catcher 管理作业"
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
@@ -124,10 +125,11 @@ Section
 
     !insertmacro wails.files
 
-    # 随安装目录一并分发许可证与第三方声明
+    # 随安装目录一并分发许可证、第三方声明与 Agent 说明
     File "..\..\..\LICENSE"
     File "..\..\..\NOTICE"
     File "..\..\..\THIRD_PARTY_NOTICES.md"
+    File "..\..\agent\AGENTS.md"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
@@ -157,6 +159,7 @@ keepData:
     Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\NOTICE"
     Delete "$INSTDIR\THIRD_PARTY_NOTICES.md"
+    Delete "$INSTDIR\AGENTS.md"
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"

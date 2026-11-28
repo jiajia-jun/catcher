@@ -21,6 +21,17 @@ Catcher.exe list --data-dir D:\data
 
 环境变量 `CATCHER_DATA_DIR` 对两种入口都生效
 
+## Agent 接入
+
+安装目录附带 `AGENTS.md`，内容是一份可以直接交给 Agent 的说明，覆盖：
+
+- 先查 `status`，只在 `connected` 时刷新
+- 检查 `refresh` 的 `platforms[].status` 与退出码
+- 用 `list` 的 `id` 标记作业
+- 不读取凭据、不尝试登录
+
+便携包的 zip 根目录同样包含该文件
+
 ## 通用参数
 
 | 参数 | 适用命令 | 说明 |
