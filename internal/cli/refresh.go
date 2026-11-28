@@ -65,7 +65,7 @@ func runRefresh(deps Deps, args []string) int {
 		return UsageError(deps.Stderr, err.Error())
 	}
 	if fs.NArg() > 0 {
-		return UsageError(deps.Stderr, "无法识别的参数: "+fs.Arg(0))
+		return UsageError(deps.Stderr, "unexpected argument: "+fs.Arg(0))
 	}
 	if *help {
 		return printUsage(deps.Stdout, refreshUsage)

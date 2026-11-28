@@ -16,7 +16,7 @@ import (
 func Execute(args []string, deps Deps) int {
 	deps = deps.withDefaults()
 	if len(args) == 0 {
-		return UsageError(deps.Stderr, "缺少命令")
+		return UsageError(deps.Stderr, "missing command")
 	}
 
 	command, rest := args[0], args[1:]
@@ -34,7 +34,7 @@ func Execute(args []string, deps Deps) int {
 	case "help", "--help", "-h":
 		return printUsage(deps.Stdout, generalUsage)
 	default:
-		return UsageError(deps.Stderr, fmt.Sprintf("未知命令 %q", command))
+		return UsageError(deps.Stderr, fmt.Sprintf("unknown command %q", command))
 	}
 }
 

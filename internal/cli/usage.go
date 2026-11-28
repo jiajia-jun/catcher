@@ -5,88 +5,93 @@ import (
 	"io"
 )
 
-const generalUsage = `Catcher 命令行
+const generalUsage = `Catcher command line
 
-用法:
-  Catcher.exe <命令> [参数]
+Usage:
+  Catcher.exe <command> [options]
 
-命令:
-  refresh   刷新平台作业并等待结束
-  list      查询作业
-  status    查看登录态、最近刷新与统计（不发网络请求）
-  mark      手动标记作业状态
-  version   输出程序版本
-  help      输出本说明
+Commands:
+  refresh   Refresh platforms and wait until finished
+  list      List assignments
+  status    Show login state, last refresh and counts (no network)
+  mark      Set or clear the manual status of an assignment
+  version   Print the program version
+  help      Print this help
 
-参数:
-  --data-dir <路径>   数据目录，默认与桌面版一致
-  --help              输出命令用法
+Options:
+  --data-dir <path>   Data directory, defaults to the one used by the desktop app
+  --help              Print usage for a command
 
-输出:
-  stdout 只输出 JSON，help 除外；stderr 只放诊断信息
-  退出码 0 成功、1 失败、2 用法错误、3 需要重新登录
+Output:
+  stdout carries JSON only, except for help; stderr carries diagnostics
+  Exit codes: 0 success, 1 failure, 2 usage error, 3 login required
 
-示例:
+Examples:
   Catcher.exe refresh --platform chaoxing
-  Catcher.exe list --show-submitted --keyword 实验
+  Catcher.exe list --show-submitted --keyword lab
   Catcher.exe mark 123 --status submitted
 
-PowerShell 直接调用 GUI 程序时不会等待，请改用 cmd /c 或 Start-Process -Wait
+Agent integration:
+  AGENTS.md in the install directory can be handed to a local-command agent
+
+PowerShell does not wait for GUI programs; use cmd /c or Start-Process -Wait
 `
 
-const refreshUsage = `用法:
-  Catcher.exe refresh [--platform <平台[,平台]>] [--timeout <时长>] [--verbose] [--data-dir <路径>]
+const refreshUsage = `Usage:
+  Catcher.exe refresh [--platform <p[,p]>] [--timeout <duration>] [--verbose] [--data-dir <path>]
 
-参数:
-  --platform   要刷新的平台，逗号分隔或重复给出；默认使用「参与刷新」勾选的平台
-  --timeout    整个命令的总时限，默认 10m，0 表示不限
-  --verbose    日志同时写到 stderr
+Options:
+  --platform   Platforms to refresh, comma separated or repeated; defaults to the enabled platforms
+  --timeout    Total time limit, default 10m, 0 means unlimited
+  --verbose    Also write logs to stderr
 
-说明:
-  从未登录的平台标 skipped，不计失败；登录态失效或网络失败退出 1/3
+Notes:
+  Platforms never logged in are marked skipped and do not count as failure;
+  expired logins or network errors exit 1/3
 `
 
-const listUsage = `用法:
-  Catcher.exe list [--platform <平台[,平台]>] [--status <状态[,状态]>]
-                   [--show-submitted] [--all-terms] [--keyword <文本>] [--data-dir <路径>]
+const listUsage = `Usage:
+  Catcher.exe list [--platform <p[,p]>] [--status <s[,s]>]
+                   [--show-submitted] [--all-terms] [--keyword <text>] [--data-dir <path>]
 
-参数:
-  --platform        只看指定平台，默认全部
-  --status          submitted、unsubmitted、unknown，按有效状态精确匹配
-  --show-submitted  包含已提交作业
-  --all-terms       不限制本学期
-  --keyword         匹配标题或课程名
+Options:
+  --platform        Limit to the given platforms, defaults to all
+  --status          submitted, unsubmitted or unknown; matches the effective status
+  --show-submitted  Include submitted assignments
+  --all-terms       Do not limit to the current term
+  --keyword         Match title or course name
 
-说明:
-  默认只看本学期（9 月 1 日起）并隐藏已提交作业；截止时间未知的作业始终保留
+Notes:
+  Defaults to the current term (from September 1) and hides submitted assignments;
+  assignments with unknown deadlines are always kept
 `
 
-const statusUsage = `用法:
-  Catcher.exe status [--data-dir <路径>]
+const statusUsage = `Usage:
+  Catcher.exe status [--data-dir <path>]
 
-只读取数据库与配置，不发起网络请求
+Reads the database and config only, no network requests
 `
 
-const markUsage = `用法:
-  Catcher.exe mark <id> --status <submitted|unsubmitted|clear> [--data-dir <路径>]
+const markUsage = `Usage:
+  Catcher.exe mark <id> --status <submitted|unsubmitted|clear> [--data-dir <path>]
 
-参数:
-  id       作业 id，来自 list 或 refresh 的输出
-  --status submitted / unsubmitted 写入手动状态，clear 恢复平台值
+Options:
+  id        Assignment id from list or refresh output
+  --status  submitted or unsubmitted sets the manual status; clear restores the platform value
 
-说明:
-  id 不存在或已下架返回 NOT_FOUND
+Notes:
+  Unknown or removed ids return NOT_FOUND
 `
 
-const versionUsage = `用法:
-  Catcher.exe version [--data-dir <路径>]
+const versionUsage = `Usage:
+  Catcher.exe version [--data-dir <path>]
 
-输出程序版本
+Print the program version
 `
 
 // UsageError 把用法错误写到 stderr，退出 2
 func UsageError(w io.Writer, message string) int {
-	fmt.Fprintf(w, "用法错误: %s\n\n%s", message, generalUsage)
+	fmt.Fprintf(w, "usage error: %s\n\n%s", message, generalUsage)
 	return ExitUsage
 }
 

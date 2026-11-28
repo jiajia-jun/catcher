@@ -296,9 +296,9 @@ func RunCLI(args []string) int {
 // UsageError 输出用法错误并以 2 退出
 func UsageError(args []string) int {
 	if len(args) == 0 {
-		return cli.UsageError(os.Stderr, "缺少命令")
+		return cli.UsageError(os.Stderr, "missing command")
 	}
-	return cli.UsageError(os.Stderr, fmt.Sprintf("无法识别的参数 %q", args[0]))
+	return cli.UsageError(os.Stderr, fmt.Sprintf("unrecognized argument %q", args[0]))
 }
 
 // extractDataDirArgs 只保留 --data-dir，供 Open 解析；其余参数留给子命令
@@ -308,7 +308,7 @@ func extractDataDirArgs(args []string) ([]string, error) {
 		switch a := args[i]; {
 		case a == "--data-dir":
 			if i+1 >= len(args) {
-				return nil, fmt.Errorf("--data-dir 缺少路径")
+				return nil, fmt.Errorf("--data-dir requires a path")
 			}
 			out = append(out, "--data-dir", args[i+1])
 			i++

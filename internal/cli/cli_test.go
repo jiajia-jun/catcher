@@ -115,7 +115,7 @@ func TestUnknownCommandIsUsageError(t *testing.T) {
 	if res.stdout != "" {
 		t.Fatalf("用法错误不应写 stdout: %s", res.stdout)
 	}
-	if !strings.Contains(res.stderr, "未知命令") {
+	if !strings.Contains(res.stderr, "unknown command") {
 		t.Fatalf("stderr = %q", res.stderr)
 	}
 }
@@ -449,7 +449,7 @@ func TestHelpWritesPlainTextToStdout(t *testing.T) {
 	if res.code != ExitOK {
 		t.Fatalf("退出码 = %d", res.code)
 	}
-	if !strings.Contains(res.stdout, "用法") || res.stderr != "" {
+	if !strings.Contains(res.stdout, "Usage:") || res.stderr != "" {
 		t.Fatalf("stdout=%q stderr=%q", res.stdout, res.stderr)
 	}
 }
