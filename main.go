@@ -13,6 +13,14 @@ import (
 var assets embed.FS
 
 func main() {
+	args := os.Args[1:]
+	switch app.Dispatch(args) {
+	case app.EntryCLI:
+		os.Exit(app.RunCLI(args))
+	case app.EntryUsage:
+		os.Exit(app.UsageError(args))
+	}
+
 	if err := app.Run(assets); err != nil {
 		// 发布版无控制台，启动错误只写入 stderr
 		fmt.Fprintf(os.Stderr, "Catcher 启动失败: %v\n", err)

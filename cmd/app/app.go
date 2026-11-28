@@ -1,5 +1,5 @@
 // Package app 负责装配：数据目录 → 配置 → logger → sqlite → repository
-// → service → handle → wails.Run
+// → service → handle → wails.Run，或交给命令行适配层
 //
 // 本包由根 main.go 调用
 // Wails v2 要求入口位于仓库根目录，根 main.go 在那里完成 frontend/dist 的 embed
@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
+	"catcher/internal/cli"
 	"catcher/internal/domain"
 	"catcher/internal/domain/entity"
 	"catcher/internal/handle"
@@ -41,14 +43,57 @@ import (
 // Version 是构建版本，预发布期间写死，后续改为 ldflags 注入
 const Version = "1.5.1"
 
-// Run 启动 Wails 应用，阻塞到窗口关闭
-func Run(assets fs.FS) error {
-	ctx := context.Background()
-	dataDirOpts := config.DefaultDataDirOptions()
+// Entry 是首参决定的入口形态
+type Entry int
 
-	dataDir, err := config.ResolveDataDir(dataDirOpts)
+const (
+	EntryGUI Entry = iota
+	EntryCLI
+	EntryUsage
+)
+
+// Dispatch 按首参选择入口：已知子命令走命令行，无参数或 --data-dir 走界面
+func Dispatch(args []string) Entry {
+	if len(args) == 0 {
+		return EntryGUI
+	}
+	switch args[0] {
+	case "refresh", "list", "status", "mark", "version", "help", "--help", "-h", "--version":
+		return EntryCLI
+	case "--data-dir":
+		return EntryGUI
+	}
+	if strings.HasPrefix(args[0], "--data-dir=") {
+		return EntryGUI
+	}
+	return EntryUsage
+}
+
+// Runtime 是一次装配的产物，桌面版与命令行共用
+type Runtime struct {
+	Config   *config.App
+	Logger   logger.Logger
+	Service  *service.Service
+	DataDir  string
+	FirstRun bool
+	DevMode  bool
+	Close    func()
+}
+
+// Open 完成数据目录 → 配置 → logger → sqlite → 迁移 → 仓储 → service
+// args 交给 config.ResolveDataDir 解析 --data-dir
+func Open(args []string, logFile string) (*Runtime, error) {
+	opts := config.DefaultDataDirOptions()
+	opts.Args = args
+	return openWith(opts, logFile, opts.DevMode)
+}
+
+func openWith(opts config.DataDirOptions, logFile string, console bool) (*Runtime, error) {
+	ctx := context.Background()
+
+	dataDir, err := config.ResolveDataDir(opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// 配置文件是否存在决定「首次安装」：老版本升级时字段为空，但配置已存在
@@ -60,25 +105,26 @@ func Run(assets fs.FS) error {
 
 	cfg, err := config.LoadOrCreate(dataDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	lg, logCloser, err := logger.New(logger.Options{
 		Dir:        filepath.Join(dataDir, "logs"),
+		FileName:   logFile,
 		Level:      cfg.Log.Level,
 		MaxSizeMB:  cfg.Log.MaxSizeMB,
 		MaxBackups: cfg.Log.MaxBackups,
 		MaxAgeDays: cfg.Log.MaxAgeDays,
-		Console:    dataDirOpts.DevMode,
+		Console:    console,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	db, err := sqlite.Open(ctx, filepath.Join(dataDir, "catcher.db"))
 	if err != nil {
 		_ = logCloser.Close()
-		return err
+		return nil, err
 	}
 
 	closeAll := func() {
@@ -88,13 +134,13 @@ func Run(assets fs.FS) error {
 
 	if err := db.Migrate(ctx); err != nil {
 		closeAll()
-		return err
+		return nil, err
 	}
 
 	repo := sqlite.NewRepo(db, sqlite.WithLogger(lg))
 	if err := repo.EnsurePlatforms(ctx, time.Now()); err != nil {
 		closeAll()
-		return err
+		return nil, err
 	}
 
 	// 每个平台一个 Sender（限速互不干扰），共享 Transport 复用连接池
@@ -167,6 +213,7 @@ func Run(assets fs.FS) error {
 		Credentials: sqlite.NewCredentialRepo(db, cipher),
 		Assignments: repo,
 		Runs:        sqlite.NewFetchRunRepo(db),
+		Locker:      newPlatformLocker(dataDir),
 		Fetchers: map[entity.Platform]domain.Fetcher{
 			entity.PlatformChaoxing:  cx,
 			entity.PlatformYuketang:  yk,
@@ -192,27 +239,111 @@ func Run(assets fs.FS) error {
 		DataDir:  dataDir,
 		Version:  Version,
 		FirstRun: firstRun,
-		DevMode:  dataDirOpts.DevMode,
+		DevMode:  opts.DevMode,
 		Logger:   lg,
 		Now:      time.Now,
 	})
-	h := handle.New(svc)
-
-	lg.Info("应用启动",
-		"version", Version,
-		"data_dir", dataDir,
-		"log_level", cfg.Log.Level,
-	)
 
 	var once sync.Once
-	shutdown := func() {
+	closeRuntime := func() {
 		once.Do(func() {
 			lg.Info("应用退出")
 			svc.CancelAll()
 			closeAll()
 		})
 	}
-	defer shutdown()
+
+	return &Runtime{
+		Config:   cfg,
+		Logger:   lg,
+		Service:  svc,
+		DataDir:  dataDir,
+		FirstRun: firstRun,
+		DevMode:  opts.DevMode,
+		Close:    closeRuntime,
+	}, nil
+}
+
+// RunCLI 装配数据、执行子命令并返回退出码
+func RunCLI(args []string) int {
+	dirArgs, err := extractDataDirArgs(args)
+	if err != nil {
+		return cli.UsageError(os.Stderr, err.Error())
+	}
+
+	opts := config.DefaultDataDirOptions()
+	opts.Args = dirArgs
+	rt, err := openWith(opts, "catcher-cli.log", opts.DevMode || hasVerbose(args))
+	if err != nil {
+		return cli.ReportFatal(os.Stdout, err)
+	}
+	defer rt.Close()
+
+	rt.Logger.Info("命令行启动", "version", Version, "data_dir", rt.DataDir)
+	code := cli.Execute(args, cli.Deps{
+		Service: rt.Service,
+		Logger:  rt.Logger,
+		DataDir: rt.DataDir,
+		Version: Version,
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+		Now:     time.Now,
+	})
+	rt.Logger.Info("命令行结束", "exit_code", code)
+	return code
+}
+
+// UsageError 输出用法错误并以 2 退出
+func UsageError(args []string) int {
+	if len(args) == 0 {
+		return cli.UsageError(os.Stderr, "缺少命令")
+	}
+	return cli.UsageError(os.Stderr, fmt.Sprintf("无法识别的参数 %q", args[0]))
+}
+
+// extractDataDirArgs 只保留 --data-dir，供 Open 解析；其余参数留给子命令
+func extractDataDirArgs(args []string) ([]string, error) {
+	out := make([]string, 0, 2)
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; {
+		case a == "--data-dir":
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("--data-dir 缺少路径")
+			}
+			out = append(out, "--data-dir", args[i+1])
+			i++
+		case strings.HasPrefix(a, "--data-dir="):
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func hasVerbose(args []string) bool {
+	for _, a := range args {
+		switch a {
+		case "--verbose", "-verbose", "--verbose=true", "-verbose=true":
+			return true
+		}
+	}
+	return false
+}
+
+// Run 启动 Wails 应用，阻塞到窗口关闭
+func Run(assets fs.FS) error {
+	rt, err := Open(os.Args[1:], "catcher.log")
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+
+	h := handle.New(rt.Service)
+
+	rt.Logger.Info("应用启动",
+		"version", Version,
+		"data_dir", rt.DataDir,
+		"log_level", rt.Config.Log.Level,
+	)
 
 	wailsErr := wails.Run(&options.App{
 		Title:     "Catcher",
@@ -223,14 +354,14 @@ func Run(assets fs.FS) error {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: windowBackground(cfg.UI.Theme),
+		BackgroundColour: windowBackground(rt.Config.UI.Theme),
 		Windows: &windows.Options{
 			// 原生标题栏跟随 ui.theme，否则深色页面会顶一条白色横栏
-			Theme: windowTheme(cfg.UI.Theme),
+			Theme: windowTheme(rt.Config.UI.Theme),
 		},
 		OnStartup: h.Startup,
 		OnShutdown: func(context.Context) {
-			shutdown()
+			rt.Close()
 		},
 		Bind: []interface{}{h},
 	})
