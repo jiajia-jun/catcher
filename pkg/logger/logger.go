@@ -30,7 +30,10 @@ type Logger interface {
 
 // Options 配置 Logger，Dir 为空时只输出到 Console（或丢弃）
 type Options struct {
-	Dir        string
+	Dir string
+	// FileName 是目录内的日志文件名，留空使用 catcher.log
+	// 桌面版与命令行写不同文件，避免 lumberjack 轮转时互相改名
+	FileName   string
 	Level      string
 	MaxSizeMB  int
 	MaxBackups int
@@ -61,8 +64,12 @@ func New(opts Options) (Logger, io.Closer, error) {
 		if err := os.MkdirAll(opts.Dir, 0o750); err != nil {
 			return nil, nil, fmt.Errorf("创建日志目录失败: %w", err)
 		}
+		name := opts.FileName
+		if name == "" {
+			name = "catcher.log"
+		}
 		file = &lumberjack.Logger{
-			Filename:   filepath.Join(opts.Dir, "catcher.log"),
+			Filename:   filepath.Join(opts.Dir, name),
 			MaxSize:    positive(opts.MaxSizeMB, 20),
 			MaxBackups: positive(opts.MaxBackups, 5),
 			MaxAge:     positive(opts.MaxAgeDays, 14),
