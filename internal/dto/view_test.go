@@ -1,4 +1,4 @@
-package handle
+package dto
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 )
 
 // 手动值优先展示，平台原值仍要带出去给界面做提示
-func TestToAssignmentViewUsesEffectiveStatus(t *testing.T) {
+func TestAssignmentViewOfUsesEffectiveStatus(t *testing.T) {
 	deadline := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
 	manual := entity.StatusSubmitted
 	markedAt := time.Date(2026, 10, 24, 8, 30, 0, 0, time.UTC)
@@ -26,7 +26,7 @@ func TestToAssignmentViewUsesEffectiveStatus(t *testing.T) {
 		CourseExternalID: "1001",
 	}
 
-	view := toAssignmentView(item, markedAt)
+	view := AssignmentViewOf(item, markedAt)
 
 	if view.Status != string(entity.StatusSubmitted) {
 		t.Fatalf("有效状态 = %s, want submitted", view.Status)
@@ -46,7 +46,7 @@ func TestToAssignmentViewUsesEffectiveStatus(t *testing.T) {
 }
 
 // detail_url 有一部分来自平台 HTML，非 http/https 一律置空
-func TestToAssignmentViewSanitizesDetailURL(t *testing.T) {
+func TestAssignmentViewOfSanitizesDetailURL(t *testing.T) {
 	cases := []struct {
 		name string
 		raw  string
@@ -65,7 +65,7 @@ func TestToAssignmentViewSanitizesDetailURL(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			item := entity.Assignment{DetailURL: c.raw}
-			if got := toAssignmentView(item, time.Now()).DetailURL; got != c.want {
+			if got := AssignmentViewOf(item, time.Now()).DetailURL; got != c.want {
 				t.Fatalf("DetailURL = %q, want %q", got, c.want)
 			}
 		})
@@ -73,12 +73,12 @@ func TestToAssignmentViewSanitizesDetailURL(t *testing.T) {
 }
 
 // 手动值为空时，有效状态与平台状态一致
-func TestToAssignmentViewWithoutManualStatus(t *testing.T) {
+func TestAssignmentViewOfWithoutManualStatus(t *testing.T) {
 	item := entity.Assignment{
 		Platform: entity.PlatformChaoxing,
 		Status:   entity.StatusUnsubmitted,
 	}
-	view := toAssignmentView(item, time.Now())
+	view := AssignmentViewOf(item, time.Now())
 	if view.Status != string(entity.StatusUnsubmitted) {
 		t.Fatalf("有效状态 = %s", view.Status)
 	}

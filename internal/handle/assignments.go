@@ -36,7 +36,7 @@ func (a *App) ListAssignments(filter dto.AssignmentFilter) (res dto.AssignmentLi
 	now := time.Now()
 	views := make([]dto.AssignmentView, 0, len(items))
 	for _, item := range items {
-		views = append(views, toAssignmentView(item, now))
+		views = append(views, dto.AssignmentViewOf(item, now))
 	}
 	return dto.AssignmentListResult{OK: true, Items: views, Total: len(views)}
 }
@@ -85,7 +85,7 @@ func (a *App) SetAssignmentStatus(req dto.AssignmentStatusRequest) (res dto.Assi
 		}
 	}
 
-	view := toAssignmentView(item, time.Now())
+	view := dto.AssignmentViewOf(item, time.Now())
 	return dto.AssignmentStatusResult{OK: true, Item: &view}
 }
 

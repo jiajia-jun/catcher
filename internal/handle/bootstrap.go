@@ -2,8 +2,6 @@ package handle
 
 import (
 	"fmt"
-	"net/url"
-	"strings"
 	"time"
 
 	"catcher/internal/domain/entity"
@@ -82,59 +80,3 @@ func countsView(c service.Counts) dto.CountsView {
 		Submitted:          c.Submitted,
 	}
 }
-
-func toAssignmentView(a entity.Assignment, now time.Time) dto.AssignmentView {
-	view := dto.AssignmentView{
-		ID:               a.ID,
-		Platform:         string(a.Platform),
-		CourseName:       a.CourseName,
-		CourseExternalID: a.CourseExternalID,
-		Title:            a.Title,
-		Status:           string(a.EffectiveStatus()),
-		PlatformStatus:   string(a.Status),
-		Phase:            string(entity.PhaseOf(a.Deadline, now)),
-		DeadlineSource:   string(a.DeadlineSource),
-		DeadlineRaw:      a.DeadlineRaw,
-		DetailURL:        safeDetailURL(a.DetailURL),
-		FirstSeenAt:      a.FirstSeenAt.UTC().Format(time.RFC3339),
-		LastSeenAt:       a.LastSeenAt.UTC().Format(time.RFC3339),
-	}
-	if a.ManualStatus != nil {
-		view.ManualStatus = string(*a.ManualStatus)
-	}
-	if a.ManualStatusAt != nil {
-		view.ManualStatusAt = a.ManualStatusAt.UTC().Format(time.RFC3339)
-	}
-	if a.Deadline != nil {
-		view.DeadlineAt = a.Deadline.UTC().Format(time.RFC3339)
-		view.DeadlineLocal = a.Deadline.In(shanghai).Format("2006-01-02 15:04")
-	}
-	return view
-}
-
-// safeDetailURL 只放行绝对 http/https 地址
-// 平台 HTML 里的链接按不可信输入处理
-func safeDetailURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	if !strings.EqualFold(u.Scheme, "http") && !strings.EqualFold(u.Scheme, "https") {
-		return ""
-	}
-	if u.Host == "" {
-		return ""
-	}
-	return raw
-}
-
-var shanghai = func() *time.Location {
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		return time.FixedZone("CST", 8*3600)
-	}
-	return loc
-}()
