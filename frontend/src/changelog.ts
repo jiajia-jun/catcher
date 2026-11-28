@@ -8,6 +8,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.6.0',
+    date: '2026-11-28',
+    items: [
+      '新增命令行入口，支持 agent 工具调用',
+    ],
+  },
+  {
     version: '1.5.1',
     date: '2026-11-24',
     items: [

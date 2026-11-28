@@ -33,6 +33,7 @@
 - Refresh per platform, with cancel and progress; one platform failing does not affect the other
 - **Manual marking** for platforms that do not expose submission status; restore the platform value at any time
 - Check for updates on startup; show the changelog after an upgrade
+- [Command-line usage](docs/CLI.md), including **agent tool invocation**
 - All data stays on this machine and is **never uploaded to any server**
 
 ## Installation
